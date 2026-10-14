@@ -118,4 +118,46 @@ describe('Repository', () => {
     expect(lines.commits.map((c) => c.subject)).toEqual(['change two', 'add']);
     expect(lines.paths[lines.commits[1].hash]).toBe('old.txt');
   });
+
+  it('commits only selected files, including a new one, and rolls back the rest', async () => {
+    const dir = path.join(work, 'commit');
+    git(work, 'init', '-q', '-b', 'main', dir);
+    git(dir, 'config', 'user.name', 'T');
+    git(dir, 'config', 'user.email', 't@x');
+    commitFile(dir, 'a.txt', 'a\n', 'init');
+    commitFile(dir, 'b.txt', 'b\n', 'init b');
+    writeFileSync(path.join(dir, 'a.txt'), 'a2\n');
+    writeFileSync(path.join(dir, 'b.txt'), 'b2\n');
+    writeFileSync(path.join(dir, 'new.txt'), 'n\n');
+    writeFileSync(path.join(dir, 'other.txt'), 'o\n');
+    const repository = (await Repository.open(dir))!;
+
+    const before = await repository.workingChanges();
+    expect(before.tracked.map((c) => c.path)).toEqual(['a.txt', 'b.txt']);
+    expect(before.untracked).toEqual(['new.txt', 'other.txt']);
+
+    await repository.commitFiles({
+      message: 'only a and new\n\nbody',
+      paths: ['a.txt'],
+      untracked: ['new.txt'],
+      amend: false,
+    });
+    expect(git(dir, 'show', '--name-only', '--format=%s', 'HEAD').trim().split('\n')).toEqual([
+      'only a and new',
+      '',
+      'a.txt',
+      'new.txt',
+    ]);
+    const after = await repository.workingChanges();
+    expect(after.tracked.map((c) => c.path)).toEqual(['b.txt']);
+    expect(after.untracked).toEqual(['other.txt']);
+
+    await repository.commitFiles({ message: 'renamed message', paths: [], untracked: [], amend: true });
+    expect(await repository.lastCommitMessage()).toBe('renamed message');
+    expect((await repository.workingChanges()).tracked.map((c) => c.path)).toEqual(['b.txt']);
+
+    await repository.rollback(['b.txt']);
+    expect((await repository.workingChanges()).tracked).toEqual([]);
+    expect(await repository.recentMessages()).toEqual(['renamed message', 'init b', 'init']);
+  });
 });

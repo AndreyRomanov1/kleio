@@ -1,8 +1,9 @@
 import * as path from 'node:path';
-import type { CommitDetails, FileChange, Head, Ref, RepositorySnapshot } from '../../shared/model';
+import type { CommitDetails, FileChange, Head, Ref, RepositorySnapshot, Stash } from '../../shared/model';
 import { GitRunner } from './gitRunner';
 import {
   FIELD,
+  RECORD,
   HISTORY_FORMAT,
   LOG_FORMAT,
   parseBlame,
@@ -22,6 +23,12 @@ import {
 
 /** Pseudo-revision for files on disk. */
 export const WORKTREE = 'WORKTREE';
+
+export interface WorkingChanges {
+  tracked: FileChange[];
+  untracked: string[];
+  conflicted: string[];
+}
 
 export interface LogFilter {
   /** Revisions to show history of; all refs when empty. */
@@ -197,6 +204,90 @@ export class Repository {
   async lineHistory(filePath: string, start: number, end: number): Promise<FileHistory> {
     const output = await this.git.run(['log', `-L${start},${end}:${filePath}`, `--format=${HISTORY_FORMAT}`]);
     return parseHistory(output);
+  }
+
+  /** Uncommitted changes relative to HEAD, unversioned files and files with merge conflicts. */
+  async workingChanges(): Promise<WorkingChanges> {
+    const hasHead = (await this.head()).hash !== undefined;
+    const [tracked, untracked, conflicted] = await Promise.all([
+      hasHead
+        ? this.changes('HEAD', WORKTREE)
+        : this.git.run(['diff', '--cached', '--name-status', '-z']).then(parseNameStatus),
+      this.git.run(['ls-files', '--others', '--exclude-standard', '-z']),
+      this.git.run(['diff', '--name-only', '--diff-filter=U', '-z']),
+    ]);
+    return {
+      tracked,
+      untracked: untracked.split('\0').filter(Boolean),
+      conflicted: conflicted.split('\0').filter(Boolean),
+    };
+  }
+
+  /**
+   * Commits only the given files, leaving other changes (staged or not) as they are. Unversioned files are
+   * added with intent-to-add first, so that `commit --only` picks them up.
+   */
+  async commitFiles(options: {
+    message: string;
+    paths: string[];
+    untracked: string[];
+    amend: boolean;
+  }): Promise<void> {
+    if (options.untracked.length) await this.git.run(['add', '--intent-to-add', '--', ...options.untracked]);
+    const args = ['commit', '--only', '--cleanup=strip', '-F', '-'];
+    if (options.amend) args.push('--amend');
+    const paths = [...options.paths, ...options.untracked];
+    if (paths.length) args.push('--', ...paths);
+    await this.git.run(args, { input: options.message });
+  }
+
+  /** Discards changes of tracked files, including newly added ones. */
+  async rollback(paths: string[]): Promise<void> {
+    if (paths.length)
+      await this.git.run(['restore', '--source=HEAD', '--staged', '--worktree', '--', ...paths]);
+  }
+
+  async stashSave(message: string, includeUntracked: boolean): Promise<void> {
+    const args = ['stash', 'push'];
+    if (includeUntracked) args.push('--include-untracked');
+    if (message.trim()) args.push('-m', message.trim());
+    await this.git.run(args);
+  }
+
+  async stashApply(selector: string, pop: boolean): Promise<void> {
+    await this.git.run(['stash', pop ? 'pop' : 'apply', selector]);
+  }
+
+  async stashDrop(selector: string): Promise<void> {
+    await this.git.run(['stash', 'drop', selector]);
+  }
+
+  async stashes(): Promise<Stash[]> {
+    return parseStashes(await this.git.run(['stash', 'list', `--format=${STASH_FORMAT}`]));
+  }
+
+  /** Pushes the current branch, setting its upstream on the first push. */
+  async push(): Promise<void> {
+    const upstream = await this.git.run(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], {
+      allowExitCodes: [128],
+    });
+    await this.git.run(upstream.trim() ? ['push'] : ['push', '--set-upstream', 'origin', 'HEAD']);
+  }
+
+  async lastCommitMessage(): Promise<string> {
+    return (await this.git.run(['log', '-1', '--format=%B'])).trimEnd();
+  }
+
+  /** Subjects of the latest commits by the configured user, for the commit message history. */
+  async recentMessages(limit = 30): Promise<string[]> {
+    const email = (await this.git.run(['config', 'user.email'], { allowExitCodes: [1] })).trim();
+    const args = ['log', `-n${limit}`, '--format=%B%x1e'];
+    if (email) args.push(`--author=${email}`);
+    const output = await this.git.run(args);
+    return output
+      .split(RECORD)
+      .map((m) => m.trim())
+      .filter(Boolean);
   }
 
   async refs(): Promise<Ref[]> {
