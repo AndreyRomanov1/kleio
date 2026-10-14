@@ -338,6 +338,32 @@ const tests: Test[] = [
     },
   ],
   [
+    'melds a commit into the previous one inside the editor environment',
+    async (api) => {
+      const git = (...args: string[]) => execFileSync('git', args, { cwd: root(), encoding: 'utf8' });
+      const before = git('rev-parse', 'HEAD').trim();
+      const write = (name: string) => require('node:fs').writeFileSync(path.join(root(), name), `${name}\n`);
+      write('one.txt');
+      git('add', 'one.txt');
+      git('commit', '-q', '-m', 'one');
+      write('two.txt');
+      git('add', 'two.txt');
+      git('commit', '-q', '-m', 'two');
+      try {
+        const repository = (await api.repositories.get(root()))!;
+        await api.rebase.fixupIntoParent(repository, git('rev-parse', 'HEAD').trim());
+        assert.equal(git('log', '-1', '--format=%s').trim(), 'one');
+        assert.equal(git('rev-parse', 'HEAD~1').trim(), before);
+        assert.deepEqual(git('show', '--name-only', '--format=', 'HEAD').trim().split('\n'), [
+          'one.txt',
+          'two.txt',
+        ]);
+      } finally {
+        git('reset', '-q', '--hard', before);
+      }
+    },
+  ],
+  [
     'opens the log in an editor tab',
     async (api) => {
       const panel = api.logs.openInEditor();

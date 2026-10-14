@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -171,6 +171,7 @@ describe('Repository', () => {
     commitFile(dir, 'staged.txt', 's\n', 'staged');
     const changed = [...lines];
     changed[1] = 'line 2 changed';
+    changed[6] = 'line 7 changed';
     changed[17] = 'line 18 changed';
     writeFileSync(path.join(dir, 'a.txt'), changed.join('\n') + '\n');
     writeFileSync(path.join(dir, 'staged.txt'), 's staged\n');
@@ -179,16 +180,17 @@ describe('Repository', () => {
     const repository = (await Repository.open(dir))!;
 
     const patch = await repository.workingPatch('a.txt');
-    expect(patch.hunks).toHaveLength(2);
+    expect(patch.hunks).toHaveLength(3);
     await repository.commitFiles({
-      message: 'only line 18',
+      message: 'lines 7 and 18',
       paths: [],
       untracked: ['new.txt'],
       amend: false,
-      hunks: { 'a.txt': [patch.hunks[1].key] },
+      hunks: { 'a.txt': [patch.hunks[1].key, patch.hunks[2].key] },
     });
 
     expect(git(dir, 'show', 'HEAD:a.txt').split('\n')[1]).toBe('line 2');
+    expect(git(dir, 'show', 'HEAD:a.txt').split('\n')[6]).toBe('line 7 changed');
     expect(git(dir, 'show', 'HEAD:a.txt').split('\n')[17]).toBe('line 18 changed');
     expect(git(dir, 'show', '--name-only', '--format=', 'HEAD').trim().split('\n')).toEqual([
       'a.txt',
@@ -207,5 +209,55 @@ describe('Repository', () => {
         hunks: { 'a.txt': ['gone'] },
       }),
     ).rejects.toThrow(/изменился/);
+  });
+
+  it('commits a later hunk while skipping an earlier one that adds lines', async () => {
+    const dir = path.join(work, 'hunks-shift');
+    git(work, 'init', '-q', '-b', 'main', dir);
+    git(dir, 'config', 'user.name', 'T');
+    git(dir, 'config', 'user.email', 't@x');
+    const lines = Array.from({ length: 12 }, (_, i) => `line ${i + 1}`);
+    commitFile(dir, 'a.txt', lines.join('\n') + '\n', 'init');
+    const changed = [...lines.slice(0, 2), 'new A', 'new B', ...lines.slice(2)];
+    changed[9] = 'line 8 changed';
+    changed.splice(12, 1);
+    writeFileSync(path.join(dir, 'a.txt'), changed.join('\n') + '\n');
+    const repository = (await Repository.open(dir))!;
+
+    const patch = await repository.workingPatch('a.txt');
+    expect(patch.hunks.map((h) => [h.oldStart, h.oldLines, h.newStart, h.newLines])).toEqual([
+      [2, 0, 3, 2],
+      [8, 1, 10, 1],
+      [11, 1, 12, 0],
+    ]);
+    await repository.commitFiles({
+      message: 'only line 8 and the removal',
+      paths: [],
+      untracked: [],
+      amend: false,
+      hunks: { 'a.txt': [patch.hunks[1].key, patch.hunks[2].key] },
+    });
+    const expected = [...lines];
+    expected[7] = 'line 8 changed';
+    expected.splice(10, 1);
+    expect(git(dir, 'show', 'HEAD:a.txt')).toBe(expected.join('\n') + '\n');
+    expect(readFileSync(path.join(dir, 'a.txt'), 'utf8')).toBe(changed.join('\n') + '\n');
+  });
+
+  it('rolls back chosen hunks of a file and keeps its other changes', async () => {
+    const dir = path.join(work, 'hunks-rollback');
+    git(work, 'init', '-q', '-b', 'main', dir);
+    const lines = Array.from({ length: 10 }, (_, i) => `line ${i + 1}`);
+    commitFile(dir, 'a.txt', lines.join('\n') + '\n', 'init');
+    const changed = ['line 1', 'added', ...lines.slice(1)];
+    changed[8] = 'line 8 changed';
+    writeFileSync(path.join(dir, 'a.txt'), changed.join('\n') + '\n');
+    const repository = (await Repository.open(dir))!;
+
+    const patch = await repository.workingPatch('a.txt');
+    await repository.rollbackHunks('a.txt', [patch.hunks[0].key]);
+    const expected = [...lines];
+    expected[7] = 'line 8 changed';
+    expect(readFileSync(path.join(dir, 'a.txt'), 'utf8')).toBe(expected.join('\n') + '\n');
   });
 });

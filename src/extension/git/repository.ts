@@ -246,10 +246,13 @@ export class Repository {
     };
   }
 
-  /** Uncommitted changes of a tracked file against HEAD, split into hunks. */
+  /**
+   * Uncommitted changes of a tracked file against HEAD, split into hunks without context lines, so that every
+   * change the diff editor shows is a hunk of its own (with context, git glues changes a few lines apart).
+   */
   async workingPatch(filePath: string): Promise<FilePatch> {
     return parseFilePatch(
-      await this.git.run(['diff', '--no-ext-diff', '--no-color', '-U3', 'HEAD', '--', filePath]),
+      await this.git.run(['diff', '--no-ext-diff', '--no-color', '-U0', 'HEAD', '--', filePath]),
     );
   }
 
@@ -300,7 +303,7 @@ export class Repository {
       const whole = [...options.paths, ...options.untracked];
       if (whole.length) await this.git.run(['add', '-A', '--', ...whole], { env });
       for (const patch of patches) {
-        await this.git.run(['apply', '--cached', '--recount', '--whitespace=nowarn', '-'], {
+        await this.git.run(['apply', '--cached', '--unidiff-zero', '--whitespace=nowarn', '-'], {
           env,
           input: patch,
         });
@@ -313,6 +316,17 @@ export class Repository {
     }
     const committed = [...options.paths, ...options.untracked, ...partial.map(([p]) => p)];
     await this.git.run(['reset', '-q', '--', ...committed]);
+  }
+
+  /** Discards the given hunks of a file in the working tree, keeping its other changes. */
+  async rollbackHunks(filePath: string, keys: string[]): Promise<void> {
+    const patch = await this.workingPatch(filePath);
+    const known = new Set(patch.hunks.map((h) => h.key));
+    if (keys.some((k) => !known.has(k)))
+      throw new Error(`Файл ${filePath} изменился — обновите список и повторите откат.`);
+    await this.git.run(['apply', '-R', '--unidiff-zero', '--whitespace=nowarn', '-'], {
+      input: selectHunks(patch, new Set(keys)),
+    });
   }
 
   /** Discards changes of tracked files, including newly added ones. */
@@ -423,7 +437,10 @@ export class Repository {
     for (const [name, message] of messages) await writeFile(path.join(dir, name), message + '\n', 'utf8');
     const todoFile = path.join(dir, 'todo.txt');
     await writeFile(todoFile, todo, 'utf8');
-    const copyTodo = `cp '${todoFile.replace(/\\/g, '/').replace(/'/g, `'\\''`)}'`;
+    // Shell builtins only: external tools like `cp` may not start inside the editor's environment (an AppImage
+    // puts its own libraries first), and git for Windows has the same shell.
+    const source = `'${todoFile.replace(/\\/g, '/').replace(/'/g, `'\\''`)}'`;
+    const copyTodo = `copy() { while IFS= read -r line || [ -n "$line" ]; do printf '%s\\n' "$line"; done < ${source} > "$1"; }; copy`;
     return this.runOperation(['rebase', '-i', '--autostash', '--no-autosquash', base ?? '--root'], {
       GIT_SEQUENCE_EDITOR: copyTodo,
     });
