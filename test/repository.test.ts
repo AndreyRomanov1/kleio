@@ -190,13 +190,22 @@ describe('Repository', () => {
 
     expect(git(dir, 'show', 'HEAD:a.txt').split('\n')[1]).toBe('line 2');
     expect(git(dir, 'show', 'HEAD:a.txt').split('\n')[17]).toBe('line 18 changed');
-    expect(git(dir, 'show', '--name-only', '--format=', 'HEAD').trim().split('\n')).toEqual(['a.txt', 'new.txt']);
+    expect(git(dir, 'show', '--name-only', '--format=', 'HEAD').trim().split('\n')).toEqual([
+      'a.txt',
+      'new.txt',
+    ]);
     expect(git(dir, 'diff', '--name-only').trim()).toBe('a.txt');
     expect(git(dir, 'diff', '-U0', 'a.txt')).toContain('+line 2 changed');
     expect(git(dir, 'diff', '--cached', '--name-only').trim()).toBe('staged.txt');
 
     await expect(
-      repository.commitFiles({ message: 'x', paths: [], untracked: [], amend: false, hunks: { 'a.txt': ['gone'] } }),
+      repository.commitFiles({
+        message: 'x',
+        paths: [],
+        untracked: [],
+        amend: false,
+        hunks: { 'a.txt': ['gone'] },
+      }),
     ).rejects.toThrow(/изменился/);
   });
 });

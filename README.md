@@ -47,8 +47,9 @@ The UI is in Russian for now.
   commit, drop, and squash or drop of several selected commits. Merges in the range are not rebuilt.
 - **Conflicts** as in Rider: when a merge, rebase or cherry-pick stops, a window lists the conflicted files
   with the real names of both sides, takes one side for the selected files, or opens the built-in three-way
-  merge editor. A file saved without conflict markers is marked resolved; when none are left, the operation
-  can go on.
+  merge editor; "Complete merge" there (✓ in the title, `Ctrl+Enter`) marks the file resolved. A file whose
+  markers were removed by hand in a plain editor is marked resolved on save. When none are left, the
+  operation can go on.
 - **Push dialog** as in Rider: outgoing commits of the current branch and of other branches ahead of their
   upstream, their files and diffs, the remote branch name for a new branch. A diverged branch is pushed only
   with force-with-lease against the remote state seen in the dialog, and never into

@@ -2,7 +2,7 @@
   "name": "grove",
   "displayName": "Grove",
   "description": "JetBrains-style Git log, diff and history for VS Code",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "publisher": "aroma",
   "license": "MIT",
   "private": true,
@@ -255,7 +255,7 @@
       },
       {
         "command": "grove.conflicts.markResolved",
-        "title": "Отметить как разрешённый",
+        "title": "Завершить слияние и отметить как разрешённый",
         "category": "Grove",
         "icon": "$(check)"
       }
@@ -341,7 +341,7 @@
         },
         {
           "command": "grove.conflicts.markResolved",
-          "when": "isMergeEditor",
+          "when": "isMergeEditor && mergeEditorBaseUri =~ /^grove:/",
           "group": "navigation@-30"
         }
       ],
@@ -424,7 +424,7 @@
         },
         {
           "command": "grove.conflicts.markResolved",
-          "when": "isMergeEditor"
+          "when": "isMergeEditor || editorTextFocus"
         }
       ],
       "editor/lineNumber/context": [
@@ -564,6 +564,12 @@
         "command": "grove.diff.openCurrent",
         "key": "f4",
         "when": "grove.inChangeSet && textCompareEditorVisible"
+      },
+      {
+        "key": "ctrl+enter",
+        "mac": "cmd+enter",
+        "command": "grove.conflicts.markResolved",
+        "when": "isMergeEditor && mergeEditorBaseUri =~ /^grove:/"
       }
     ],
     "submenus": [

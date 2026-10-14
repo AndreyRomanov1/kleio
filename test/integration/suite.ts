@@ -279,15 +279,20 @@ const tests: Test[] = [
     },
   ],
   [
-    'merges a conflicted file in the merge editor and marks it resolved on save',
+    'merges a conflicted file in the merge editor: saving keeps the conflict, completing resolves it',
     async (api) => {
       const git = (...args: string[]) => execFileSync('git', args, { cwd: root(), encoding: 'utf8' });
-      const write = (text: string) => require('node:fs').writeFileSync(path.join(root(), 'b.txt'), text);
+      const file = path.join(root(), 'limit.txt');
+      const write = (text: string) => require('node:fs').writeFileSync(file, text);
+      const source = (body: string) => `class Limit {\n  calc(amount) {\n    return ${body};\n  }\n}\n`;
+      write(source('amount * 0.9'));
+      git('add', 'limit.txt');
+      git('commit', '-q', '-m', 'limit');
       git('checkout', '-q', '-b', 'side');
-      write('side\n');
+      write(source('round(amount * 0.85)'));
       git('commit', '-q', '-am', 'side');
       git('checkout', '-q', 'main');
-      write('main\n');
+      write(source('amount * 0.9 - fee(amount)'));
       git('commit', '-q', '-am', 'main');
       try {
         try {
@@ -298,31 +303,36 @@ const tests: Test[] = [
         const repository = (await api.repositories.get(root()))!;
         assert.deepEqual(
           (await repository.conflicts()).map((f) => f.path),
-          ['b.txt'],
+          ['limit.txt'],
         );
-        await api.conflicts.openMerge(repository, 'b.txt');
+        await api.conflicts.openMerge(repository, 'limit.txt');
         const merge = await waitFor(() => {
           const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input as
             { result?: vscode.Uri; input1?: vscode.Uri } | undefined;
           return input?.result ? input : undefined;
         }, 'merge editor');
         assert.equal(merge.input1?.scheme, REVISION_SCHEME);
+        // The editor loads both sides and computes the conflicts before it takes commands.
+        await wait(4000);
 
-        const document = await vscode.workspace.openTextDocument(vscode.Uri.file(path.join(root(), 'b.txt')));
-        // The editor picks up the conflict markers git wrote a moment ago.
-        await waitFor(() => (document.getText().includes('<<<<<<<') ? true : undefined), 'markers loaded');
-        const edit = new vscode.WorkspaceEdit();
-        edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), 'main and side\n');
-        await vscode.workspace.applyEdit(edit);
+        // A save of a file open in the merge editor does not count as resolving it.
+        const document = await vscode.workspace.openTextDocument(merge.result!);
         await document.save();
+        await wait(500);
+        assert.equal((await repository.conflicts()).length, 1, 'saving in the merge editor does not resolve');
+
+        await vscode.commands.executeCommand('mergeEditor.acceptAllCombination');
+        await vscode.commands.executeCommand('grove.conflicts.markResolved');
         await waitFor(
           async () => ((await repository.conflicts()).length === 0 ? true : undefined),
           'resolved',
         );
-        assert.equal(git('diff', '--cached', '--name-only').trim(), 'b.txt');
+        const merged = require('node:fs').readFileSync(file, 'utf8');
+        assert.match(merged, /round\(amount \* 0\.85\) - fee\(amount\)/);
+        assert.equal(git('diff', '--cached', '--name-only').trim(), 'limit.txt');
       } finally {
         git('merge', '--abort');
-        git('reset', '-q', '--hard', 'HEAD~1');
+        git('reset', '-q', '--hard', 'HEAD~2');
         git('branch', '-q', '-D', 'side');
       }
     },

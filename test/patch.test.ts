@@ -39,6 +39,8 @@ describe('parseFilePatch', () => {
   });
 
   it('has no hunks for a binary file', () => {
-    expect(parseFilePatch('diff --git a/x.png b/x.png\nBinary files a/x.png and b/x.png differ\n').hunks).toEqual([]);
+    expect(
+      parseFilePatch('diff --git a/x.png b/x.png\nBinary files a/x.png and b/x.png differ\n').hunks,
+    ).toEqual([]);
   });
 });

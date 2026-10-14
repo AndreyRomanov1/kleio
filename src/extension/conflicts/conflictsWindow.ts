@@ -151,6 +151,9 @@ export class ConflictsWindow implements vscode.Disposable {
   /** Marks a conflicted file resolved once it is saved without conflict markers. */
   private async resolveSaved(document: vscode.TextDocument): Promise<void> {
     if (document.uri.scheme !== 'file') return;
+    // The merge editor keeps unhandled conflicts as the base text, without markers: its result is resolved
+    // only by "Complete Merge".
+    if (mergeEditorResults().some((uri) => uri.toString() === document.uri.toString())) return;
     const repository = this.repositories.repositoryFor(document.uri);
     if (!repository) return;
     const relative = path.relative(repository.root, document.uri.fsPath).split(path.sep).join('/');
@@ -162,25 +165,34 @@ export class ConflictsWindow implements vscode.Disposable {
     if (left > 0) {
       vscode.window.setStatusBarMessage(`Grove: ${relative} — конфликт разрешён, осталось ${left}`, 5000);
     } else {
-      const next = `Продолжить ${operationNames[state.kind]}`;
-      const choice = await vscode.window.showInformationMessage('Все конфликты разрешены.', next);
-      if (choice === next) await this.sync.continueOperation(repository, state.kind);
+      this.offerToContinue(repository, state.kind);
     }
     if (this.panel && repository === this.repository) await this.load();
   }
 
   /** "Mark as resolved" in the title of the merge editor, for a result saved earlier or kept as is. */
+  /**
+   * "Complete merge" in the merge editor: its own command asks about unhandled conflicts, saves and closes;
+   * then the file is marked resolved. In a plain editor the file is saved and marked, with a warning about
+   * markers left in it.
+   */
   private async markActiveResolved(): Promise<void> {
-    // The merge editor tab has `result`; its input type is not in the stable API yet.
     const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input as { result?: unknown } | undefined;
-    const uri =
-      input?.result instanceof vscode.Uri ? input.result : vscode.window.activeTextEditor?.document.uri;
+    const merging = input?.result instanceof vscode.Uri ? input.result : undefined;
+    const uri = merging ?? vscode.window.activeTextEditor?.document.uri;
     if (!uri || uri.scheme !== 'file') return;
-    const document = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());
-    if (document?.isDirty) await document.save();
     const repository = this.repositories.repositoryFor(uri);
     if (!repository) return;
-    const text = document?.getText() ?? (await vscode.workspace.fs.readFile(uri)).toString();
+    if (merging) {
+      const outcome = await vscode.commands.executeCommand<{ successful?: boolean } | undefined>(
+        'mergeEditor.acceptMerge',
+      );
+      if (outcome?.successful === false) return;
+    } else {
+      const document = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());
+      if (document?.isDirty) await document.save();
+    }
+    const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
     if (MARKERS.test(text)) {
       const ok = await vscode.window.showWarningMessage(
         'В файле остались маркеры конфликта. Всё равно отметить как разрешённый?',
@@ -192,8 +204,23 @@ export class ConflictsWindow implements vscode.Disposable {
     const relative = path.relative(repository.root, uri.fsPath).split(path.sep).join('/');
     await repository.markResolved([relative]);
     this.repositories.notifyChanged(repository);
-    await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+    if (!merging) await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+    const left = (await repository.conflicts()).length;
+    const state = await repository.operation();
+    if (left === 0 && state) {
+      this.offerToContinue(repository, state.kind);
+    } else {
+      vscode.window.setStatusBarMessage(`Grove: ${relative} — конфликт разрешён, осталось ${left}`, 5000);
+    }
     if (this.panel && repository === this.repository) await this.load();
+  }
+
+  /** Offers to go on once no conflicts are left; not awaited, so the command that resolved them returns. */
+  private offerToContinue(repository: Repository, kind: OperationState['kind']): void {
+    const next = `Продолжить ${operationNames[kind]}`;
+    void vscode.window.showInformationMessage('Все конфликты разрешены.', next).then(async (choice) => {
+      if (choice === next) await this.sync.continueOperation(repository, kind);
+    });
   }
 
   private async describeSides(
@@ -208,10 +235,12 @@ export class ConflictsWindow implements vscode.Disposable {
       case 'merge':
         return { ours: current, theirs: onto };
       case 'rebase': {
-        const applied = state.stoppedAt
-          ? await this.commit(repository, state.stoppedAt)
-          : 'применяемый коммит';
-        return { ours: `${onto} (база rebase)`, theirs: `${state.branch ?? 'ветка'}: ${applied}` };
+        if (!state.stoppedAt)
+          return { ours: `${onto} (база rebase)`, theirs: state.branch ?? 'применяемый коммит' };
+        const applied = await this.commit(repository, state.stoppedAt);
+        // A subject usually starts with the ticket the branch is named after; the branch is not repeated then.
+        const branch = state.branch && !applied.includes(state.branch) ? `${state.branch} · ` : '';
+        return { ours: `${onto} (база rebase)`, theirs: `${branch}${applied}` };
       }
       case 'cherry-pick':
       case 'revert':
@@ -246,7 +275,7 @@ export class ConflictsWindow implements vscode.Disposable {
   private async commit(repository: Repository, hash: string): Promise<string> {
     const details = await repository.commitDetails(hash);
     const subject = details.message.split('\n')[0];
-    return `${hash.slice(0, 8)} ${subject.length > 50 ? subject.slice(0, 49) + '…' : subject}`;
+    return `${hash.slice(0, 8)} ${subject.length > 40 ? subject.slice(0, 39) + '…' : subject}`;
   }
 
   private post(message: ConflictsHostMessage): void {
@@ -257,4 +286,12 @@ export class ConflictsWindow implements vscode.Disposable {
     this.panel?.dispose();
     for (const d of this.disposables) d.dispose();
   }
+}
+
+/** Result files of the merge editors that are open; their input type is not in the stable API yet. */
+function mergeEditorResults(): vscode.Uri[] {
+  return vscode.window.tabGroups.all
+    .flatMap((group) => group.tabs)
+    .map((tab) => (tab.input as { result?: unknown } | undefined)?.result)
+    .filter((uri): uri is vscode.Uri => uri instanceof vscode.Uri);
 }
