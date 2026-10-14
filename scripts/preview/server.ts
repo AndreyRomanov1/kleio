@@ -1,8 +1,9 @@
 /**
  * Development preview of the Grove webviews in a regular browser, backed by a real repository.
  * Serves dist/webview.* with a fake VS Code API and answers webview messages over HTTP.
- * The log is at `/`, the commit view at `/commit`, the push dialog at `/push`; they never commit or push, only
- * record the request (`GET /last-commit`, `GET /last-push`), so the preview is safe on any repository.
+ * The log is at `/`, the commit view at `/commit`, the push and rebase dialogs at `/push` and `/rebase`; they
+ * never commit, push or rebase, only record the request (`GET /last-commit`, `/last-push`, `/last-rebase`), so the
+ * preview is safe on any repository.
  *
  *   npm run preview -- /path/to/repo [port]
  */
@@ -12,6 +13,7 @@ import * as path from 'node:path';
 import type { CommitFile, CommitHostMessage, CommitWebviewMessage } from '../../src/shared/commitProtocol';
 import type { HostMessage, WebviewMessage } from '../../src/shared/protocol';
 import type { PushHostMessage, PushWebviewMessage } from '../../src/shared/pushProtocol';
+import type { RebaseHostMessage, RebaseWebviewMessage } from '../../src/shared/rebaseProtocol';
 import { matchesBranchPattern, readPushState } from '../../src/extension/push/pushState';
 import { commitChangeSet, describeRange, rangeChangeSet } from '../../src/extension/changes/changeSet';
 import { Repository } from '../../src/extension/git/repository';
@@ -109,6 +111,49 @@ let favorites: string[] = [];
 let changeSetId = 0;
 let lastCommit: CommitWebviewMessage | undefined;
 let lastPush: PushWebviewMessage | undefined;
+let lastRebase: RebaseWebviewMessage | undefined;
+
+/** The rebase dialog from GROVE_PREVIEW_REBASE_FROM (default HEAD~3) to HEAD; starting it only records the plan. */
+async function handleRebase(
+  repository: Repository,
+  message: RebaseWebviewMessage,
+): Promise<RebaseHostMessage[]> {
+  switch (message.type) {
+    case 'ready': {
+      const from = await repository.revParse(process.env.GROVE_PREVIEW_REBASE_FROM ?? 'HEAD~3');
+      if (!from) return [{ type: 'error', message: 'нет такого коммита' }];
+      const base = (await repository.commitDetails(from)).parents[0];
+      const range = await repository.rebaseRange(base);
+      const head = await repository.head();
+      return [
+        {
+          type: 'state',
+          branch: head.branch ?? 'HEAD',
+          base,
+          commits: range.commits.map((c) => ({
+            hash: c.hash,
+            authorName: c.authorName,
+            authorDate: c.authorDate,
+            message: c.message,
+          })),
+          initial: range.commits.map((c) => ({ hash: c.hash, action: 'pick', message: c.message })),
+          published: await repository.publishedCount(base),
+        },
+      ];
+    }
+    case 'selectCommit': {
+      const details = await repository.commitDetails(message.hash);
+      const changeSet = await commitChangeSet(repository, message.hash, details.parents);
+      return [{ type: 'files', hash: message.hash, files: changeSet.files }];
+    }
+    case 'start':
+      lastRebase = message;
+      console.log('rebase requested (not executed in preview):', JSON.stringify(message));
+      return [{ type: 'error', message: 'Превью: rebase не выполняется.' }];
+    default:
+      return [];
+  }
+}
 
 async function handlePush(repository: Repository, message: PushWebviewMessage): Promise<PushHostMessage[]> {
   switch (message.type) {
@@ -299,6 +344,35 @@ async function main(): Promise<void> {
             response.end(String(error));
           });
       });
+      return;
+    }
+    if (request.method === 'POST' && url === '/rebase-message') {
+      let body = '';
+      request.on('data', (chunk) => (body += chunk));
+      request.on('end', () => {
+        handleRebase(repository, JSON.parse(body) as RebaseWebviewMessage)
+          .then((messages) => {
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify(messages));
+          })
+          .catch((error: unknown) => {
+            console.error(error);
+            response.statusCode = 500;
+            response.end(String(error));
+          });
+      });
+      return;
+    }
+    if (url === '/last-rebase') {
+      response.setHeader('Content-Type', 'application/json');
+      response.end(JSON.stringify(lastRebase ?? null));
+      return;
+    }
+    if (url === '/rebase') {
+      response.setHeader('Content-Type', 'text/html');
+      response.end(
+        page.replace('<body class="vscode-dark">', '<body class="vscode-dark" data-view="rebase">'),
+      );
       return;
     }
     if (url === '/last-push') {

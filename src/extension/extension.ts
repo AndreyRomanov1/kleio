@@ -18,6 +18,7 @@ import { HostingService } from './hosting/hostingService';
 import { MergeRequestCards } from './hosting/mergeRequestCards';
 import { LogWebviews } from './log/logWebview';
 import { PushDialog } from './push/pushDialog';
+import { RebaseDialog } from './rebase/rebaseDialog';
 
 export interface GroveApi {
   repositories: RepositoryManager;
@@ -25,6 +26,7 @@ export interface GroveApi {
   logs: LogWebviews;
   blame: BlameAnnotations;
   review: ReviewController;
+  rebase: RebaseDialog;
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<GroveApi> {
@@ -33,6 +35,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<GroveA
   const sync = new SyncActions(repositories);
   const actions = new GitActions(repositories, sync);
   const push = new PushDialog(context, repositories, navigator);
+  const rebase = new RebaseDialog(context, navigator, sync);
   const gitlabAuth = new GitLabAuth(context.secrets);
   const hosting = new HostingService(gitlabAuth);
   const hostingActions = new HostingActions(repositories, hosting);
@@ -45,6 +48,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<GroveA
     actions,
     sync,
     push,
+    rebase,
     hosting,
     hostingActions,
     cards,
@@ -69,6 +73,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<GroveA
     review,
     new AuthorLens(repositories),
     push,
+    rebase,
     new CommitView(context, repositories, navigator, (repository) => push.open(repository)),
     vscode.workspace.registerTextDocumentContentProvider(
       REVISION_SCHEME,
@@ -90,7 +95,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<GroveA
   );
 
   await repositories.scan();
-  return { repositories, navigator, logs, blame, review };
+  return { repositories, navigator, logs, blame, review, rebase };
 }
 
 /** The repository of the active editor, or the only one, or the one the user picks. */

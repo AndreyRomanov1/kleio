@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { OperationKind, Ref, RepositorySnapshot } from '../../shared/model';
+import type { RebaseEntry } from '../../shared/rebaseProtocol';
 import type { OperationOutcome, Repository } from '../git/repository';
 import type { RepositoryManager } from '../git/repositoryManager';
 
@@ -38,6 +39,17 @@ export class SyncActions {
     if (!current) return this.detached();
     await this.operation(repository, `Rebase ${current} на ${shorten(onto)}`, 'rebase', () =>
       repository.rebase(onto, branch),
+    );
+  }
+
+  async interactiveRebase(
+    repository: Repository,
+    base: string | undefined,
+    entries: RebaseEntry[],
+    branch: string,
+  ): Promise<void> {
+    await this.operation(repository, `Interactive rebase ${branch}`, 'rebase', () =>
+      repository.interactiveRebase(base, entries),
     );
   }
 

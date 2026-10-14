@@ -264,6 +264,21 @@ const tests: Test[] = [
     },
   ],
   [
+    'opens the interactive rebase dialog for commits of the current branch',
+    async (api) => {
+      const repository = await api.repositories.get(root());
+      assert.ok(repository);
+      const head = await repository.commitDetails('HEAD');
+      await api.rebase.open(repository, { kind: 'reword', hash: head.hash });
+      await waitFor(() => {
+        const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+        return input instanceof vscode.TabInputWebview && input.viewType.endsWith('grove.rebase')
+          ? input
+          : undefined;
+      }, 'rebase dialog tab');
+    },
+  ],
+  [
     'opens the log in an editor tab',
     async (api) => {
       const panel = api.logs.openInEditor();

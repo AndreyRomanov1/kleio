@@ -72,6 +72,24 @@ export class LogStore {
     return map;
   });
 
+  /** Commits of the current branch: what interactive rebase can rewrite. */
+  headAncestors: ReadonlySet<string> = $derived.by(() => {
+    const result = new Set<string>();
+    const snapshot = this.snapshot;
+    if (!snapshot?.head.hash || !snapshot.head.branch) return result;
+    const commits = snapshot.commits;
+    const stack = [snapshot.head.hash];
+    while (stack.length) {
+      const hash = stack.pop()!;
+      if (result.has(hash)) continue;
+      const index = this.indexByHash.get(hash);
+      if (index === undefined) continue;
+      result.add(hash);
+      stack.push(...commits[index].parents);
+    }
+    return result;
+  });
+
   /** Indexes of commits passing the text filter; undefined when no filter is set. */
   filtered: number[] | undefined = $derived.by(() => {
     const text = this.filterText.trim().toLowerCase();

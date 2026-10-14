@@ -26,7 +26,10 @@ export type CommitAction =
   | 'openInHosting'
   | 'copyHostingLink'
   | 'cherryPick'
-  | 'reset';
+  | 'reset'
+  | 'interactiveRebase'
+  | 'reword'
+  | 'fixupIntoParent';
 
 export type RefAction =
   | 'checkout'
@@ -189,6 +192,8 @@ export type WebviewMessage =
   | { type: 'selectCommits'; requestId: number; hashes: string[] }
   | { type: 'fileAction'; action: FileAction; changeSetId: number; index: number }
   | { type: 'commitAction'; action: CommitAction; hash: string }
+  /** Rewrites several commits of the current branch at once. */
+  | { type: 'commitsAction'; action: 'squash' | 'drop'; hashes: string[] }
   | { type: 'refAction'; action: RefAction; fullName: string }
   | { type: 'openWorktree'; path: string; newWindow: boolean }
   | { type: 'openUrl'; url: string }

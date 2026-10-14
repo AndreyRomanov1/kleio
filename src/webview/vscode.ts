@@ -1,6 +1,7 @@
 import type { CommitWebviewMessage } from '../shared/commitProtocol';
 import type { WebviewMessage } from '../shared/protocol';
 import type { PushWebviewMessage } from '../shared/pushProtocol';
+import type { RebaseWebviewMessage } from '../shared/rebaseProtocol';
 
 interface VsCodeApi {
   postMessage(message: unknown): void;
@@ -21,6 +22,10 @@ export function postCommit(message: CommitWebviewMessage): void {
 }
 
 export function postPush(message: PushWebviewMessage): void {
+  api.postMessage(message);
+}
+
+export function postRebase(message: RebaseWebviewMessage): void {
   api.postMessage(message);
 }
 

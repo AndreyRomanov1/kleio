@@ -10,6 +10,7 @@ import type { RepositoryManager } from '../git/repositoryManager';
 import type { HostingActions } from '../hosting/hostingActions';
 import type { HostingService } from '../hosting/hostingService';
 import type { PushDialog } from '../push/pushDialog';
+import type { RebaseDialog } from '../rebase/rebaseDialog';
 import type { MergeRequestCards } from '../hosting/mergeRequestCards';
 import type { ReviewController } from '../review/reviewController';
 
@@ -32,6 +33,7 @@ export interface LogServices {
   actions: GitActions;
   sync: SyncActions;
   push: PushDialog;
+  rebase: RebaseDialog;
   hosting: HostingService;
   hostingActions: HostingActions;
   cards: MergeRequestCards;
@@ -198,6 +200,11 @@ export class LogController implements vscode.Disposable {
         return this.fileAction(message);
       case 'commitAction':
         return this.commitAction(message.action, message.hash);
+      case 'commitsAction':
+        if (!this.repository) return;
+        if (message.action === 'squash')
+          return this.services.rebase.open(this.repository, { kind: 'squash', hashes: message.hashes });
+        return this.services.rebase.drop(this.repository, message.hashes);
       case 'refAction':
         return this.refAction(message.action, message.fullName);
       case 'openCommitDiff':
@@ -434,6 +441,12 @@ export class LogController implements vscode.Disposable {
       }
       case 'cherryPick':
         return this.services.sync.cherryPick(repository, hash);
+      case 'interactiveRebase':
+        return this.services.rebase.open(repository, { kind: 'from', hash });
+      case 'reword':
+        return this.services.rebase.open(repository, { kind: 'reword', hash });
+      case 'fixupIntoParent':
+        return this.services.rebase.fixupIntoParent(repository, hash);
       case 'reset':
         if (this.snapshot) return this.services.sync.reset(repository, this.snapshot, hash);
         return;

@@ -31,6 +31,8 @@ export function commitMenu(commit: Commit, store: LogStore): MenuEntry[] {
     { label: 'Новая ветка…', run: action({ type: 'commitAction', action: 'newBranch', hash }) },
     { label: 'Новый тег…', run: action({ type: 'commitAction', action: 'newTag', hash }) },
     'separator',
+    ...rewriteEntries(commit, store),
+    'separator',
     {
       label: 'Cherry-pick в текущую',
       disabled: store.decorations.get(hash)?.isHead,
@@ -57,6 +59,58 @@ export function commitMenu(commit: Commit, store: LogStore): MenuEntry[] {
         run: action({ type: 'commitAction', action: 'copyHostingLink', hash }),
       },
     ]),
+  ];
+}
+
+/**
+ * Rider's history rewriting from the log: interactive rebase from a commit, a new message, fixup into the
+ * previous commit, drop; with several commits selected — squash or drop them all.
+ */
+function rewriteEntries(commit: Commit, store: LogStore): MenuEntry[] {
+  const action = (a: Parameters<typeof post>[0] & { type: 'commitAction' }) => () => post(a);
+  const hash = commit.hash;
+  const ours = store.headAncestors.has(hash) && !store.snapshot?.operation;
+  const merge = commit.parents.length > 1;
+  const selection = store.selected.has(hash) ? [...store.selected] : [hash];
+  if (selection.length > 1) {
+    const allOurs = ours && selection.every((h) => store.headAncestors.has(h));
+    return [
+      {
+        label: `Объединить ${selection.length} коммита(ов)…`,
+        icon: 'fold',
+        disabled: !allOurs,
+        run: () => post({ type: 'commitsAction', action: 'squash', hashes: selection }),
+      },
+      {
+        label: `Удалить ${selection.length} коммита(ов)…`,
+        disabled: !allOurs,
+        run: () => post({ type: 'commitsAction', action: 'drop', hashes: selection }),
+      },
+    ];
+  }
+  return [
+    {
+      label: 'Interactive rebase отсюда…',
+      icon: 'git-pull-request-draft',
+      disabled: !ours || merge,
+      run: action({ type: 'commitAction', action: 'interactiveRebase', hash }),
+    },
+    {
+      label: 'Изменить сообщение…',
+      icon: 'edit',
+      disabled: !ours || merge,
+      run: action({ type: 'commitAction', action: 'reword', hash }),
+    },
+    {
+      label: 'Объединить с предыдущим (fixup)',
+      disabled: !ours || merge || commit.parents.length === 0,
+      run: action({ type: 'commitAction', action: 'fixupIntoParent', hash }),
+    },
+    {
+      label: 'Удалить коммит…',
+      disabled: !ours || merge,
+      run: () => post({ type: 'commitsAction', action: 'drop', hashes: [hash] }),
+    },
   ];
 }
 

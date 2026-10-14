@@ -28,6 +28,11 @@ The UI is in Russian for now.
   for conflicts shows a bar in the log with Continue / Skip / Abort. **Update Project** fetches every remote
   and brings the current branch up to its upstream (fast-forward, or rebase/merge per `grove.update.method`);
   any other branch without own commits can be updated without checking it out.
+- **Interactive rebase** as in Rider: a table of the commits from the chosen one up to HEAD with pick, reword,
+  edit, squash, fixup and drop, reordered by dragging or `Alt+↑/↓`; messages are edited right in the dialog,
+  a squash adds its message to the commit it goes into. The plan is turned into a todo list with the new
+  messages prepared up front, so git never opens an editor. From the log: reword, fixup into the previous
+  commit, drop, and squash or drop of several selected commits. Merges in the range are not rebuilt.
 - **Push dialog** as in Rider: outgoing commits of the current branch and of other branches ahead of their
   upstream, their files and diffs, the remote branch name for a new branch. A diverged branch is pushed only
   with force-with-lease against the remote state seen in the dialog, and never into

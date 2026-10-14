@@ -76,7 +76,11 @@
       let state;
       window.acquireVsCodeApi = () => ({
         postMessage(message) {
-          const endpoints = { '/commit': '/commit-message', '/push': '/push-message' };
+          const endpoints = {
+            '/commit': '/commit-message',
+            '/push': '/push-message',
+            '/rebase': '/rebase-message',
+          };
           const endpoint = endpoints[location.pathname] ?? '/message';
           fetch(endpoint, { method: 'POST', body: JSON.stringify(message) })
             .then((response) => response.json())
