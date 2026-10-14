@@ -1,3 +1,4 @@
+import type { Uri } from 'vscode';
 import type { FileChange } from '../../shared/model';
 import { WORKTREE, type Repository } from '../git/repository';
 
@@ -10,6 +11,8 @@ export interface ChangeSet {
   /** Newer side: a revision or {@link WORKTREE}. */
   right: string;
   files: FileChange[];
+  /** Precomputed right side per path, so that other features (review comments) attach to the same documents. */
+  rightUris?: ReadonlyMap<string, Uri>;
 }
 
 export function shortRevision(revision: string | undefined): string {

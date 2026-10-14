@@ -244,6 +244,8 @@ export class ChangeSetNavigator implements vscode.Disposable {
    * servers work in it, as in Rider.
    */
   private async rightSideUri(changeSet: ChangeSet, change: FileChange): Promise<vscode.Uri> {
+    const known = changeSet.rightUris?.get(change.path);
+    if (known) return known;
     const { repository, right } = changeSet;
     const working = workingFileUri(repository.root, change.path);
     if (right === WORKTREE) return working;
