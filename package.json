@@ -98,6 +98,38 @@
         "category": "Grove",
         "icon": "$(edit)",
         "enablement": "grove.inChangeSet"
+      },
+      {
+        "command": "grove.blame.show",
+        "title": "Аннотации Git (blame)",
+        "category": "Grove",
+        "icon": "$(person)"
+      },
+      {
+        "command": "grove.blame.hide",
+        "title": "Скрыть аннотации Git",
+        "category": "Grove"
+      },
+      {
+        "command": "grove.blame.lineInLog",
+        "title": "Показать коммит строки в логе",
+        "category": "Grove"
+      },
+      {
+        "command": "grove.history.file",
+        "title": "История файла",
+        "category": "Grove",
+        "icon": "$(history)"
+      },
+      {
+        "command": "grove.history.selection",
+        "title": "История выделенного фрагмента",
+        "category": "Grove"
+      },
+      {
+        "command": "grove.compare.withRevision",
+        "title": "Сравнить с веткой или ревизией…",
+        "category": "Grove"
       }
     ],
     "menus": {
@@ -169,6 +201,91 @@
         {
           "command": "grove.diff.openCurrent",
           "when": "grove.inChangeSet"
+        },
+        {
+          "command": "grove.blame.show",
+          "when": "editorIsOpen && !grove.blameActive"
+        },
+        {
+          "command": "grove.blame.hide",
+          "when": "grove.blameActive"
+        },
+        {
+          "command": "grove.history.selection",
+          "when": "editorHasSelection"
+        }
+      ],
+      "editor/lineNumber/context": [
+        {
+          "command": "grove.blame.show",
+          "when": "!grove.blameActive",
+          "group": "grove@1"
+        },
+        {
+          "command": "grove.blame.hide",
+          "when": "grove.blameActive",
+          "group": "grove@1"
+        },
+        {
+          "command": "grove.blame.lineInLog",
+          "group": "grove@2"
+        }
+      ],
+      "editor/context": [
+        {
+          "submenu": "grove.editorGit",
+          "group": "grove@1"
+        }
+      ],
+      "grove.editorGit": [
+        {
+          "command": "grove.blame.show",
+          "when": "!grove.blameActive",
+          "group": "1_blame@1"
+        },
+        {
+          "command": "grove.blame.hide",
+          "when": "grove.blameActive",
+          "group": "1_blame@1"
+        },
+        {
+          "command": "grove.blame.lineInLog",
+          "group": "1_blame@2"
+        },
+        {
+          "command": "grove.history.file",
+          "group": "2_history@1"
+        },
+        {
+          "command": "grove.history.selection",
+          "when": "editorHasSelection",
+          "group": "2_history@2"
+        },
+        {
+          "command": "grove.compare.withRevision",
+          "group": "3_compare@1"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "grove.history.file",
+          "when": "!explorerResourceIsFolder",
+          "group": "7_grove@1"
+        },
+        {
+          "command": "grove.compare.withRevision",
+          "when": "!explorerResourceIsFolder",
+          "group": "7_grove@2"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "grove.history.file",
+          "group": "7_grove@1"
+        },
+        {
+          "command": "grove.compare.withRevision",
+          "group": "7_grove@2"
         }
       ]
     },
@@ -187,6 +304,12 @@
         "command": "grove.diff.openCurrent",
         "key": "f4",
         "when": "grove.inChangeSet && textCompareEditorVisible"
+      }
+    ],
+    "submenus": [
+      {
+        "id": "grove.editorGit",
+        "label": "Git"
       }
     ]
   },

@@ -1,4 +1,5 @@
 import * as assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { commitChangeSet } from '../../src/extension/changes/changeSet';
@@ -113,6 +114,45 @@ const tests: Test[] = [
       const diff = await waitFor(activeDiff, 'diff editor');
       const left = await vscode.workspace.openTextDocument(diff.original);
       assert.equal(left.getText(), '');
+    },
+  ],
+  [
+    'annotates a file with blame and follows unsaved edits',
+    async (api) => {
+      const uri = vscode.Uri.file(path.join(root(), 'a.txt'));
+      const editor = await vscode.window.showTextDocument(uri);
+      await vscode.commands.executeCommand('grove.blame.show');
+      const lines = await waitFor(() => api.blame.linesOf(uri), 'blame annotations');
+      assert.equal(lines.length, 30);
+      assert.equal(lines[4].commit.summary, 'second');
+      assert.equal(lines[0].commit.summary, 'initial');
+
+      await editor.edit((e) => e.insert(new vscode.Position(0, 0), 'inserted\n'));
+      await waitFor(() => (api.blame.linesOf(uri)?.length === 31 ? true : undefined), 'blame after an edit');
+      assert.equal(api.blame.linesOf(uri)![0].commit.hash, '0'.repeat(40));
+      await vscode.commands.executeCommand('workbench.action.files.revert');
+      await vscode.commands.executeCommand('grove.blame.hide');
+      assert.equal(api.blame.linesOf(uri), undefined);
+    },
+  ],
+  [
+    'opens the history of a file in a tab and the diff of a file from a blame link',
+    async () => {
+      await vscode.commands.executeCommand('grove.history.file', vscode.Uri.file(path.join(root(), 'b.txt')));
+      const tab = await waitFor(() => {
+        const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+        return input instanceof vscode.TabInputWebview && input.viewType.endsWith('grove.history')
+          ? input
+          : undefined;
+      }, 'history tab');
+      assert.ok(tab);
+
+      const hash = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root(), encoding: 'utf8' }).trim();
+      await vscode.commands.executeCommand('grove.blame.showCommit', { root: root(), hash, path: 'b.txt' });
+      await waitFor(() => {
+        const diff = activeDiff();
+        return diff && path.basename(diff.modified.fsPath) === 'b.txt' ? diff : undefined;
+      }, 'diff of b.txt from the blame link');
     },
   ],
   [
