@@ -51,9 +51,13 @@
   }
 
   function stateOf(files: CommitFile[]): 'all' | 'some' | 'none' {
-    const count = files.filter((f) => store.checked.has(f.path)).length;
-    return count === 0 ? 'none' : count === files.length ? 'all' : 'some';
+    const states = files.map((f) => store.fileState(f.path));
+    if (states.every((s) => s === 'none')) return 'none';
+    return states.every((s) => s === 'all') ? 'all' : 'some';
   }
+
+  /** Only modified files are split into parts; a new, deleted or renamed file is committed whole. */
+  const splittable = (file: CommitFile) => file.kind === 'tracked' && file.status === 'M';
 
   function fileMenu(event: MouseEvent, file: CommitFile): void {
     if (!store.selected.has(file.path)) store.select(file.path, false);
@@ -142,7 +146,7 @@
           <div
             class="row file"
             class:selected={store.selected.has(file.path)}
-            style:padding-left="{32 + depth * 14}px"
+            style:padding-left="{14 + depth * 14}px"
             role="treeitem"
             aria-selected={store.selected.has(file.path)}
             tabindex="-1"
@@ -157,8 +161,24 @@
             }}
             oncontextmenu={(e) => fileMenu(e, file)}
           >
+            {#if splittable(file)}
+              <button
+                class="chevron"
+                aria-label={store.expanded.has(file.path) ? 'Скрыть куски' : 'Показать куски'}
+                title="Куски изменений: коммитить часть файла"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  store.toggleExpanded(file.path);
+                }}
+                ondblclick={(e) => e.stopPropagation()}
+                ><i class="codicon codicon-chevron-{store.expanded.has(file.path) ? 'down' : 'right'}"
+                ></i></button
+              >
+            {:else}
+              <span class="chevron-space"></span>
+            {/if}
             <Check
-              state={store.checked.has(file.path) ? 'all' : 'none'}
+              state={store.fileState(file.path)}
               label={file.path}
               onchange={(v) => store.setChecked([file.path], v)}
             />
@@ -168,6 +188,44 @@
             {#if store.flat}<span class="dir">{dirname(file.path)}</span>{/if}
             {#if file.oldPath}<span class="dir" title={file.oldPath}>← {file.oldPath}</span>{/if}
           </div>
+          {#if store.expanded.has(file.path)}
+            {@const hunks = store.hunks.get(file.path)}
+            {#if !hunks}
+              <div class="row hunk muted" style:padding-left="{52 + depth * 14}px">Загрузка…</div>
+            {:else if hunks.length === 0}
+              <div class="row hunk muted" style:padding-left="{52 + depth * 14}px">Не делится на куски</div>
+            {/if}
+            {#each hunks ?? [] as hunk (hunk.key)}
+              <div
+                class="row hunk"
+                style:padding-left="{52 + depth * 14}px"
+                role="treeitem"
+                aria-selected="false"
+                tabindex="-1"
+                title={hunk.preview.join('\n')}
+                ondblclick={() => postCommit({ type: 'openDiff', path: file.path, line: hunk.line })}
+                onkeydown={(e) => {
+                  if (e.key === 'Enter') postCommit({ type: 'openDiff', path: file.path, line: hunk.line });
+                  if (e.key === ' ') {
+                    e.preventDefault();
+                    store.setHunk(file.path, hunk.key, !store.hunkChecked(file.path, hunk.key));
+                  }
+                }}
+              >
+                <Check
+                  state={store.hunkChecked(file.path, hunk.key) ? 'all' : 'none'}
+                  label="Строка {hunk.line}"
+                  onchange={(v) => store.setHunk(file.path, hunk.key, v)}
+                />
+                <span class="where">стр. {hunk.line}</span>
+                {#if hunk.added}<span class="added">+{hunk.added}</span>{/if}
+                {#if hunk.removed}<span class="removed">−{hunk.removed}</span>{/if}
+                <code class="preview"
+                  >{(hunk.preview.find((l) => l.startsWith('+')) ?? hunk.preview[0])?.slice(1).trim()}</code
+                >
+              </div>
+            {/each}
+          {/if}
         {/if}
       {/each}
     {/if}
@@ -252,6 +310,33 @@
   }
   .sQ {
     color: var(--vscode-gitDecoration-untrackedResourceForeground);
+  }
+  .chevron-space {
+    display: inline-block;
+    width: 16px;
+    flex: none;
+  }
+  .hunk {
+    font-size: 0.95em;
+  }
+  .hunk.muted {
+    opacity: 0.6;
+  }
+  .where {
+    opacity: 0.8;
+  }
+  .added {
+    color: var(--vscode-gitDecoration-addedResourceForeground);
+  }
+  .removed {
+    color: var(--vscode-gitDecoration-deletedResourceForeground);
+  }
+  .preview {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0.7;
+    font-family: var(--vscode-editor-font-family);
   }
   .empty {
     padding: 16px;

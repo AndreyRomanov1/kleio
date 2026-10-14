@@ -6,6 +6,7 @@ import type { ChangeSetNavigator } from '../changes/changeSetNavigator';
 import { workingFileUri } from '../content/revisionUri';
 import { WORKTREE, type Repository } from '../git/repository';
 import type { RepositoryManager } from '../git/repositoryManager';
+import { hunkViews } from '../git/patch';
 import { renderHtml, webviewOptions } from '../webviewHtml';
 
 const VIEW_TYPE = 'grove.commit';
@@ -72,7 +73,9 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
       case 'refresh':
         return this.refresh();
       case 'openDiff':
-        return this.openDiff(message.path);
+        return this.openDiff(message.path, message.line);
+      case 'requestHunks':
+        return this.sendHunks(message.path);
       case 'openFile': {
         const repository = this.repository;
         if (repository) await vscode.window.showTextDocument(workingFileUri(repository.root, message.path));
@@ -128,7 +131,7 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
   }
 
   /** Every change of the working copy is one change set, so the diff arrows walk through all of them. */
-  private async openDiff(filePath: string): Promise<void> {
+  private async openDiff(filePath: string, line?: number): Promise<void> {
     const repository = this.repository;
     if (!repository) return;
     const files = this.files
@@ -154,7 +157,7 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
       right: WORKTREE,
       files,
     };
-    await this.navigator.open(changeSet, index);
+    await this.navigator.open(changeSet, index, 'first', line === undefined ? undefined : { line: line - 1 });
   }
 
   private async rollback(paths: string[]): Promise<void> {
@@ -189,9 +192,23 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
     await this.refresh();
   }
 
+  /** Hunks of a modified file for the checkboxes under it; other kinds of changes are committed whole. */
+  private async sendHunks(filePath: string): Promise<void> {
+    const repository = this.repository;
+    const file = this.files.find((f) => f.path === filePath);
+    if (!repository || !file) return;
+    if (file.kind !== 'tracked' || file.status !== 'M') {
+      this.post({ type: 'hunks', path: filePath, hunks: [] });
+      return;
+    }
+    const patch = await repository.workingPatch(filePath);
+    this.post({ type: 'hunks', path: filePath, hunks: hunkViews(patch) });
+  }
+
   private async commit(message: {
     message: string;
     paths: string[];
+    hunks: Record<string, string[]>;
     amend: boolean;
     push: boolean;
   }): Promise<void> {
@@ -206,7 +223,8 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
       return;
     }
     const selected = this.files.filter((f) => message.paths.includes(f.path));
-    if (selected.length === 0 && !message.amend) {
+    const partial = Object.keys(message.hunks).filter((p) => this.files.some((f) => f.path === p));
+    if (selected.length === 0 && partial.length === 0 && !message.amend) {
       void vscode.window.showWarningMessage('Отметьте файлы для коммита.');
       return;
     }
@@ -219,10 +237,12 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
           .flatMap((f) => (f.oldPath ? [f.oldPath, f.path] : [f.path])),
         untracked: selected.filter((f) => f.kind === 'untracked').map((f) => f.path),
         amend: message.amend,
+        hunks: Object.fromEntries(partial.map((p) => [p, message.hunks[p]])),
       });
       this.post({ type: 'committed' });
       this.repositories.notifyChanged(repository);
-      vscode.window.setStatusBarMessage(`Grove: закоммичено ${selected.length} файл(ов)`, 4000);
+      const parts = partial.length ? `, частично ещё ${partial.length}` : '';
+      vscode.window.setStatusBarMessage(`Grove: закоммичено ${selected.length} файл(ов)${parts}`, 4000);
       if (message.push) await this.dialogs.push(repository);
     } finally {
       this.post({ type: 'busy', value: false });

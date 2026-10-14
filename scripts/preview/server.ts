@@ -18,6 +18,7 @@ import type { ConflictsHostMessage, ConflictsWebviewMessage } from '../../src/sh
 import { matchesBranchPattern, readPushState } from '../../src/extension/push/pushState';
 import { commitChangeSet, describeRange, rangeChangeSet } from '../../src/extension/changes/changeSet';
 import { Repository } from '../../src/extension/git/repository';
+import { hunkViews } from '../../src/extension/git/patch';
 import { GitLabApi } from '../../src/extension/hosting/gitlabApi';
 import { buildCard, buildDiscussions } from '../../src/extension/hosting/mergeRequestCard';
 import {
@@ -236,6 +237,10 @@ async function handleCommit(
     }
     case 'requestAmendMessage':
       return [{ type: 'amendMessage', message: await repository.lastCommitMessage() }];
+    case 'requestHunks':
+      return [
+        { type: 'hunks', path: message.path, hunks: hunkViews(await repository.workingPatch(message.path)) },
+      ];
     case 'requestRecentMessages':
       return [{ type: 'recentMessages', messages: await repository.recentMessages() }];
     case 'commit':
