@@ -150,6 +150,17 @@
         "command": "grove.blame.toggle",
         "title": "Переключить аннотации Git (blame)",
         "category": "Grove"
+      },
+      {
+        "command": "grove.hosting.openFile",
+        "title": "Открыть в GitLab/GitHub",
+        "category": "Grove",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "grove.hosting.copyFileLink",
+        "title": "Копировать ссылку на GitLab/GitHub",
+        "category": "Grove"
       }
     ],
     "menus": {
@@ -284,6 +295,14 @@
         {
           "command": "grove.compare.withRevision",
           "group": "3_compare@1"
+        },
+        {
+          "command": "grove.hosting.openFile",
+          "group": "4_hosting@1"
+        },
+        {
+          "command": "grove.hosting.copyFileLink",
+          "group": "4_hosting@2"
         }
       ],
       "explorer/context": [
@@ -296,6 +315,11 @@
           "command": "grove.compare.withRevision",
           "when": "!explorerResourceIsFolder",
           "group": "7_grove@2"
+        },
+        {
+          "command": "grove.hosting.openFile",
+          "when": "!explorerResourceIsFolder",
+          "group": "7_grove@3"
         }
       ],
       "editor/title/context": [
@@ -306,6 +330,10 @@
         {
           "command": "grove.compare.withRevision",
           "group": "7_grove@2"
+        },
+        {
+          "command": "grove.hosting.openFile",
+          "group": "7_grove@3"
         }
       ]
     },
@@ -344,6 +372,40 @@
           "type": "boolean",
           "default": true,
           "description": "Во вкладке истории сразу показывать diff выбранного коммита в соседней группе редактора."
+        },
+        "grove.autolinks": {
+          "type": "array",
+          "default": [],
+          "markdownDescription": "Правила, превращающие текст сообщений коммитов в ссылки: регулярное выражение и адрес с `$0` (всё совпадение), `$1`… (группы). Например, `{\"pattern\": \"PROJ-\\\\d+\", \"url\": \"https://youtrack.example.com/issue/$0\"}`. Удобно задать в `.vscode/settings.json` репозитория — правило будет у всей команды. Ссылки на MR (`!12`) и issues (`#12`) GitLab и GitHub добавляются сами.",
+          "items": {
+            "type": "object",
+            "required": [
+              "pattern",
+              "url"
+            ],
+            "properties": {
+              "pattern": {
+                "type": "string",
+                "description": "Регулярное выражение (JavaScript)."
+              },
+              "url": {
+                "type": "string",
+                "description": "Адрес ссылки, `$0` — совпадение, `$1`… — группы."
+              }
+            }
+          }
+        },
+        "grove.hosting.instances": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "gitlab",
+              "github"
+            ]
+          },
+          "markdownDescription": "Тип хостинга для своих серверов, если Grove не определил его сам: `{\"git.example.com\": \"gitlab\"}`. github.com и gitlab.com известны; сервер GitLab обычно определяется сам по ссылкам на merge requests."
         }
       }
     }

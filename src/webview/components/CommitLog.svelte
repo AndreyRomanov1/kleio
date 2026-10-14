@@ -160,7 +160,11 @@
               isMerge={commit.parents.length > 1}
               dotOnly={store.filtered !== undefined || store.history !== undefined}
             />
-            {#if decorations}<RefBadges {decorations} {store} />{/if}
+            {#if decorations || store.hosting?.mergeRequests[commit.hash]}<RefBadges
+                hash={commit.hash}
+                {decorations}
+                {store}
+              />{/if}
             <span class="subject" title={commit.subject}>{commit.subject}</span>
           </span>
           <span class="author" title={commit.authorEmail}>{commit.authorName}</span>

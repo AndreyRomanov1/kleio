@@ -8,6 +8,8 @@ import { RevisionContentProvider } from './content/revisionContentProvider';
 import { REVISION_SCHEME } from './content/revisionUri';
 import { RepositoryManager } from './git/repositoryManager';
 import { HistoryCommands } from './history/historyCommands';
+import { HostingActions } from './hosting/hostingActions';
+import { HostingService } from './hosting/hostingService';
 import { LogWebviews } from './log/logWebview';
 
 export interface GroveApi {
@@ -21,7 +23,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<GroveA
   const repositories = new RepositoryManager();
   const navigator = new ChangeSetNavigator();
   const actions = new GitActions(repositories);
-  const logs = new LogWebviews({ context, repositories, navigator, actions });
+  const hosting = new HostingService();
+  const hostingActions = new HostingActions(repositories, hosting);
+  const logs = new LogWebviews({ context, repositories, navigator, actions, hosting, hostingActions });
   const history = new HistoryCommands(repositories, logs, navigator);
   const blame = new BlameAnnotations(repositories, {
     revealInLog: (hash) => logs.revealCommit(hash),
@@ -34,6 +38,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<GroveA
     logs,
     history,
     blame,
+    hostingActions,
     new AuthorLens(repositories),
     new CommitView(context, repositories, navigator),
     vscode.workspace.registerTextDocumentContentProvider(

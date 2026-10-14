@@ -13,6 +13,46 @@ import type { CommitFile, CommitHostMessage, CommitWebviewMessage } from '../../
 import type { HostMessage, WebviewMessage } from '../../src/shared/protocol';
 import { commitChangeSet, describeRange, rangeChangeSet } from '../../src/extension/changes/changeSet';
 import { Repository } from '../../src/extension/git/repository';
+import {
+  detectHosting,
+  HostingLinks,
+  parseRemoteUrl,
+  parseReviewRefs,
+  type Autolink,
+} from '../../src/extension/hosting/hosting';
+
+/** Extra autolink rules for the preview, as JSON in GROVE_PREVIEW_AUTOLINKS (the extension reads settings). */
+const previewAutolinks: Autolink[] = JSON.parse(process.env.GROVE_PREVIEW_AUTOLINKS ?? '[]') as Autolink[];
+
+async function hostingMessage(repository: Repository): Promise<HostMessage> {
+  const url = (
+    await repository.git.run(['remote', 'get-url', 'origin'], { allowExitCodes: [2, 128] })
+  ).trim();
+  const remote = url ? parseRemoteUrl(url) : undefined;
+  const refs = remote
+    ? await repository.git
+        .run(['ls-remote', 'origin', 'refs/merge-requests/*/head', 'refs/pull/*/head'], { timeoutMs: 15000 })
+        .catch(() => '')
+    : '';
+  const reviews = parseReviewRefs(refs);
+  const kind = remote ? detectHosting(remote, {}, reviews) : undefined;
+  const links = remote && kind ? new HostingLinks(kind, remote) : undefined;
+  const defaultBranch = (
+    await repository.git.run(['symbolic-ref', '-q', '--short', 'refs/remotes/origin/HEAD'], {
+      allowExitCodes: [1, 128],
+    })
+  ).trim();
+  return {
+    type: 'hosting',
+    hosting: {
+      name: links?.name,
+      mergeRequests: reviews.byCommit,
+      defaultBranch: defaultBranch || undefined,
+      merged: defaultBranch ? await repository.mergedBranches(defaultBranch) : [],
+      autolinks: [...(links?.builtinAutolinks() ?? []), ...previewAutolinks],
+    },
+  };
+}
 
 const repoPath = process.argv[2] ?? process.cwd();
 const port = Number(process.argv[3] ?? 5173);
@@ -77,6 +117,7 @@ async function handle(repository: Repository, message: WebviewMessage): Promise<
       const snapshot = await repository.snapshot({ revisions: focus });
       console.log(`snapshot: ${snapshot.commits.length} commits in ${Date.now() - started} ms`);
       return [
+        await hostingMessage(repository),
         {
           type: 'snapshot',
           repositories: [{ root: repository.root, name: repository.name }],

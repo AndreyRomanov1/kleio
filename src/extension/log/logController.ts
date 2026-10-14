@@ -6,6 +6,8 @@ import { commitChangeSet, describeRange, rangeChangeSet, type ChangeSet } from '
 import type { ChangeSetNavigator } from '../changes/changeSetNavigator';
 import { WORKTREE, type Repository } from '../git/repository';
 import type { RepositoryManager } from '../git/repositoryManager';
+import type { HostingActions } from '../hosting/hostingActions';
+import type { HostingService } from '../hosting/hostingService';
 
 const FOCUS_KEY = 'grove.focus';
 const FAVORITES_KEY = 'grove.favorites';
@@ -24,6 +26,8 @@ export interface LogServices {
   repositories: RepositoryManager;
   navigator: ChangeSetNavigator;
   actions: GitActions;
+  hosting: HostingService;
+  hostingActions: HostingActions;
 }
 
 /** Serves one log webview, wherever it is placed, or a history view of a file or of a fragment. */
@@ -79,7 +83,15 @@ export class LogController implements vscode.Disposable {
       case 'refresh':
         return this.load();
       case 'fetch':
-        if (this.repository) await this.services.actions.fetch(this.repository);
+        if (this.repository) {
+          await this.services.actions.fetch(this.repository);
+          void this.loadHosting(true);
+        }
+        return;
+      case 'openUrl':
+        return this.services.hostingActions.openUrl(message.url);
+      case 'openMergeRequest':
+        if (this.repository) await this.services.hostingActions.mergeRequest(this.repository, message.number);
         return;
       case 'selectRepository':
         this.repository = await this.services.repositories.get(message.root);
@@ -130,6 +142,7 @@ export class LogController implements vscode.Disposable {
       if (version !== this.loadVersion) return;
       this.snapshot = snapshot;
       this.postSnapshot();
+      void this.loadHosting(false);
     } finally {
       if (version === this.loadVersion) this.post({ type: 'loading', value: false });
     }
@@ -145,6 +158,28 @@ export class LogController implements vscode.Disposable {
     this.historyPaths = history.paths;
     this.historyLines = history.lines;
     return { root: repository.root, head, commits: history.commits, refs, worktrees: [], stashes: [] };
+  }
+
+  /** Merge requests need the network, so they come after the log is already shown. */
+  private async loadHosting(refresh: boolean): Promise<void> {
+    const repository = this.repository;
+    if (!repository) return;
+    try {
+      const hosting = await this.services.hosting.hosting(repository, refresh);
+      const merged = hosting?.defaultBranch ? await repository.mergedBranches(hosting.defaultBranch) : [];
+      this.post({
+        type: 'hosting',
+        hosting: {
+          name: hosting?.links?.name,
+          mergeRequests: hosting?.mergeRequests ?? {},
+          defaultBranch: hosting?.defaultBranch,
+          merged,
+          autolinks: this.services.hosting.autolinks(hosting),
+        },
+      });
+    } catch {
+      // Hosting details are an extra; the log works without them.
+    }
   }
 
   /** Focus may name branches that were deleted since; they are skipped instead of failing the log. */
@@ -291,6 +326,10 @@ export class LogController implements vscode.Disposable {
         await vscode.env.clipboard.writeText(details.message.split('\n')[0]);
         return;
       }
+      case 'openInHosting':
+        return this.services.hostingActions.commit(repository, hash, 'open');
+      case 'copyHostingLink':
+        return this.services.hostingActions.commit(repository, hash, 'copy');
       case 'compareWithWorktree': {
         const changeSet = await rangeChangeSet(
           repository,
@@ -339,6 +378,10 @@ export class LogController implements vscode.Disposable {
       case 'copyName':
         await vscode.env.clipboard.writeText(ref.name);
         return;
+      case 'openInHosting':
+        return this.services.hostingActions.branch(repository, ref);
+      case 'createMergeRequest':
+        return this.services.hostingActions.createMergeRequest(repository, ref);
     }
   }
 

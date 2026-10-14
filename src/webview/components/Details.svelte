@@ -3,6 +3,7 @@
   import type { LogStore } from '../store.svelte';
   import { post } from '../vscode';
   import FileList from './FileList.svelte';
+  import LinkedText from './LinkedText.svelte';
 
   interface Props {
     store: LogStore;
@@ -15,6 +16,7 @@
   let { store, fileView, groupByDirectory, onview, ongroup }: Props = $props();
 
   const details = $derived(store.details);
+  const autolinks = $derived(store.hosting?.autolinks ?? []);
   const single = $derived(details?.commits.length === 1 ? details.commits[0] : undefined);
 </script>
 
@@ -25,8 +27,15 @@
     <div class="info">
       {#if single}
         {@const newline = single.message.indexOf('\n')}
-        <div class="subject">{newline < 0 ? single.message : single.message.slice(0, newline)}</div>
-        {#if newline >= 0}<div class="body">{single.message.slice(newline + 1).trim()}</div>{/if}
+        <div class="subject">
+          <LinkedText
+            text={newline < 0 ? single.message : single.message.slice(0, newline)}
+            rules={autolinks}
+          />
+        </div>
+        {#if newline >= 0}<div class="body">
+            <LinkedText text={single.message.slice(newline + 1).trim()} rules={autolinks} />
+          </div>{/if}
         <div class="meta">
           <button
             class="hash"

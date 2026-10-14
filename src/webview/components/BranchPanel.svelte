@@ -129,6 +129,14 @@
     else if (entry.kind === 'worktree') menu.show(event, worktreeMenu(entry.worktree));
   }
 
+  /** A local branch fully merged into the default one, other than the current and the default branch itself. */
+  function isMerged(ref: Ref): boolean {
+    const hosting = store.hosting;
+    if (ref.kind !== 'head' || !hosting?.merged.includes(ref.name)) return false;
+    if (store.snapshot?.head.branch === ref.name) return false;
+    return hosting.defaultBranch?.slice(hosting.defaultBranch.indexOf('/') + 1) !== ref.name;
+  }
+
   function worktreeOf(ref: Ref): Worktree | undefined {
     if (ref.kind !== 'head') return undefined;
     return store.snapshot?.worktrees.find((w) => w.branch === ref.name && !w.isCurrent);
@@ -183,15 +191,28 @@
                 {@const ref = entry.ref}
                 {@const focused = store.focus.includes(ref.name)}
                 {@const worktree = worktreeOf(ref)}
+                {@const mergeRequest = store.hosting?.mergeRequests[ref.hash]?.[0]}
+                {@const merged = isMerged(ref)}
                 <span
                   class="label"
                   class:current={ref.kind === 'head' && store.snapshot?.head.branch === ref.name}
-                  title={ref.name}>{node.label}</span
+                  class:merged
+                  title={merged
+                    ? `${ref.name} — влита в ${store.hosting?.defaultBranch}, можно удалить`
+                    : ref.name}>{node.label}</span
                 >
                 {#if worktree}<i
                     class="info codicon codicon-repo"
                     title="Ветка открыта в worktree {worktree.path} — ПКМ, чтобы открыть"
                   ></i>{/if}
+                {#if mergeRequest}<button
+                    class="mr"
+                    title="Merge request !{mergeRequest} — открыть в {store.hosting?.name}"
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      post({ type: 'openMergeRequest', number: mergeRequest });
+                    }}>!{mergeRequest}</button
+                  >{/if}
                 {#if ref.upstreamGone}<span class="info gone" title="Ветка в origin удалена">origin</span
                   >{/if}
                 {#if ref.ahead}<span class="info ahead" title="Не отправлено в origin">↑{ref.ahead}</span
@@ -299,6 +320,23 @@
     flex: none;
     font-size: 0.85em;
     opacity: 0.7;
+  }
+  .label.merged {
+    opacity: 0.55;
+  }
+  .mr {
+    flex: none;
+    padding: 0 4px;
+    border: none;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--vscode-charts-orange) 22%, transparent);
+    color: inherit;
+    font: inherit;
+    font-size: 0.85em;
+    cursor: pointer;
+  }
+  .mr:hover {
+    background: color-mix(in srgb, var(--vscode-charts-orange) 40%, transparent);
   }
   .gone {
     text-decoration: line-through;

@@ -4,13 +4,15 @@
   import { refMenu } from '../menus';
   import type { Decorations, LogStore } from '../store.svelte';
   import { basename } from '../format';
+  import { post } from '../vscode';
 
   interface Props {
-    decorations: Decorations;
+    hash: string;
+    decorations: Decorations | undefined;
     store: LogStore;
   }
 
-  let { decorations, store }: Props = $props();
+  let { hash, decorations, store }: Props = $props();
 
   interface Badge {
     ref?: Ref;
@@ -25,14 +27,14 @@
   const badges = $derived.by(() => {
     const head = store.snapshot?.head;
     const result: Badge[] = [];
-    const refs = decorations.refs;
+    const refs = decorations?.refs ?? [];
     // A remote branch at the same commit as its local branch is folded into the local badge.
     const folded = new Set(
       refs
         .filter((r) => r.kind === 'head' && r.upstream && refs.some((o) => o.fullName === r.upstream))
         .map((r) => r.upstream!),
     );
-    if (decorations.isHead && !head?.branch) {
+    if (decorations?.isHead && !head?.branch) {
       result.push({
         label: 'HEAD',
         kind: 'detached',
@@ -65,7 +67,7 @@
         title: notes.length ? `${ref.name} — ${notes.join(', ')}` : ref.name,
       });
     }
-    for (const worktree of decorations.worktrees.filter((w) => !w.branch)) {
+    for (const worktree of (decorations?.worktrees ?? []).filter((w) => !w.branch)) {
       result.push({
         label: basename(worktree.path),
         kind: 'worktree',
@@ -96,8 +98,24 @@
     {#if badge.synced}<i class="marker codicon codicon-cloud" aria-label="совпадает с origin"></i>{/if}
   </span>
 {/each}
+{#each store.hosting?.mergeRequests[hash] ?? [] as number (number)}
+  <button
+    class="badge mr"
+    title="Merge request !{number} — открыть в {store.hosting?.name}"
+    onmousedown={(e) => e.stopPropagation()}
+    onclick={() => post({ type: 'openMergeRequest', number })}>!{number}</button
+  >
+{/each}
 
 <style>
+  .mr {
+    font: inherit;
+    font-size: 0.92em;
+    color: inherit;
+    cursor: pointer;
+    background: color-mix(in srgb, var(--vscode-charts-orange) 22%, transparent);
+    border-color: color-mix(in srgb, var(--vscode-charts-orange) 55%, transparent);
+  }
   .badge {
     flex: none;
     display: inline-flex;

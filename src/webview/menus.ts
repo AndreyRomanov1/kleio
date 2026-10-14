@@ -36,7 +36,23 @@ export function commitMenu(commit: Commit, store: LogStore): MenuEntry[] {
       label: 'Сравнить с рабочей копией',
       run: action({ type: 'commitAction', action: 'compareWithWorktree', hash }),
     },
+    ...hostingEntries(store, [
+      {
+        label: `Открыть в ${store.hosting?.name}`,
+        icon: 'link-external',
+        run: action({ type: 'commitAction', action: 'openInHosting', hash }),
+      },
+      {
+        label: `Копировать ссылку на ${store.hosting?.name}`,
+        run: action({ type: 'commitAction', action: 'copyHostingLink', hash }),
+      },
+    ]),
   ];
+}
+
+/** Entries that need a known hosting, with a separator before them. */
+function hostingEntries(store: LogStore, entries: MenuEntry[]): MenuEntry[] {
+  return store.hosting?.name ? ['separator', ...entries] : [];
 }
 
 export function refMenu(ref: Ref, store: LogStore): MenuEntry[] {
@@ -79,6 +95,34 @@ export function refMenu(ref: Ref, store: LogStore): MenuEntry[] {
   );
   if (ref.kind === 'remote' || ref.upstream) {
     entries.push({ label: 'Fetch ветки', run: run({ type: 'refAction', action: 'fetchBranch', fullName }) });
+  }
+  const mergeRequest = store.hosting?.mergeRequests[ref.hash]?.[0];
+  const defaultBranch = store.hosting?.defaultBranch;
+  const isDefault =
+    defaultBranch === ref.name || defaultBranch?.slice(defaultBranch.indexOf('/') + 1) === ref.name;
+  if (ref.kind !== 'tag') {
+    entries.push(
+      ...hostingEntries(store, [
+        mergeRequest
+          ? {
+              label: `Открыть MR !${mergeRequest}`,
+              icon: 'git-pull-request',
+              run: () => post({ type: 'openMergeRequest', number: mergeRequest }),
+            }
+          : {
+              label: 'Создать MR…',
+              icon: 'git-pull-request-create',
+              disabled: isDefault,
+              run: run({ type: 'refAction', action: 'createMergeRequest', fullName }),
+            },
+        {
+          label: `Открыть в ${store.hosting?.name}`,
+          icon: 'link-external',
+          disabled: ref.kind === 'head' && !ref.upstream,
+          run: run({ type: 'refAction', action: 'openInHosting', fullName }),
+        },
+      ]),
+    );
   }
   entries.push(
     'separator',

@@ -1,6 +1,6 @@
 import { layoutGraph, type GraphLayout } from '../shared/graph';
 import type { Commit, CommitDetails, Ref, RepositorySnapshot, Stash, Worktree } from '../shared/model';
-import type { ChangeSetView, HostMessage, RepositoryInfo } from '../shared/protocol';
+import type { ChangeSetView, HostingView, HostMessage, RepositoryInfo } from '../shared/protocol';
 import { post } from './vscode';
 
 export interface Decorations {
@@ -20,6 +20,7 @@ export class LogStore {
   snapshot = $state.raw<RepositorySnapshot | undefined>(undefined);
   focus = $state.raw<string[]>([]);
   favorites = $state.raw<string[]>([]);
+  hosting = $state.raw<HostingView | undefined>(undefined);
   /** Title of the history view; undefined in the regular log. */
   history = $state<string | undefined>(undefined);
   loading = $state(false);
@@ -114,6 +115,9 @@ export class LogStore {
         break;
       case 'revealCommit':
         this.reveal(message.hash);
+        break;
+      case 'hosting':
+        this.hosting = message.hosting;
         break;
     }
   }
