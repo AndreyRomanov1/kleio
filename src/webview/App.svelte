@@ -14,7 +14,8 @@
   let height = $state(600);
 
   // Details move under the log when the log itself would get too narrow next to them.
-  const narrow = $derived(width - (ui.showBranches ? ui.branchWidth : 0) - ui.detailsWidth < 600);
+  const showBranches = $derived(ui.showBranches && !store.history);
+  const narrow = $derived(width - (showBranches ? ui.branchWidth : 0) - ui.detailsWidth < 600);
   const collapsed = $derived(new Set(ui.collapsed));
 
   $effect(() => {
@@ -92,12 +93,16 @@
         {/each}
       </select>
     {/if}
-    <button
-      class="tool"
-      class:on={ui.showBranches}
-      title="Панель веток"
-      onclick={() => (ui.showBranches = !ui.showBranches)}>Ветки</button
-    >
+    {#if store.history}
+      <span class="history-title"><i class="codicon codicon-history"></i> {store.history}</span>
+    {:else}
+      <button
+        class="tool"
+        class:on={ui.showBranches}
+        title="Панель веток"
+        onclick={() => (ui.showBranches = !ui.showBranches)}>Ветки</button
+      >
+    {/if}
     <input
       id="grove-filter"
       class="filter"
@@ -111,7 +116,9 @@
           return had;
         })}
     />
-    {#if store.focus.length}
+    {#if store.history}
+      <span class="hint">двойной клик — diff файла в коммите</span>
+    {:else if store.focus.length}
       <div class="focus" title="Лог показывает только историю этих веток">
         <span class="focus-label">Фокус:</span>
         {#each store.focus as revision (revision)}
@@ -135,9 +142,11 @@
     {/if}
     <span class="spacer"></span>
     {#if store.loading}<i class="loading codicon codicon-loading codicon-modifier-spin"></i>{/if}
-    <button class="tool" title="git fetch --all --prune" onclick={() => post({ type: 'fetch' })}
-      ><i class="codicon codicon-cloud-download"></i> Fetch</button
-    >
+    {#if !store.history}
+      <button class="tool" title="git fetch --all --prune" onclick={() => post({ type: 'fetch' })}
+        ><i class="codicon codicon-cloud-download"></i> Fetch</button
+      >
+    {/if}
     <button class="tool icon" title="Обновить" aria-label="Обновить" onclick={() => post({ type: 'refresh' })}
       ><i class="codicon codicon-refresh"></i></button
     >
@@ -147,7 +156,7 @@
     <div class="empty">В открытых папках нет git-репозитория.</div>
   {:else}
     <div class="main" class:narrow>
-      {#if ui.showBranches}
+      {#if showBranches}
         <div class="branches" style:width="{ui.branchWidth}px">
           <BranchPanel {store} {collapsed} ontoggle={toggleCollapsed} />
         </div>
@@ -246,6 +255,17 @@
     color: inherit;
     cursor: pointer;
     padding: 0 3px;
+  }
+  .history-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .hint {
+    opacity: 0.6;
+    white-space: nowrap;
   }
   .spacer {
     flex: 1;

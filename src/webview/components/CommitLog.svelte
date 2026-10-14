@@ -4,6 +4,7 @@
   import { menu } from '../menu.svelte';
   import { commitMenu } from '../menus';
   import type { LogStore } from '../store.svelte';
+  import { post } from '../vscode';
   import GraphCell from './GraphCell.svelte';
   import RefBadges from './RefBadges.svelte';
 
@@ -140,6 +141,7 @@
           role="option"
           aria-selected={store.selected.has(commit.hash)}
           tabindex="-1"
+          ondblclick={() => post({ type: 'openCommitDiff', hash: commit.hash })}
           onmousedown={(e) => {
             if (e.button !== 0) return;
             store.click(commit.hash, e.ctrlKey || e.metaKey, e.shiftKey);
@@ -156,7 +158,7 @@
               height={ROW_HEIGHT}
               isHead={commit.hash === headHash}
               isMerge={commit.parents.length > 1}
-              dotOnly={store.filtered !== undefined}
+              dotOnly={store.filtered !== undefined || store.history !== undefined}
             />
             {#if decorations}<RefBadges {decorations} {store} />{/if}
             <span class="subject" title={commit.subject}>{commit.subject}</span>

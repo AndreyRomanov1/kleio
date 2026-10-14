@@ -1,9 +1,10 @@
 import { randomBytes } from 'node:crypto';
 import * as vscode from 'vscode';
-import { LogController, type LogServices } from './logController';
+import { LogController, type HistoryTarget, type LogServices } from './logController';
 
 const VIEW_TYPE = 'grove.log';
 const PANEL_TYPE = 'grove.logPanel';
+const HISTORY_TYPE = 'grove.history';
 
 function webviewOptions(extensionUri: vscode.Uri): vscode.WebviewOptions {
   return { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'dist')] };
@@ -35,7 +36,10 @@ function renderHtml(webview: vscode.Webview, extensionUri: vscode.Uri): string {
 
 /** Owns every place where the log can be shown: the movable view and editor tabs. */
 export class LogWebviews implements vscode.WebviewViewProvider, vscode.Disposable {
-  private readonly controllers = new Set<LogController>();
+  /** Log views with a way to bring each of them to the front. */
+  private readonly controllers = new Map<LogController, () => void>();
+  private readonly histories = new Set<LogController>();
+  private pendingReveal?: string;
   private readonly disposables: vscode.Disposable[] = [];
 
   constructor(private readonly services: LogServices) {
@@ -52,7 +56,7 @@ export class LogWebviews implements vscode.WebviewViewProvider, vscode.Disposabl
   resolveWebviewView(view: vscode.WebviewView): void {
     view.webview.options = webviewOptions(this.services.context.extensionUri);
     view.webview.html = renderHtml(view.webview, this.services.context.extensionUri);
-    const controller = this.track(new LogController(view.webview, this.services));
+    const controller = this.track(new LogController(view.webview, this.services), () => view.show(true));
     view.onDidDispose(() => this.untrack(controller));
   }
 
@@ -71,20 +75,49 @@ export class LogWebviews implements vscode.WebviewViewProvider, vscode.Disposabl
     await vscode.commands.executeCommand('workbench.action.moveEditorToNewWindow');
   }
 
-  revealCommit(hash: string): void {
-    for (const controller of this.controllers) controller.revealCommit(hash);
+  /** Shows the commit in the log, opening the log view first when none is open. */
+  async revealCommit(hash: string): Promise<void> {
+    const [first] = this.controllers;
+    if (!first) {
+      this.pendingReveal = hash;
+      await vscode.commands.executeCommand('grove.log.focus');
+      return;
+    }
+    for (const controller of this.controllers.keys()) controller.revealCommit(hash);
+    first[1]();
+  }
+
+  openHistory(target: HistoryTarget): void {
+    const panel = vscode.window.createWebviewPanel(HISTORY_TYPE, target.title, vscode.ViewColumn.Active, {
+      ...webviewOptions(this.services.context.extensionUri),
+      retainContextWhenHidden: true,
+    });
+    panel.iconPath = vscode.Uri.joinPath(this.services.context.extensionUri, 'media', 'history.svg');
+    panel.webview.html = renderHtml(panel.webview, this.services.context.extensionUri);
+    const controller = new LogController(panel.webview, this.services, target);
+    this.histories.add(controller);
+    panel.onDidDispose(() => {
+      controller.dispose();
+      this.histories.delete(controller);
+    });
   }
 
   private attachPanel(panel: vscode.WebviewPanel): void {
     panel.iconPath = vscode.Uri.joinPath(this.services.context.extensionUri, 'media', 'grove.svg');
     panel.webview.options = webviewOptions(this.services.context.extensionUri);
     panel.webview.html = renderHtml(panel.webview, this.services.context.extensionUri);
-    const controller = this.track(new LogController(panel.webview, this.services));
+    const controller = this.track(new LogController(panel.webview, this.services), () =>
+      panel.reveal(undefined, true),
+    );
     panel.onDidDispose(() => this.untrack(controller));
   }
 
-  private track(controller: LogController): LogController {
-    this.controllers.add(controller);
+  private track(controller: LogController, reveal: () => void): LogController {
+    this.controllers.set(controller, reveal);
+    if (this.pendingReveal) {
+      controller.revealCommit(this.pendingReveal);
+      this.pendingReveal = undefined;
+    }
     return controller;
   }
 
@@ -94,7 +127,7 @@ export class LogWebviews implements vscode.WebviewViewProvider, vscode.Disposabl
   }
 
   dispose(): void {
-    for (const controller of this.controllers) controller.dispose();
+    for (const controller of [...this.controllers.keys(), ...this.histories]) controller.dispose();
     for (const d of this.disposables) d.dispose();
   }
 }

@@ -10,6 +10,15 @@ import type { RepositoryManager } from '../git/repositoryManager';
 const FOCUS_KEY = 'grove.focus';
 const FAVORITES_KEY = 'grove.favorites';
 
+export interface HistoryTarget {
+  repository: Repository;
+  /** Path relative to the repository root. */
+  path: string;
+  /** 1-based inclusive lines for the history of a fragment. */
+  range?: { start: number; end: number };
+  title: string;
+}
+
 export interface LogServices {
   context: vscode.ExtensionContext;
   repositories: RepositoryManager;
@@ -17,10 +26,13 @@ export interface LogServices {
   actions: GitActions;
 }
 
-/** Serves one log webview, wherever it is placed. */
+/** Serves one log webview, wherever it is placed, or a history view of a file or of a fragment. */
 export class LogController implements vscode.Disposable {
   private repository?: Repository;
   private snapshot?: RepositorySnapshot;
+  private pendingReveal?: string;
+  /** Path of the history file in each commit, as it may have been renamed. */
+  private historyPaths: Record<string, string> = {};
   private readonly changeSets = new Map<number, ChangeSet>();
   private nextChangeSetId = 1;
   private loadVersion = 0;
@@ -29,7 +41,9 @@ export class LogController implements vscode.Disposable {
   constructor(
     private readonly webview: vscode.Webview,
     private readonly services: LogServices,
+    private readonly history?: HistoryTarget,
   ) {
+    this.repository = history?.repository;
     this.disposables.push(
       webview.onDidReceiveMessage((message: WebviewMessage) => this.handle(message)),
       services.repositories.onDidChangeRepository((repository) => {
@@ -41,9 +55,10 @@ export class LogController implements vscode.Disposable {
     );
   }
 
-  /** Brings the given commit into view, e.g. when coming from blame. */
+  /** Brings the given commit into view, e.g. when coming from blame; waits for the first load if needed. */
   revealCommit(hash: string): void {
-    this.post({ type: 'revealCommit', hash });
+    if (this.snapshot) this.post({ type: 'revealCommit', hash });
+    else this.pendingReveal = hash;
   }
 
   private async handle(message: WebviewMessage): Promise<void> {
@@ -87,6 +102,8 @@ export class LogController implements vscode.Disposable {
         return this.commitAction(message.action, message.hash);
       case 'refAction':
         return this.refAction(message.action, message.fullName);
+      case 'openCommitDiff':
+        return this.openCommitDiff(message.hash);
       case 'openWorktree':
         await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(message.path), {
           forceNewWindow: message.newWindow,
@@ -104,14 +121,26 @@ export class LogController implements vscode.Disposable {
     }
     this.post({ type: 'loading', value: true });
     try {
-      const focus = this.stored(FOCUS_KEY);
-      const snapshot = await this.repository.snapshot({ revisions: await this.existingRevisions(focus) });
+      const snapshot = this.history
+        ? await this.historySnapshot(this.history)
+        : await this.repository.snapshot({ revisions: await this.existingRevisions(this.stored(FOCUS_KEY)) });
       if (version !== this.loadVersion) return;
       this.snapshot = snapshot;
       this.postSnapshot();
     } finally {
       if (version === this.loadVersion) this.post({ type: 'loading', value: false });
     }
+  }
+
+  private async historySnapshot(target: HistoryTarget): Promise<RepositorySnapshot> {
+    const { repository, path, range } = target;
+    const [history, refs, head] = await Promise.all([
+      range ? repository.lineHistory(path, range.start, range.end) : repository.fileHistory(path),
+      repository.refs(),
+      repository.head(),
+    ]);
+    this.historyPaths = history.paths;
+    return { root: repository.root, head, commits: history.commits, refs, worktrees: [], stashes: [] };
   }
 
   /** Focus may name branches that were deleted since; they are skipped instead of failing the log. */
@@ -130,9 +159,14 @@ export class LogController implements vscode.Disposable {
       type: 'snapshot',
       repositories: this.services.repositories.all.map((r) => ({ root: r.root, name: r.name })),
       snapshot: this.snapshot,
-      focus: this.stored(FOCUS_KEY),
+      focus: this.history ? [] : this.stored(FOCUS_KEY),
       favorites: this.stored(FAVORITES_KEY),
+      history: this.history ? { title: this.history.title } : undefined,
     });
+    if (this.pendingReveal) {
+      this.post({ type: 'revealCommit', hash: this.pendingReveal });
+      this.pendingReveal = undefined;
+    }
   }
 
   private async selectCommits(requestId: number, hashes: string[]): Promise<void> {
@@ -150,7 +184,26 @@ export class LogController implements vscode.Disposable {
             newest.hash,
             `Коммиты ${oldest.hash.slice(0, 8)}…${newest.hash.slice(0, 8)}`,
           );
-    this.post({ type: 'details', requestId, commits, changeSet: this.register(changeSet) });
+    const view = this.register(changeSet);
+    if (this.history && commits.length === 1) view.focusIndex = this.historyFileIndex(changeSet, newest.hash);
+    this.post({ type: 'details', requestId, commits, changeSet: view });
+  }
+
+  /** Index of the traced file in a commit of a history view; it may have had another name back then. */
+  private historyFileIndex(changeSet: ChangeSet, hash: string): number | undefined {
+    const filePath = this.historyPaths[hash] ?? this.history?.path;
+    const index = changeSet.files.findIndex((f) => f.path === filePath || f.oldPath === filePath);
+    return index < 0 ? undefined : index;
+  }
+
+  private async openCommitDiff(hash: string): Promise<void> {
+    const repository = this.repository;
+    if (!repository) return;
+    const details = await repository.commitDetails(hash);
+    const changeSet = await commitChangeSet(repository, hash, details.parents);
+    if (changeSet.files.length === 0) return this.openChangeSet(changeSet);
+    const index = this.history ? (this.historyFileIndex(changeSet, hash) ?? 0) : 0;
+    return this.services.navigator.open(changeSet, index);
   }
 
   private async showStash(requestId: number, hash: string): Promise<void> {

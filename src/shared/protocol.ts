@@ -11,6 +11,8 @@ export interface ChangeSetView {
   /** Short description of the compared revisions, e.g. `a1b2c3d^ ↔ a1b2c3d`. */
   range: string;
   files: FileChange[];
+  /** File to select when the set is shown, e.g. the traced file in a history view. */
+  focusIndex?: number;
 }
 
 export type CommitAction =
@@ -34,6 +36,8 @@ export type HostMessage =
       snapshot: RepositorySnapshot;
       focus: string[];
       favorites: string[];
+      /** Set when the view shows the history of a file or of lines instead of the whole log. */
+      history?: { title: string };
     }
   | { type: 'noRepository' }
   | { type: 'loading'; value: boolean }
@@ -53,4 +57,6 @@ export type WebviewMessage =
   | { type: 'commitAction'; action: CommitAction; hash: string }
   | { type: 'refAction'; action: RefAction; fullName: string }
   | { type: 'openWorktree'; path: string; newWindow: boolean }
+  /** Double click on a commit: its diff, or in a history view the diff of the file in that commit. */
+  | { type: 'openCommitDiff'; hash: string }
   | { type: 'showStash'; requestId: number; hash: string };

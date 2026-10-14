@@ -20,6 +20,8 @@ export class LogStore {
   snapshot = $state.raw<RepositorySnapshot | undefined>(undefined);
   focus = $state.raw<string[]>([]);
   favorites = $state.raw<string[]>([]);
+  /** Title of the history view; undefined in the regular log. */
+  history = $state<string | undefined>(undefined);
   loading = $state(false);
   noRepository = $state(false);
   filterText = $state('');
@@ -97,6 +99,7 @@ export class LogStore {
         this.snapshot = message.snapshot;
         this.focus = message.focus;
         this.favorites = message.favorites;
+        this.history = message.history?.title;
         this.afterSnapshot();
         break;
       case 'noRepository':
@@ -162,6 +165,8 @@ export class LogStore {
       this.revealRequest++;
     } else {
       this.pendingReveal = hash;
+      // The commit may be hidden by the focus on branches: show everything to find it.
+      if (this.focus.length) post({ type: 'setFocus', revisions: [] });
     }
   }
 

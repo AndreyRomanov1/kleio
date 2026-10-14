@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import type { FileChange } from '../../shared/model';
   import type { ChangeSetView } from '../../shared/protocol';
   import { basename, dirname } from '../format';
@@ -15,7 +16,15 @@
 
   let { changeSet, view, groupByDirectory }: Props = $props();
   let collapsed = $state(new Set<string>());
-  let selected = $state<number | undefined>(undefined);
+  // The list is recreated for every change set, so only the initial focus matters.
+  let selected = $state<number | undefined>(untrack(() => changeSet.focusIndex));
+  let list: HTMLDivElement | undefined = $state();
+
+  // The focused file (e.g. the traced file of a history view) is scrolled into view once the list renders.
+  $effect(() => {
+    if (changeSet.focusIndex === undefined || !list) return;
+    list.querySelector('.row.focus')?.scrollIntoView({ block: 'nearest' });
+  });
 
   interface Indexed {
     change: FileChange;
@@ -84,7 +93,7 @@
   };
 </script>
 
-<div class="files" role="tree" tabindex="0" onkeydown={keydown}>
+<div class="files" role="tree" tabindex="0" onkeydown={keydown} bind:this={list}>
   {#each rows as row, i ('header' in row ? `h:${row.header}:${i}` : row.node.key)}
     {#if 'header' in row}
       <div class="header" title={row.header}>{row.header}</div>
@@ -99,6 +108,7 @@
       <div
         class="row file"
         class:selected={selected === index}
+        class:focus={changeSet.focusIndex === index}
         style:padding-left="{18 + row.depth * 14}px"
         role="treeitem"
         aria-selected={selected === index}
@@ -144,6 +154,9 @@
   }
   .row:hover {
     background: var(--vscode-list-hoverBackground);
+  }
+  .row.focus .name {
+    font-weight: 600;
   }
   .row.selected {
     background: var(--vscode-list-inactiveSelectionBackground);
