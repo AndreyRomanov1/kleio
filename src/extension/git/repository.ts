@@ -11,6 +11,7 @@ import type {
   RepositorySnapshot,
   Stash,
 } from '../../shared/model';
+import type { ConflictFileView } from '../../shared/conflictsProtocol';
 import type { RebaseEntry } from '../../shared/rebaseProtocol';
 import { GitError, GitRunner } from './gitRunner';
 import { buildRebaseTodo } from './rebasePlan';
@@ -304,11 +305,12 @@ export class Repository {
     let state: Omit<OperationState, 'conflicted'> | undefined;
     if (rebaseMerge !== undefined || rebaseApply !== undefined) {
       const dir = rebaseMerge !== undefined ? 'rebase-merge' : 'rebase-apply';
-      const [onto, step, total, stopped] = await Promise.all([
+      const [onto, step, total, stopped, rebaseHead] = await Promise.all([
         read(`${dir}/onto`),
         read(dir === 'rebase-merge' ? `${dir}/msgnum` : `${dir}/next`),
         read(dir === 'rebase-merge' ? `${dir}/end` : `${dir}/last`),
         read(`${dir}/stopped-sha`),
+        read('REBASE_HEAD'),
       ]);
       const headName = rebaseMerge ?? rebaseApply;
       state = {
@@ -317,7 +319,7 @@ export class Repository {
         onto,
         step: step ? Number(step) : undefined,
         total: total ? Number(total) : undefined,
-        stoppedAt: stopped || undefined,
+        stoppedAt: stopped || rebaseHead || undefined,
       };
     } else if (merge !== undefined) {
       state = { kind: 'merge', onto: merge.split('\n')[0] };
@@ -389,6 +391,40 @@ export class Repository {
         .map((hash) => this.commitDetails(hash)),
     );
     return { commits, merges: Number(merges.trim()) };
+  }
+
+  /** Files with unresolved conflicts and which of the three versions (base, ours, theirs) each one has. */
+  async conflicts(): Promise<ConflictFileView[]> {
+    const output = await this.git.run(['ls-files', '--unmerged', '-z']);
+    const files = new Map<string, ConflictFileView>();
+    for (const record of output.split('\0')) {
+      const tab = record.indexOf('\t');
+      if (tab < 0) continue;
+      const stage = record.slice(0, tab).split(' ')[2];
+      const filePath = record.slice(tab + 1);
+      let file = files.get(filePath);
+      if (!file) files.set(filePath, (file = { path: filePath, base: false, ours: false, theirs: false }));
+      if (stage === '1') file.base = true;
+      if (stage === '2') file.ours = true;
+      if (stage === '3') file.theirs = true;
+    }
+    return [...files.values()].sort((a, b) => a.path.localeCompare(b.path));
+  }
+
+  /** Resolves conflicts by taking one side; a side without the file resolves to deleting it. */
+  async resolveConflicts(files: ConflictFileView[], side: 'ours' | 'theirs'): Promise<void> {
+    const take = files.filter((f) => f[side]).map((f) => f.path);
+    const remove = files.filter((f) => !f[side]).map((f) => f.path);
+    if (take.length) {
+      await this.git.run(['checkout', `--${side}`, '--', ...take]);
+      await this.git.run(['add', '--', ...take]);
+    }
+    if (remove.length) await this.git.run(['rm', '--quiet', '--', ...remove]);
+  }
+
+  /** Marks files as resolved with their current contents in the working tree. */
+  async markResolved(paths: string[]): Promise<void> {
+    if (paths.length) await this.git.run(['add', '--', ...paths]);
   }
 
   /** Whether `ancestor` is reachable from `descendant`. */

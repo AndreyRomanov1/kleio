@@ -111,6 +111,34 @@ describe('Repository operations', () => {
     expect(git(dir, 'log', '--format=%s', 'feature').trim().split('\n')).toEqual(['f', 'm', 'a']);
   });
 
+  it('lists conflicts with the sides that have the file and resolves them by side', async () => {
+    const dir = init('sides');
+    commitFile(dir, 'a.txt', 'base\n', 'base a');
+    commitFile(dir, 'gone.txt', 'base\n', 'base gone');
+    git(dir, 'checkout', '-q', '-b', 'feature');
+    commitFile(dir, 'a.txt', 'feature\n', 'feature a');
+    commitFile(dir, 'gone.txt', 'feature\n', 'feature gone');
+    git(dir, 'checkout', '-q', 'main');
+    commitFile(dir, 'a.txt', 'main\n', 'main a');
+    git(dir, 'rm', '-q', 'gone.txt');
+    git(dir, 'commit', '-q', '-m', 'main removes gone');
+    const repository = (await Repository.open(dir))!;
+
+    expect(await repository.merge('feature')).toBe('conflicts');
+    const conflicts = await repository.conflicts();
+    expect(conflicts).toEqual([
+      { path: 'a.txt', base: true, ours: true, theirs: true },
+      { path: 'gone.txt', base: true, ours: false, theirs: true },
+    ]);
+
+    await repository.resolveConflicts(conflicts, 'ours');
+    expect(await repository.conflicts()).toEqual([]);
+    expect(readFileSync(path.join(dir, 'a.txt'), 'utf8')).toBe('main\n');
+    expect(git(dir, 'status', '--porcelain')).not.toContain('gone.txt\n?');
+    expect(await repository.continueOperation('merge')).toBe('done');
+    expect(git(dir, 'ls-files').trim().split('\n')).toEqual(['a.txt']);
+  });
+
   it('merges without conflicts, keeping uncommitted changes of other files', async () => {
     const dir = init('clean');
     commitFile(dir, 'a.txt', 'a\n', 'a');
