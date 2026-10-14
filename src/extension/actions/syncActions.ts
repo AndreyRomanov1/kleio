@@ -27,11 +27,17 @@ export class SyncActions {
     );
   }
 
-  async rebase(repository: Repository, snapshot: RepositorySnapshot, onto: string): Promise<void> {
-    const current = snapshot.head.branch;
+  /** Rebases the current branch, or `branch` after checking it out, onto a revision. */
+  async rebase(
+    repository: Repository,
+    snapshot: RepositorySnapshot,
+    onto: string,
+    branch?: string,
+  ): Promise<void> {
+    const current = branch ?? snapshot.head.branch;
     if (!current) return this.detached();
     await this.operation(repository, `Rebase ${current} на ${shorten(onto)}`, 'rebase', () =>
-      repository.rebase(onto),
+      repository.rebase(onto, branch),
     );
   }
 

@@ -214,6 +214,13 @@ function syncEntries(ref: Ref, store: LogStore, isCurrent: boolean): MenuEntry[]
         run: run({ type: 'refAction', action: 'rebaseOnto', fullName }),
       },
     );
+    if (ref.kind === 'head') {
+      entries.push({
+        label: `Checkout ${ref.name} и перебазировать на ${current}`,
+        disabled: busy,
+        run: run({ type: 'refAction', action: 'checkoutAndRebase', fullName }),
+      });
+    }
   }
   if (ref.kind === 'head') {
     entries.push({

@@ -344,9 +344,12 @@ export class Repository {
     return this.runOperation([...args, revision]);
   }
 
-  /** Rebases the current branch onto a revision, stashing uncommitted changes for the time of it. */
-  rebase(onto: string): Promise<OperationOutcome> {
-    return this.runOperation(['rebase', '--autostash', onto]);
+  /**
+   * Rebases the current branch — or `branch`, checking it out first — onto a revision, stashing uncommitted
+   * changes for the time of it.
+   */
+  rebase(onto: string, branch?: string): Promise<OperationOutcome> {
+    return this.runOperation(['rebase', '--autostash', onto, ...(branch ? [branch] : [])]);
   }
 
   cherryPick(hash: string): Promise<OperationOutcome> {

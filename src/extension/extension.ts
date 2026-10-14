@@ -30,8 +30,8 @@ export interface GroveApi {
 export async function activate(context: vscode.ExtensionContext): Promise<GroveApi> {
   const repositories = new RepositoryManager();
   const navigator = new ChangeSetNavigator();
-  const actions = new GitActions(repositories);
   const sync = new SyncActions(repositories);
+  const actions = new GitActions(repositories, sync);
   const push = new PushDialog(context, repositories, navigator);
   const gitlabAuth = new GitLabAuth(context.secrets);
   const hosting = new HostingService(gitlabAuth);

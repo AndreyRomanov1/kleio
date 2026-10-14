@@ -40,6 +40,7 @@ export type RefAction =
   | 'createMergeRequest'
   | 'merge'
   | 'rebaseOnto'
+  | 'checkoutAndRebase'
   | 'updateBranch'
   | 'push';
 

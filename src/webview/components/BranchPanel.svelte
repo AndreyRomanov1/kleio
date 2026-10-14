@@ -57,10 +57,16 @@
         key: 'section:head',
         title: 'HEAD',
         nodes: [
-          leaf('head', `${snapshot.head.hash.slice(0, 8)} (без ветки)`, {
-            kind: 'detached',
-            hash: snapshot.head.hash,
-          }),
+          leaf(
+            'head',
+            snapshot.operation?.kind === 'rebase' && snapshot.operation.branch
+              ? `${snapshot.head.hash.slice(0, 8)} (идёт rebase ${snapshot.operation.branch})`
+              : `${snapshot.head.hash.slice(0, 8)} (без ветки)`,
+            {
+              kind: 'detached',
+              hash: snapshot.head.hash,
+            },
+          ),
         ],
       });
 

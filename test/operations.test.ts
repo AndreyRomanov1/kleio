@@ -97,6 +97,20 @@ describe('Repository operations', () => {
     expect((await repository.head()).branch).toBe('feature');
   });
 
+  it('checks out a branch and rebases it onto the current one', async () => {
+    const dir = init('checkout-rebase');
+    commitFile(dir, 'a.txt', 'a\n', 'a');
+    git(dir, 'checkout', '-q', '-b', 'feature');
+    commitFile(dir, 'f.txt', 'f\n', 'f');
+    git(dir, 'checkout', '-q', 'main');
+    commitFile(dir, 'm.txt', 'm\n', 'm');
+    const repository = (await Repository.open(dir))!;
+
+    expect(await repository.rebase('main', 'feature')).toBe('done');
+    expect((await repository.head()).branch).toBe('feature');
+    expect(git(dir, 'log', '--format=%s', 'feature').trim().split('\n')).toEqual(['f', 'm', 'a']);
+  });
+
   it('merges without conflicts, keeping uncommitted changes of other files', async () => {
     const dir = init('clean');
     commitFile(dir, 'a.txt', 'a\n', 'a');

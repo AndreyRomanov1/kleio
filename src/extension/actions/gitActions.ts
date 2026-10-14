@@ -3,10 +3,17 @@ import type { Ref, RepositorySnapshot } from '../../shared/model';
 import { GitError } from '../git/gitRunner';
 import type { Repository } from '../git/repository';
 import type { RepositoryManager } from '../git/repositoryManager';
+import type { SyncActions } from './syncActions';
+
+/** What git says when local changes would be lost by a checkout. */
+const OVERWRITTEN = /would be overwritten by checkout|untracked working tree files would be overwritten/;
 
 /** Git operations started from the UI: asks what is needed, runs git, reports the outcome. */
 export class GitActions {
-  constructor(private readonly repositories: RepositoryManager) {}
+  constructor(
+    private readonly repositories: RepositoryManager,
+    private readonly sync: SyncActions,
+  ) {}
 
   async checkoutRef(repository: Repository, snapshot: RepositorySnapshot, ref: Ref): Promise<void> {
     if (ref.kind !== 'tag' && (await this.redirectToMainWorktree(snapshot, ref))) return;
@@ -304,9 +311,68 @@ export class GitActions {
       vscode.window.setStatusBarMessage(`Grove: ${title} — готово`, 3000);
       return true;
     } catch (error) {
+      if (args[0] === 'checkout' && error instanceof GitError && OVERWRITTEN.test(error.stderr)) {
+        return this.smartCheckout(repository, title, args);
+      }
       this.report(error);
       return false;
     }
+  }
+
+  /**
+   * Rider's smart checkout: local changes that the checkout would overwrite are stashed, the checkout is done,
+   * and the changes are brought back on top of the new branch.
+   */
+  private async smartCheckout(repository: Repository, title: string, args: string[]): Promise<boolean> {
+    const ok = await vscode.window.showWarningMessage(
+      'Локальные изменения мешают переключению.',
+      {
+        modal: true,
+        detail:
+          'Smart checkout: изменения будут спрятаны в stash, ветка переключится, и изменения вернутся поверх неё. Если при возврате будут конфликты, stash останется в списке.',
+      },
+      'Smart checkout',
+    );
+    if (!ok) return false;
+    try {
+      await repository.git.run([
+        'stash',
+        'push',
+        '--include-untracked',
+        '-m',
+        `grove: smart checkout (${title})`,
+      ]);
+    } catch (error) {
+      this.report(error);
+      return false;
+    }
+    try {
+      await repository.git.run(args);
+    } catch (error) {
+      await repository.git.run(['stash', 'pop']).catch(() => undefined);
+      this.repositories.notifyChanged(repository);
+      this.report(error);
+      return false;
+    }
+    try {
+      await repository.git.run(['stash', 'pop']);
+      vscode.window.setStatusBarMessage(`Grove: ${title} — изменения перенесены`, 4000);
+    } catch {
+      void vscode.window.showWarningMessage(
+        `${title}: изменения вернулись с конфликтами. Разрешите их; спрятанная копия осталась в stash.`,
+      );
+    }
+    this.repositories.notifyChanged(repository);
+    return true;
+  }
+
+  /** Rider's "Checkout and Rebase onto Current": the branch is checked out and rebased onto the current one. */
+  async checkoutAndRebase(repository: Repository, snapshot: RepositorySnapshot, ref: Ref): Promise<void> {
+    const current = snapshot.head.branch;
+    if (ref.kind !== 'head' || !current || current === ref.name) return;
+    const busy = snapshot.worktrees.find((w) => w.branch === ref.name && !w.isCurrent);
+    if (busy) return this.offerWorktree(ref.name, busy.path);
+    await this.sync.rebase(repository, snapshot, current, ref.name);
   }
 
   private report(error: unknown): void {
