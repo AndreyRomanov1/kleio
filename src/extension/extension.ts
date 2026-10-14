@@ -3,6 +3,7 @@ import { GitActions } from './actions/gitActions';
 import { AuthorLens } from './blame/authorLens';
 import { BlameAnnotations } from './blame/blameAnnotations';
 import { ChangeSetNavigator } from './changes/changeSetNavigator';
+import { CommitView } from './commit/commitView';
 import { RevisionContentProvider } from './content/revisionContentProvider';
 import { REVISION_SCHEME } from './content/revisionUri';
 import { RepositoryManager } from './git/repositoryManager';
@@ -34,6 +35,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<GroveA
     history,
     blame,
     new AuthorLens(repositories),
+    new CommitView(context, repositories, navigator),
     vscode.workspace.registerTextDocumentContentProvider(
       REVISION_SCHEME,
       new RevisionContentProvider(repositories),

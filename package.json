@@ -27,6 +27,13 @@
           "title": "Git Log",
           "icon": "media/grove.svg"
         }
+      ],
+      "activitybar": [
+        {
+          "id": "grove-commit",
+          "title": "Коммит",
+          "icon": "media/commit.svg"
+        }
       ]
     },
     "views": {
@@ -36,6 +43,14 @@
           "type": "webview",
           "name": "Log",
           "icon": "media/grove.svg"
+        }
+      ],
+      "grove-commit": [
+        {
+          "id": "grove.commit",
+          "type": "webview",
+          "name": "Коммит",
+          "icon": "media/commit.svg"
         }
       ]
     },
