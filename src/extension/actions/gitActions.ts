@@ -9,6 +9,7 @@ export class GitActions {
   constructor(private readonly repositories: RepositoryManager) {}
 
   async checkoutRef(repository: Repository, snapshot: RepositorySnapshot, ref: Ref): Promise<void> {
+    if (ref.kind !== 'tag' && (await this.redirectToMainWorktree(snapshot, ref))) return;
     if (ref.kind === 'remote') return this.checkoutRemote(repository, snapshot, ref);
     if (ref.kind === 'tag') return this.checkoutRevision(repository, ref.name);
     if (snapshot.head.branch === ref.name) return;
@@ -78,6 +79,47 @@ export class GitActions {
     }
   }
 
+  /**
+   * A linked worktree is kept for its own branch: switching it to an unrelated branch is offered to happen in
+   * the main folder of the project instead. Returns true when the checkout was handled there.
+   */
+  private async redirectToMainWorktree(snapshot: RepositorySnapshot, ref: Ref): Promise<boolean> {
+    const here = snapshot.worktrees.find((w) => w.isCurrent);
+    const main = snapshot.worktrees.find((w) => w.isMain);
+    if (!here || !main || here.isMain) return false;
+    const target = ref.kind === 'remote' ? ref.name.slice(ref.name.indexOf('/') + 1) : ref.name;
+    if (target === here.branch) return false;
+    if (snapshot.worktrees.some((w) => w.branch === target && !w.isCurrent)) return false;
+
+    const inMain = 'Переключить в основной папке';
+    const inHere = 'Переключить этот worktree';
+    const choice = await vscode.window.showInformationMessage(
+      `Это worktree ветки ${here.branch ?? '(без ветки)'}. Переключиться на ${target} в основной папке проекта?`,
+      {
+        modal: true,
+        detail: `Основная папка: ${main.path}. Checkout выполнится там, и она откроется в этом окне, а worktree останется при своей ветке.`,
+      },
+      inMain,
+      inHere,
+    );
+    if (choice === inHere) return false;
+    if (choice !== inMain) return true;
+
+    const mainRepository = await this.repositories.get(main.path);
+    if (!mainRepository) return true;
+    const mainSnapshot = await mainRepository.snapshot({ revisions: ['HEAD'] });
+    const mainRef = mainSnapshot.refs.find((r) => r.fullName === ref.fullName) ?? ref;
+    const before = mainSnapshot.head.branch;
+    await this.checkoutRef(mainRepository, mainSnapshot, mainRef);
+    const after = (await mainRepository.head()).branch;
+    if (after === target || before === target) {
+      await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(main.path), {
+        forceNewWindow: false,
+      });
+    }
+    return true;
+  }
+
   /** A branch checked out in another worktree cannot be checked out here; its worktree can be opened instead. */
   private async offerWorktree(branch: string, worktreePath: string): Promise<void> {
     const newWindow = 'Открыть в новом окне';
@@ -137,12 +179,18 @@ export class GitActions {
       void vscode.window.showWarningMessage(`Нельзя удалить текущую ветку ${ref.name}.`);
       return;
     }
-    const ok = await vscode.window.showWarningMessage(
-      `Удалить локальную ветку ${ref.name}?`,
-      { modal: true },
-      'Удалить',
-    );
-    if (!ok) return;
+    const worktree = snapshot.worktrees.find((w) => w.branch === ref.name && !w.isCurrent);
+    if (worktree) {
+      const removed = await this.removeWorktree(repository, ref.name, worktree.path);
+      if (!removed) return;
+    } else {
+      const ok = await vscode.window.showWarningMessage(
+        `Удалить локальную ветку ${ref.name}?`,
+        { modal: true },
+        'Удалить',
+      );
+      if (!ok) return;
+    }
     try {
       await repository.git.run(['branch', '-d', ref.name]);
       this.repositories.notifyChanged(repository);
@@ -155,6 +203,42 @@ export class GitActions {
         'Удалить',
       );
       if (force) await this.run(repository, `Удаление ${ref.name}`, ['branch', '-D', ref.name]);
+    }
+  }
+
+  /** Removes the worktree a branch is checked out in, so that the branch itself can be deleted. */
+  private async removeWorktree(
+    repository: Repository,
+    branch: string,
+    worktreePath: string,
+  ): Promise<boolean> {
+    const ok = await vscode.window.showWarningMessage(
+      `Ветка ${branch} открыта в worktree ${worktreePath}. Удалить worktree и ветку?`,
+      { modal: true, detail: `Папка ${worktreePath} будет удалена с диска.` },
+      'Удалить worktree и ветку',
+    );
+    if (!ok) return false;
+    try {
+      await repository.git.run(['worktree', 'remove', worktreePath]);
+      return true;
+    } catch (error) {
+      if (!(error instanceof GitError) || !/modified or untracked|is dirty/.test(error.stderr)) {
+        this.report(error);
+        return false;
+      }
+    }
+    const force = await vscode.window.showWarningMessage(
+      `В worktree ${worktreePath} есть незакоммиченные изменения. Удалить вместе с ними?`,
+      { modal: true, detail: 'Изменения и неотслеживаемые файлы в этой папке пропадут безвозвратно.' },
+      'Удалить с изменениями',
+    );
+    if (!force) return false;
+    try {
+      await repository.git.run(['worktree', 'remove', '--force', worktreePath]);
+      return true;
+    } catch (error) {
+      this.report(error);
+      return false;
     }
   }
 
