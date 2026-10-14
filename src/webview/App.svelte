@@ -42,10 +42,27 @@
     const current = snapshot.refs.find((r) => r.kind === 'head' && r.name === snapshot.head.branch);
     if (current?.upstream) revisions.push(current.upstream.replace('refs/remotes/', ''));
     for (const main of ['master', 'main']) {
+      if (names.has(main)) revisions.push(main);
       if (names.has(`origin/${main}`)) revisions.push(`origin/${main}`);
-      else if (names.has(main)) revisions.push(main);
     }
     post({ type: 'setFocus', revisions: [...new Set(revisions)] });
+  }
+
+  /**
+   * Speed search as in Rider: typing in the branch tree goes to the branch search, typing anywhere else to
+   * the commit filter. Focus moves before the key is handled, so the typed character lands in the field.
+   */
+  function speedSearch(event: KeyboardEvent): void {
+    const target = event.target as HTMLElement;
+    if (target.closest('input, select, textarea')) return;
+    if (event.ctrlKey || event.metaKey || event.altKey || event.key.length !== 1 || event.key === ' ') return;
+    const field = target.closest('.branches') ? 'grove-branch-search' : 'grove-filter';
+    document.getElementById(field)?.focus();
+  }
+
+  function clearOnEscape(event: KeyboardEvent, clear: () => boolean): void {
+    if (event.key !== 'Escape') return;
+    if (!clear()) (event.currentTarget as HTMLElement).blur();
   }
 
   const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
@@ -56,7 +73,9 @@
     if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
       e.preventDefault();
       document.getElementById('grove-filter')?.focus();
+      return;
     }
+    speedSearch(e);
   }}
 />
 
@@ -85,6 +104,12 @@
       placeholder="Текст, автор или хэш (Ctrl+F)"
       bind:value={store.filterText}
       spellcheck="false"
+      onkeydown={(e) =>
+        clearOnEscape(e, () => {
+          const had = store.filterText !== '';
+          store.filterText = '';
+          return had;
+        })}
     />
     {#if store.focus.length}
       <div class="focus" title="Лог показывает только историю этих веток">
@@ -102,8 +127,10 @@
         <button class="tool" onclick={() => post({ type: 'setFocus', revisions: [] })}>Все ветки</button>
       </div>
     {:else}
-      <button class="tool" title="Показать только текущую ветку, её origin и master" onclick={focusCurrent}
-        >Только текущая</button
+      <button
+        class="tool"
+        title="Показать только текущую ветку, её origin, master и origin/master"
+        onclick={focusCurrent}>Только текущая</button
       >
     {/if}
     <span class="spacer"></span>

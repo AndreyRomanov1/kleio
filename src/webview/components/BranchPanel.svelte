@@ -136,7 +136,18 @@
 </script>
 
 <div class="panel">
-  <input class="search" placeholder="Поиск веток" bind:value={query} spellcheck="false" />
+  <input
+    id="grove-branch-search"
+    class="search"
+    placeholder="Поиск веток"
+    bind:value={query}
+    spellcheck="false"
+    onkeydown={(e) => {
+      if (e.key !== 'Escape') return;
+      if (query) query = '';
+      else (e.currentTarget as HTMLElement).blur();
+    }}
+  />
   <div class="tree" role="tree">
     {#each sections as section (section.key)}
       {@const open = !effectiveCollapsed.has(section.key)}
