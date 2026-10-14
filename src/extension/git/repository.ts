@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import type {
   Commit,
@@ -11,7 +11,9 @@ import type {
   RepositorySnapshot,
   Stash,
 } from '../../shared/model';
+import type { RebaseEntry } from '../../shared/rebaseProtocol';
 import { GitError, GitRunner } from './gitRunner';
+import { buildRebaseTodo } from './rebasePlan';
 import {
   FIELD,
   RECORD,
@@ -352,6 +354,64 @@ export class Repository {
     return this.runOperation(['rebase', '--autostash', onto, ...(branch ? [branch] : [])]);
   }
 
+  /**
+   * Rewrites the commits after `base` (all of them up to the root when undefined) as planned in the dialog.
+   * The todo list and the new messages are prepared up front, so git never opens an editor; they are kept in
+   * the git directory, as the rebase may stop for conflicts or an edit and go on later.
+   */
+  async interactiveRebase(base: string | undefined, entries: RebaseEntry[]): Promise<OperationOutcome> {
+    const originals = new Map<string, string>();
+    for (const entry of entries) originals.set(entry.hash, (await this.commitDetails(entry.hash)).message);
+    const dir = path.join(this.gitDir, 'grove-rebase');
+    await rm(dir, { recursive: true, force: true });
+    await mkdir(dir, { recursive: true });
+    const { todo, messages } = buildRebaseTodo(entries, originals, (name) => path.join(dir, name));
+    for (const [name, message] of messages) await writeFile(path.join(dir, name), message + '\n', 'utf8');
+    const todoFile = path.join(dir, 'todo.txt');
+    await writeFile(todoFile, todo, 'utf8');
+    const copyTodo = `cp '${todoFile.replace(/\\/g, '/').replace(/'/g, `'\\''`)}'`;
+    return this.runOperation(['rebase', '-i', '--autostash', '--no-autosquash', base ?? '--root'], {
+      GIT_SEQUENCE_EDITOR: copyTodo,
+    });
+  }
+
+  /** Commits after `base` (from the root when undefined) up to HEAD, oldest first, with full messages. */
+  async rebaseRange(base: string | undefined): Promise<{ commits: CommitDetails[]; merges: number }> {
+    const range = base ? `${base}..HEAD` : 'HEAD';
+    const [hashes, merges] = await Promise.all([
+      this.git.run(['rev-list', '--reverse', '--no-merges', range]),
+      this.git.run(['rev-list', '--count', '--merges', range]),
+    ]);
+    const commits = await Promise.all(
+      hashes
+        .split('\n')
+        .filter(Boolean)
+        .map((hash) => this.commitDetails(hash)),
+    );
+    return { commits, merges: Number(merges.trim()) };
+  }
+
+  /** Whether `ancestor` is reachable from `descendant`. */
+  async isAncestor(ancestor: string, descendant: string): Promise<boolean> {
+    try {
+      await this.git.run(['merge-base', '--is-ancestor', ancestor, descendant]);
+      return true;
+    } catch (error) {
+      if (error instanceof GitError && error.exitCode === 1) return false;
+      throw error;
+    }
+  }
+
+  /** How many of the commits after `base` up to HEAD are already on some remote branch. */
+  async publishedCount(base: string | undefined): Promise<number> {
+    const range = base ? `${base}..HEAD` : 'HEAD';
+    const [all, local] = await Promise.all([
+      this.git.run(['rev-list', '--count', range]),
+      this.git.run(['rev-list', '--count', range, '--not', '--remotes']),
+    ]);
+    return Number(all.trim()) - Number(local.trim());
+  }
+
   cherryPick(hash: string): Promise<OperationOutcome> {
     return this.runOperation(['cherry-pick', hash]);
   }
@@ -374,9 +434,9 @@ export class Repository {
    * Runs a command that may stop half-way. A stop for conflicts or for an edit is a normal outcome, not an
    * error; any other failure, e.g. local changes in the way, is thrown.
    */
-  private async runOperation(args: string[]): Promise<OperationOutcome> {
+  private async runOperation(args: string[], env: NodeJS.ProcessEnv = {}): Promise<OperationOutcome> {
     try {
-      await this.git.run(args, { env: NO_EDITOR });
+      await this.git.run(args, { env: { ...NO_EDITOR, ...env } });
     } catch (error) {
       if (!(error instanceof GitError)) throw error;
       const state = await this.operation();
