@@ -10,6 +10,23 @@
 
   let { store }: Props = $props();
   let element: HTMLDivElement | undefined = $state();
+  let comment = $state('');
+  let showAll = $state(false);
+  let expandedNotes = $state<ReadonlySet<number>>(new Set());
+
+  /** The text is in the review journal before it is sent, so the box can be cleared at once. */
+  function send(draft: boolean): void {
+    const number = store.card?.number;
+    if (!number || !comment.trim()) return;
+    post({ type: 'postComment', number, body: comment, draft });
+    comment = '';
+  }
+
+  const timeFormat = new Intl.DateTimeFormat('ru-RU', { dateStyle: 'short', timeStyle: 'short' });
+  function formatTime(iso: string): string {
+    const date = new Date(iso);
+    return Number.isNaN(date.getTime()) ? '' : timeFormat.format(date);
+  }
 
   const current = $derived(store.card);
   const card = $derived(current?.card);
@@ -123,7 +140,102 @@
         <div class="section muted">Пайплайна нет</div>
       {/if}
 
+      {#if card.discussions}
+        {@const d = card.discussions}
+        {@const open = d.threads.filter((t) => !t.outdated && !(t.resolvable && t.resolved))}
+        {@const rest = d.threads.filter((t) => !open.includes(t))}
+        <div class="section">
+          <div class="label">
+            Обсуждения
+            <span class="muted">
+              {#if d.unresolved}· нерешённых {d.unresolved}{/if}
+              {#if d.drafts}· черновиков {d.drafts}{/if}
+            </span>
+            <span class="spacer"></span>
+            {#if d.drafts}
+              <button
+                class="small"
+                title="Опубликовать все ваши черновики к этому MR (как Submit review на вебе)"
+                onclick={() => post({ type: 'publishDrafts', number: card.iid })}
+                ><i class="codicon codicon-cloud-upload"></i> Опубликовать черновики</button
+              >
+            {/if}
+          </div>
+          {#each showAll ? [...open, ...rest] : open as thread, i (i)}
+            <button
+              class="thread"
+              class:resolved={thread.resolved}
+              title={thread.outdated ? 'К прошлой версии MR' : 'Открыть в коде'}
+              onclick={() =>
+                post({
+                  type: 'startReview',
+                  number: card.iid,
+                  path: thread.path,
+                  line: thread.outdated ? undefined : thread.line,
+                })}
+            >
+              <i
+                class="codicon codicon-{thread.outdated
+                  ? 'history'
+                  : thread.resolved
+                    ? 'pass'
+                    : thread.resolvable
+                      ? 'comment-unresolved'
+                      : 'comment'}"
+              ></i>
+              <span class="where">{thread.path.split('/').pop()}:{thread.line}</span>
+              <span class="what"><b>{thread.author}:</b> {thread.body}</span>
+              {#if thread.replies}<span class="muted">+{thread.replies}</span>{/if}
+            </button>
+          {/each}
+          {#if rest.length}
+            <button class="more" onclick={() => (showAll = !showAll)}>
+              {showAll
+                ? 'Скрыть решённые и к прошлым версиям'
+                : `Ещё ${rest.length}: решённые и к прошлым версиям`}
+            </button>
+          {/if}
+          {#each d.general as note, i (i)}
+            <div class="note" class:draft={note.draft}>
+              <div class="note-head">
+                <b>{note.author}</b>
+                <span class="muted">{note.draft ? 'черновик' : formatTime(note.createdAt)}</span>
+              </div>
+              <div
+                class="note-body"
+                class:clamped={!expandedNotes.has(i)}
+                role="button"
+                tabindex="-1"
+                title={expandedNotes.has(i) ? '' : 'Показать целиком'}
+                onclick={() => (expandedNotes = new Set([...expandedNotes, i]))}
+                onkeydown={() => {}}
+              >
+                {note.body}
+              </div>
+            </div>
+          {/each}
+          <textarea
+            placeholder="Комментарий ко всему MR"
+            bind:value={comment}
+            onkeydown={(e) => {
+              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) send(false);
+            }}></textarea>
+          <div class="comment-actions">
+            <button class="small" disabled={!comment.trim()} onclick={() => send(false)}>Опубликовать</button>
+            <button
+              class="small"
+              disabled={!comment.trim()}
+              title="Сохранить черновиком в GitLab"
+              onclick={() => send(true)}>В черновик</button
+            >
+          </div>
+        </div>
+      {/if}
+
       <div class="actions">
+        <button class="primary" onclick={() => post({ type: 'startReview', number: card.iid })}
+          ><i class="codicon codicon-eye"></i> {card.reviewing ? 'Ревью открыто' : 'Ревью'}</button
+        >
         <a class="button" href={card.webUrl}><i class="codicon codicon-link-external"></i> Открыть в GitLab</a
         >
       </div>
@@ -253,6 +365,94 @@
   }
   .status.idle {
     opacity: 0.6;
+  }
+  .thread {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    width: 100%;
+    padding: 2px 4px;
+    border: none;
+    border-radius: 3px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .thread:hover {
+    background: var(--vscode-list-hoverBackground);
+  }
+  .more {
+    padding: 2px 4px;
+    border: none;
+    background: none;
+    color: var(--vscode-textLink-foreground);
+    font: inherit;
+    cursor: pointer;
+  }
+  .thread.resolved {
+    opacity: 0.6;
+  }
+  .where {
+    flex: none;
+    font-family: var(--vscode-editor-font-family);
+    font-size: 0.92em;
+  }
+  .what {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .note {
+    margin: 6px 0;
+    padding: 4px 6px;
+    border-left: 2px solid var(--vscode-widget-border);
+  }
+  .note.draft {
+    border-left-color: var(--vscode-charts-orange);
+  }
+  .note-head {
+    display: flex;
+    gap: 6px;
+  }
+  .note-body {
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .note-body.clamped {
+    display: -webkit-box;
+    -webkit-line-clamp: 6;
+    line-clamp: 6;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    cursor: pointer;
+  }
+  textarea {
+    width: 100%;
+    min-height: 54px;
+    margin-top: 6px;
+    resize: vertical;
+    padding: 4px 6px;
+    border: 1px solid var(--vscode-input-border, transparent);
+    border-radius: 2px;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    font: inherit;
+    outline: none;
+  }
+  textarea:focus {
+    border-color: var(--vscode-focusBorder);
+  }
+  .comment-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+  }
+  .comment-actions button:disabled {
+    opacity: 0.5;
+    cursor: default;
   }
   .actions {
     display: flex;

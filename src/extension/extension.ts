@@ -7,6 +7,8 @@ import { CommitView } from './commit/commitView';
 import { RevisionContentProvider } from './content/revisionContentProvider';
 import { REVISION_SCHEME } from './content/revisionUri';
 import { RepositoryManager } from './git/repositoryManager';
+import { ReviewController } from './review/reviewController';
+import { ReviewJournal } from './review/reviewJournal';
 import { HistoryCommands } from './history/historyCommands';
 import { GitLabAuth } from './hosting/gitlabAuth';
 import { HostingActions } from './hosting/hostingActions';
@@ -19,6 +21,7 @@ export interface GroveApi {
   navigator: ChangeSetNavigator;
   logs: LogWebviews;
   blame: BlameAnnotations;
+  review: ReviewController;
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<GroveApi> {
@@ -29,7 +32,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<GroveA
   const hosting = new HostingService(gitlabAuth);
   const hostingActions = new HostingActions(repositories, hosting);
   const cards = new MergeRequestCards(hosting);
-  const logs = new LogWebviews({ context, repositories, navigator, actions, hosting, hostingActions, cards });
+  const review = new ReviewController(hosting, navigator, new ReviewJournal(context.globalStorageUri));
+  const logs = new LogWebviews({
+    context,
+    repositories,
+    navigator,
+    actions,
+    hosting,
+    hostingActions,
+    cards,
+    review,
+  });
   const history = new HistoryCommands(repositories, logs, navigator);
   const blame = new BlameAnnotations(repositories, {
     revealInLog: (hash) => logs.revealCommit(hash),
@@ -46,6 +59,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<GroveA
     gitlabAuth,
     hosting,
     cards,
+    review,
     new AuthorLens(repositories),
     new CommitView(context, repositories, navigator),
     vscode.workspace.registerTextDocumentContentProvider(
@@ -60,7 +74,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<GroveA
   );
 
   await repositories.scan();
-  return { repositories, navigator, logs, blame };
+  return { repositories, navigator, logs, blame, review };
 }
 
 export function deactivate(): void {}

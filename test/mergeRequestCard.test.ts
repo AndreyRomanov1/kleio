@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCard } from '../src/extension/hosting/mergeRequestCard';
+import { buildCard, buildDiscussions } from '../src/extension/hosting/mergeRequestCard';
 
 describe('buildCard', () => {
   it('groups jobs by stage and marks reviewers who approved', () => {
@@ -113,6 +113,109 @@ describe('buildCard', () => {
           },
         ],
       },
+    ]);
+  });
+
+  it('summarises discussions: general comments, current and outdated threads, unresolved and drafts', () => {
+    const author = { name: 'Bob', username: 'bob' };
+    const position = (headSha: string) => ({
+      baseSha: 'b',
+      startSha: 's',
+      headSha,
+      oldPath: 'a.cs',
+      newPath: 'a.cs',
+      newLine: 5,
+    });
+    const view = buildDiscussions(
+      [
+        {
+          id: '1',
+          individual: true,
+          notes: [
+            {
+              id: 1,
+              body: 'LGTM?',
+              author,
+              createdAt: 't1',
+              system: false,
+              resolvable: false,
+              resolved: false,
+            },
+          ],
+        },
+        {
+          id: '2',
+          individual: true,
+          notes: [
+            {
+              id: 2,
+              body: 'added 1 commit',
+              author,
+              createdAt: 't',
+              system: true,
+              resolvable: false,
+              resolved: false,
+            },
+          ],
+        },
+        {
+          id: '3',
+          individual: false,
+          notes: [
+            {
+              id: 3,
+              body: 'why?',
+              author,
+              createdAt: 't',
+              system: false,
+              resolvable: true,
+              resolved: false,
+              position: position('h2'),
+            },
+            {
+              id: 4,
+              body: 'because',
+              author,
+              createdAt: 't',
+              system: false,
+              resolvable: true,
+              resolved: false,
+            },
+          ],
+        },
+        {
+          id: '5',
+          individual: false,
+          notes: [
+            {
+              id: 5,
+              body: 'old',
+              author,
+              createdAt: 't',
+              system: false,
+              resolvable: true,
+              resolved: true,
+              position: position('h1'),
+            },
+          ],
+        },
+      ],
+      [
+        { id: 9, body: 'draft general' },
+        { id: 10, body: 'draft reply', discussionId: '3' },
+      ],
+      'h2',
+    );
+
+    expect(view.unresolved).toBe(1);
+    expect(view.drafts).toBe(2);
+    expect(view.general).toEqual([
+      { author: 'Bob', body: 'LGTM?', createdAt: 't1' },
+      { author: 'Вы', body: 'draft general', createdAt: '', draft: true },
+    ]);
+    expect(view.threads.map((t) => [t.body, t.replies, t.resolved, t.outdated])).toEqual([
+      ['why?', 1, false, false],
+      ['old', 0, true, true],
     ]);
   });
 });

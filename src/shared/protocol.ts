@@ -97,6 +97,28 @@ export interface MergeRequestCardView {
     webUrl: string;
     stages: PipelineStageView[];
   };
+  discussions?: DiscussionsView;
+  /** Whether this merge request is open for review in the diff viewer right now. */
+  reviewing?: boolean;
+}
+
+export interface DiscussionsView {
+  unresolved: number;
+  /** Your pending comments, saved in GitLab and not yet published. */
+  drafts: number;
+  /** Comments on the merge request as a whole. */
+  general: { author: string; body: string; createdAt: string; draft?: boolean }[];
+  /** Threads on diff lines. `outdated` ones belong to an older version of the merge request. */
+  threads: {
+    path: string;
+    line: number;
+    author: string;
+    body: string;
+    replies: number;
+    resolvable: boolean;
+    resolved: boolean;
+    outdated: boolean;
+  }[];
 }
 
 /** What the log knows about the hosting of the repository; sent after the snapshot, as it needs the network. */
@@ -162,6 +184,9 @@ export type WebviewMessage =
   | { type: 'connectHosting'; number?: number }
   | { type: 'openJobLog'; jobId: number; name: string; projectId?: number }
   | { type: 'retryPipeline'; pipelineId: number; number: number }
+  | { type: 'startReview'; number: number; path?: string; line?: number }
+  | { type: 'postComment'; number: number; body: string; draft: boolean }
+  | { type: 'publishDrafts'; number: number }
   /** Double click on a commit: its diff, or in a history view the diff of the file in that commit. */
   | { type: 'openCommitDiff'; hash: string }
   | { type: 'showStash'; requestId: number; hash: string };

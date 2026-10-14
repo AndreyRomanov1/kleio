@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import type { MergeRequestCardView } from '../../shared/protocol';
 import type { Repository } from '../git/repository';
 import { GitLabApiError, type GitLabApi } from './gitlabApi';
-import { buildCard, type ChildJobs } from './mergeRequestCard';
+import { buildCard, buildDiscussions, type ChildJobs } from './mergeRequestCard';
 
 const MAX_CHILD_PIPELINES = 10;
 import type { HostingService } from './hostingService';
@@ -68,8 +68,17 @@ export class MergeRequestCards implements vscode.TextDocumentContentProvider, vs
   }
 
   private async load(api: GitLabApi, number: number): Promise<MergeRequestCardView> {
-    const [details, approvals] = await Promise.all([api.mergeRequest(number), api.approvals(number)]);
-    if (!details.pipeline) return buildCard(details, approvals, []);
+    const [details, approvals, discussions, drafts] = await Promise.all([
+      api.mergeRequest(number),
+      api.approvals(number),
+      api.discussions(number).catch(() => []),
+      api.draftNotes(number).catch(() => []),
+    ]);
+    const withDiscussions = (card: MergeRequestCardView): MergeRequestCardView => ({
+      ...card,
+      discussions: buildDiscussions(discussions, drafts, details.diffRefs?.headSha),
+    });
+    if (!details.pipeline) return withDiscussions(buildCard(details, approvals, []));
     const [jobs, bridges] = await Promise.all([
       api.jobs(details.pipeline.id),
       api.bridges(details.pipeline.id).catch(() => []),
@@ -86,7 +95,7 @@ export class MergeRequestCards implements vscode.TextDocumentContentProvider, vs
             .catch(() => []);
         }),
     );
-    return buildCard(details, approvals, jobs, bridges, children);
+    return withDiscussions(buildCard(details, approvals, jobs, bridges, children));
   }
 
   dispose(): void {

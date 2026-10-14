@@ -9,6 +9,7 @@ import type { RepositoryManager } from '../git/repositoryManager';
 import type { HostingActions } from '../hosting/hostingActions';
 import type { HostingService } from '../hosting/hostingService';
 import type { MergeRequestCards } from '../hosting/mergeRequestCards';
+import type { ReviewController } from '../review/reviewController';
 
 const FOCUS_KEY = 'grove.focus';
 const FAVORITES_KEY = 'grove.favorites';
@@ -30,6 +31,7 @@ export interface LogServices {
   hosting: HostingService;
   hostingActions: HostingActions;
   cards: MergeRequestCards;
+  review: ReviewController;
 }
 
 /** Serves one log webview, wherever it is placed, or a history view of a file or of a fragment. */
@@ -116,6 +118,29 @@ export class LogController implements vscode.Disposable {
             message.name,
             message.projectId,
           );
+        return;
+      case 'startReview':
+        if (this.repository)
+          await this.services.review.start(this.repository, message.number, message.path, message.line);
+        return;
+      case 'postComment':
+        if (
+          this.repository &&
+          (await this.services.review.postGeneral(
+            this.repository,
+            message.number,
+            message.body,
+            message.draft ? 'draft' : 'publish',
+          ))
+        ) {
+          await this.loadCard(message.number);
+        }
+        return;
+      case 'publishDrafts':
+        if (this.repository) {
+          await this.services.review.publishDraftsOf(this.repository, message.number);
+          await this.loadCard(message.number);
+        }
         return;
       case 'retryPipeline':
         if (this.repository) {
@@ -219,6 +244,7 @@ export class LogController implements vscode.Disposable {
     const repository = this.repository;
     if (!repository) return;
     const result = await this.services.cards.card(repository, number);
+    if ('card' in result) result.card.reviewing = this.services.review.activeMergeRequest === number;
     this.post({ type: 'mergeRequestCard', number, ...result });
   }
 

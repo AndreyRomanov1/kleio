@@ -116,18 +116,27 @@ export function refMenu(ref: Ref, store: LogStore): MenuEntry[] {
   if (ref.kind !== 'tag') {
     entries.push(
       ...hostingEntries(store, [
-        mergeRequest
-          ? {
-              label: `Открыть MR !${mergeRequest}`,
-              icon: 'git-pull-request',
-              run: () => post({ type: 'openMergeRequest', number: mergeRequest }),
-            }
-          : {
-              label: 'Создать MR…',
-              icon: 'git-pull-request-create',
-              disabled: isDefault,
-              run: run({ type: 'refAction', action: 'createMergeRequest', fullName }),
-            },
+        ...(mergeRequest
+          ? [
+              {
+                label: `Ревью MR !${mergeRequest}`,
+                icon: 'eye',
+                run: () => post({ type: 'startReview', number: mergeRequest }),
+              },
+              {
+                label: `Открыть MR !${mergeRequest}`,
+                icon: 'git-pull-request',
+                run: () => post({ type: 'openMergeRequest', number: mergeRequest }),
+              },
+            ]
+          : [
+              {
+                label: 'Создать MR…',
+                icon: 'git-pull-request-create',
+                disabled: isDefault,
+                run: run({ type: 'refAction', action: 'createMergeRequest', fullName }),
+              },
+            ]),
         {
           label: `Открыть в ${store.hosting?.name}`,
           icon: 'link-external',

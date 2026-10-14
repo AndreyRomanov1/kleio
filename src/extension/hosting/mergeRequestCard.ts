@@ -1,5 +1,10 @@
-import type { MergeRequestCardView, PipelineJobView, PipelineStageView } from '../../shared/protocol';
-import type { Approvals, Bridge, Job, MergeRequestDetails } from './gitlabApi';
+import type {
+  DiscussionsView,
+  MergeRequestCardView,
+  PipelineJobView,
+  PipelineStageView,
+} from '../../shared/protocol';
+import type { Approvals, Bridge, Discussion, DraftNote, Job, MergeRequestDetails } from './gitlabApi';
 
 /** Jobs of child pipelines, by child pipeline id. */
 export type ChildJobs = Record<number, Job[]>;
@@ -85,4 +90,41 @@ function groupStages(jobs: PipelineJobView[], stageNames: string[]): PipelineSta
     stage.jobs.push(job);
   });
   return stages;
+}
+
+/** Summary of the merge request discussions for the card; `headSha` tells current threads from outdated ones. */
+export function buildDiscussions(
+  discussions: Discussion[],
+  drafts: DraftNote[],
+  headSha?: string,
+): DiscussionsView {
+  const view: DiscussionsView = { unresolved: 0, drafts: drafts.length, general: [], threads: [] };
+  for (const discussion of discussions) {
+    const notes = discussion.notes.filter((n) => !n.system);
+    const first = notes[0];
+    if (!first) continue;
+    if (first.resolvable && !first.resolved) view.unresolved++;
+    if (!first.position) {
+      for (const note of notes)
+        view.general.push({ author: note.author.name, body: note.body, createdAt: note.createdAt });
+      continue;
+    }
+    const onNew = first.position.newLine !== undefined;
+    view.threads.push({
+      path: onNew ? first.position.newPath : first.position.oldPath,
+      line: (onNew ? first.position.newLine : first.position.oldLine) ?? 1,
+      author: first.author.name,
+      body: first.body,
+      replies: notes.length - 1,
+      resolvable: first.resolvable,
+      resolved: first.resolved,
+      outdated: headSha !== undefined && first.position.headSha !== headSha,
+    });
+  }
+  for (const draft of drafts) {
+    if (!draft.position && !draft.discussionId) {
+      view.general.push({ author: 'Вы', body: draft.body, createdAt: '', draft: true });
+    }
+  }
+  return view;
 }

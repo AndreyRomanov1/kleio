@@ -171,6 +171,57 @@
         "command": "grove.gitlab.disconnect",
         "title": "Удалить токен GitLab из Grove…",
         "category": "Grove"
+      },
+      {
+        "command": "grove.review.publish",
+        "title": "Опубликовать",
+        "category": "Grove"
+      },
+      {
+        "command": "grove.review.draft",
+        "title": "В черновик",
+        "category": "Grove"
+      },
+      {
+        "command": "grove.review.resolve",
+        "title": "Решено",
+        "category": "Grove",
+        "icon": "$(check)"
+      },
+      {
+        "command": "grove.review.unresolve",
+        "title": "Открыть снова",
+        "category": "Grove",
+        "icon": "$(issue-reopened)"
+      },
+      {
+        "command": "grove.review.deleteDraft",
+        "title": "Удалить черновик",
+        "category": "Grove",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "grove.review.publishDrafts",
+        "title": "Опубликовать черновики ревью",
+        "category": "Grove",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "grove.review.refresh",
+        "title": "Обновить обсуждения ревью",
+        "category": "Grove",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "grove.review.end",
+        "title": "Закончить ревью",
+        "category": "Grove",
+        "icon": "$(close-all)"
+      },
+      {
+        "command": "grove.review.openJournal",
+        "title": "Журнал комментариев ревью",
+        "category": "Grove"
       }
     ],
     "menus": {
@@ -216,6 +267,16 @@
           "command": "grove.diff.openCurrent",
           "when": "grove.inChangeSet",
           "group": "navigation@-15"
+        },
+        {
+          "command": "grove.review.publishDrafts",
+          "when": "grove.reviewActive && grove.inChangeSet",
+          "group": "navigation@-3"
+        },
+        {
+          "command": "grove.review.refresh",
+          "when": "grove.reviewActive && grove.inChangeSet",
+          "group": "navigation@-2"
         }
       ],
       "commandPalette": [
@@ -254,6 +315,38 @@
         {
           "command": "grove.history.selection",
           "when": "editorHasSelection"
+        },
+        {
+          "command": "grove.review.publish",
+          "when": "false"
+        },
+        {
+          "command": "grove.review.draft",
+          "when": "false"
+        },
+        {
+          "command": "grove.review.resolve",
+          "when": "false"
+        },
+        {
+          "command": "grove.review.unresolve",
+          "when": "false"
+        },
+        {
+          "command": "grove.review.deleteDraft",
+          "when": "false"
+        },
+        {
+          "command": "grove.review.publishDrafts",
+          "when": "grove.reviewActive"
+        },
+        {
+          "command": "grove.review.refresh",
+          "when": "grove.reviewActive"
+        },
+        {
+          "command": "grove.review.end",
+          "when": "grove.reviewActive"
         }
       ],
       "editor/lineNumber/context": [
@@ -344,6 +437,37 @@
         {
           "command": "grove.hosting.openFile",
           "group": "7_grove@3"
+        }
+      ],
+      "comments/commentThread/context": [
+        {
+          "command": "grove.review.publish",
+          "group": "inline@1",
+          "when": "commentController == grove.review"
+        },
+        {
+          "command": "grove.review.draft",
+          "group": "inline@2",
+          "when": "commentController == grove.review && commentThread != draft"
+        }
+      ],
+      "comments/commentThread/title": [
+        {
+          "command": "grove.review.resolve",
+          "group": "inline@1",
+          "when": "commentController == grove.review && commentThread == unresolved"
+        },
+        {
+          "command": "grove.review.unresolve",
+          "group": "inline@1",
+          "when": "commentController == grove.review && commentThread == resolved"
+        }
+      ],
+      "comments/comment/title": [
+        {
+          "command": "grove.review.deleteDraft",
+          "group": "inline@1",
+          "when": "commentController == grove.review && comment == draft"
         }
       ]
     },
