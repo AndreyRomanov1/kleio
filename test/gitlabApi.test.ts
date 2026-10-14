@@ -270,4 +270,29 @@ describe('GitLabApi', () => {
       url: '/api/v4/projects/group%2Fproject/merge_requests/9/discussions/d1?resolved=true',
     });
   });
+
+  it('approves, merges, rebases and plays jobs with the requests GitLab expects', async () => {
+    await api().approve(9);
+    expect(requests.at(-1)).toMatchObject({
+      method: 'POST',
+      url: '/api/v4/projects/group%2Fproject/merge_requests/9/approve',
+    });
+    await api().unapprove(9);
+    expect(requests.at(-1)?.url).toBe('/api/v4/projects/group%2Fproject/merge_requests/9/unapprove');
+    await api().merge(9, { whenPipelineSucceeds: true });
+    expect(requests.at(-1)).toMatchObject({
+      method: 'PUT',
+      url: '/api/v4/projects/group%2Fproject/merge_requests/9/merge',
+      body: { merge_when_pipeline_succeeds: true, auto_merge: true },
+    });
+    await api().merge(9, { whenPipelineSucceeds: false });
+    expect(requests.at(-1)?.body).toEqual({});
+    await api().rebase(9);
+    expect(requests.at(-1)).toMatchObject({
+      method: 'PUT',
+      url: '/api/v4/projects/group%2Fproject/merge_requests/9/rebase',
+    });
+    await api().playJob(77, 3146);
+    expect(requests.at(-1)).toMatchObject({ method: 'POST', url: '/api/v4/projects/3146/jobs/77/play' });
+  });
 });

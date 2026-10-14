@@ -141,7 +141,7 @@ export class GitLabApi {
   private readonly base: string;
 
   constructor(
-    host: string,
+    readonly host: string,
     private readonly project: string,
     private readonly token: string,
     private readonly fetchImpl: Fetch = fetch,
@@ -273,6 +273,34 @@ export class GitLabApi {
 
   async retryJob(jobId: number): Promise<void> {
     await this.request(`${this.projectPath}/jobs/${jobId}/retry`, 'POST');
+  }
+
+  /** Starts a manual job, including trigger jobs that start child pipelines (e.g. deploys run by hand). */
+  async playJob(jobId: number, projectId?: number): Promise<void> {
+    await this.request(`${this.projectRef(projectId)}/jobs/${jobId}/play`, 'POST');
+  }
+
+  async approve(iid: number): Promise<void> {
+    await this.request(`${this.projectPath}/merge_requests/${iid}/approve`, 'POST');
+  }
+
+  async unapprove(iid: number): Promise<void> {
+    await this.request(`${this.projectPath}/merge_requests/${iid}/unapprove`, 'POST');
+  }
+
+  /**
+   * Merges now, or with `whenPipelineSucceeds` sets auto-merge after the running pipeline. Squash and removing
+   * the source branch follow what is set on the merge request.
+   */
+  async merge(iid: number, options: { whenPipelineSucceeds: boolean }): Promise<void> {
+    await this.request(`${this.projectPath}/merge_requests/${iid}/merge`, 'PUT', {
+      ...(options.whenPipelineSucceeds ? { merge_when_pipeline_succeeds: true, auto_merge: true } : {}),
+    });
+  }
+
+  /** Rebases the source branch onto the target on the server, as the Rebase button on the web. */
+  async rebase(iid: number): Promise<void> {
+    await this.request(`${this.projectPath}/merge_requests/${iid}/rebase`, 'PUT');
   }
 
   async discussions(iid: number): Promise<Discussion[]> {
