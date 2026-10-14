@@ -1,0 +1,179 @@
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import * as path from 'node:path';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Repository } from '../src/extension/git/repository';
+import { matchesBranchPattern, pushArgs, readPushState } from '../src/extension/push/pushState';
+
+let work: string;
+
+function git(cwd: string, ...args: string[]): string {
+  return execFileSync('git', args, { cwd, encoding: 'utf8' });
+}
+
+function init(name: string): string {
+  const dir = path.join(work, name);
+  git(work, 'init', '-q', '-b', 'main', dir);
+  git(dir, 'config', 'user.name', 'T');
+  git(dir, 'config', 'user.email', 't@x');
+  return dir;
+}
+
+function commitFile(cwd: string, file: string, content: string, message: string): void {
+  writeFileSync(path.join(cwd, file), content);
+  git(cwd, 'add', file);
+  git(cwd, 'commit', '-q', '-m', message);
+}
+
+/** main and feature both change the first line of a.txt; feature also adds b.txt. */
+function diverged(name: string): string {
+  const dir = init(name);
+  commitFile(dir, 'a.txt', 'base\n', 'base');
+  git(dir, 'checkout', '-q', '-b', 'feature');
+  commitFile(dir, 'b.txt', 'b\n', 'feature b');
+  commitFile(dir, 'a.txt', 'feature\n', 'feature a');
+  git(dir, 'checkout', '-q', 'main');
+  commitFile(dir, 'a.txt', 'main\n', 'main a');
+  return dir;
+}
+
+beforeAll(() => {
+  work = mkdtempSync(path.join(tmpdir(), 'grove-ops-'));
+});
+
+afterAll(() => {
+  rmSync(work, { recursive: true, force: true });
+});
+
+describe('Repository operations', () => {
+  it('stops a merge on conflicts, reports them and continues once they are resolved', async () => {
+    const dir = diverged('merge');
+    const repository = (await Repository.open(dir))!;
+
+    expect(await repository.merge('feature')).toBe('conflicts');
+    const state = await repository.operation();
+    expect(state).toMatchObject({ kind: 'merge', conflicted: ['a.txt'] });
+    expect(state?.onto).toBe(git(dir, 'rev-parse', 'feature').trim());
+
+    expect(await repository.continueOperation('merge')).toBe('conflicts');
+    writeFileSync(path.join(dir, 'a.txt'), 'both\n');
+    git(dir, 'add', 'a.txt');
+    expect(await repository.continueOperation('merge')).toBe('done');
+    expect(await repository.operation()).toBeUndefined();
+    expect(git(dir, 'log', '-1', '--format=%P').trim().split(' ')).toHaveLength(2);
+  });
+
+  it('aborts a merge and brings back uncommitted changes stashed for it', async () => {
+    const dir = diverged('abort');
+    writeFileSync(path.join(dir, 'local.txt'), 'untracked stays\n');
+    commitFile(dir, 'c.txt', 'c\n', 'c');
+    writeFileSync(path.join(dir, 'c.txt'), 'c changed\n');
+    const repository = (await Repository.open(dir))!;
+
+    expect(await repository.merge('feature')).toBe('conflicts');
+    await repository.abortOperation('merge');
+    expect(await repository.operation()).toBeUndefined();
+    expect(readFileSync(path.join(dir, 'c.txt'), 'utf8')).toBe('c changed\n');
+    expect(readFileSync(path.join(dir, 'a.txt'), 'utf8')).toBe('main\n');
+  });
+
+  it('rebases step by step through a conflict, skipping the conflicting commit', async () => {
+    const dir = diverged('rebase');
+    git(dir, 'checkout', '-q', 'feature');
+    const repository = (await Repository.open(dir))!;
+
+    expect(await repository.rebase('main')).toBe('conflicts');
+    expect(await repository.operation()).toMatchObject({
+      kind: 'rebase',
+      branch: 'feature',
+      step: 2,
+      total: 2,
+      conflicted: ['a.txt'],
+    });
+    expect(await repository.skipOperation('rebase')).toBe('done');
+    expect(await repository.operation()).toBeUndefined();
+    expect(git(dir, 'log', '--format=%s', 'main..feature').trim()).toBe('feature b');
+    expect((await repository.head()).branch).toBe('feature');
+  });
+
+  it('merges without conflicts, keeping uncommitted changes of other files', async () => {
+    const dir = init('clean');
+    commitFile(dir, 'a.txt', 'a\n', 'a');
+    git(dir, 'checkout', '-q', '-b', 'feature');
+    commitFile(dir, 'b.txt', 'b\n', 'b');
+    git(dir, 'checkout', '-q', 'main');
+    writeFileSync(path.join(dir, 'a.txt'), 'a changed\n');
+    const repository = (await Repository.open(dir))!;
+
+    expect(await repository.merge('feature')).toBe('done');
+    expect(git(dir, 'rev-parse', 'HEAD')).toBe(git(dir, 'rev-parse', 'feature'));
+    expect(readFileSync(path.join(dir, 'a.txt'), 'utf8')).toBe('a changed\n');
+  });
+
+  it('moves a branch only from the commit it was seen at, and lists commits not pushed yet', async () => {
+    const dir = init('move');
+    commitFile(dir, 'a.txt', 'a\n', 'a');
+    const first = git(dir, 'rev-parse', 'HEAD').trim();
+    git(dir, 'branch', 'other');
+    commitFile(dir, 'a.txt', 'a2\n', 'a2');
+    const second = git(dir, 'rev-parse', 'HEAD').trim();
+    const repository = (await Repository.open(dir))!;
+
+    await expect(repository.moveBranch('other', second, second)).rejects.toThrow();
+    await repository.moveBranch('other', second, first);
+    expect(git(dir, 'rev-parse', 'other').trim()).toBe(second);
+
+    expect((await repository.outgoing('main', undefined)).map((c) => c.subject)).toEqual(['a2', 'a']);
+    expect((await repository.outgoing('main', first)).map((c) => c.subject)).toEqual(['a2']);
+  });
+
+  it('offers what to push and force-pushes only over the remote branch it has seen', async () => {
+    const server = path.join(work, 'push-server.git');
+    git(work, 'init', '-q', '--bare', '-b', 'main', server);
+    const dir = init('push');
+    commitFile(dir, 'a.txt', 'a\n', 'a');
+    git(dir, 'remote', 'add', 'origin', server);
+    git(dir, 'push', '-q', '-u', 'origin', 'main');
+    git(dir, 'checkout', '-q', '-b', 'feature');
+    commitFile(dir, 'f.txt', 'f\n', 'f');
+    const repository = (await Repository.open(dir))!;
+    const notProtected = () => false;
+
+    let state = await readPushState(repository, undefined, notProtected);
+    expect(state.branches).toMatchObject([
+      { branch: 'feature', remote: 'origin', target: 'feature', hasUpstream: false, existsOnRemote: false },
+    ]);
+    expect(state.branches[0].commits.map((c) => c.subject)).toEqual(['f']);
+    await repository.git.run(pushArgs({ ...state.branches[0], force: false }, true, undefined));
+    expect(git(dir, 'rev-parse', '--abbrev-ref', 'feature@{u}').trim()).toBe('origin/feature');
+
+    // The branch is rebased locally while somebody else pushes to it.
+    const other = path.join(work, 'push-other');
+    git(work, 'clone', '-q', '-b', 'feature', server, other);
+    git(other, 'config', 'user.name', 'O');
+    git(other, 'config', 'user.email', 'o@x');
+    git(dir, 'commit', '-q', '--amend', '-m', 'f amended');
+    git(dir, 'fetch', '-q');
+    state = await readPushState(repository, 'feature', notProtected);
+    expect(state.branches[0]).toMatchObject({ hasUpstream: true, existsOnRemote: true, behind: 1 });
+    commitFile(other, 'o.txt', 'o\n', 'other');
+    git(other, 'push', '-q');
+
+    const request = { ...state.branches[0], force: true };
+    const lease = state.leases.get('origin/feature');
+    await expect(repository.git.run(pushArgs({ ...request, force: false }, false, lease))).rejects.toThrow();
+    await expect(repository.git.run(pushArgs(request, false, lease))).rejects.toThrow(/stale info/);
+
+    git(dir, 'fetch', '-q');
+    state = await readPushState(repository, 'feature', notProtected);
+    await repository.git.run(pushArgs(request, false, state.leases.get('origin/feature')));
+    expect(git(server, 'log', '-1', '--format=%s', 'feature').trim()).toBe('f amended');
+  });
+
+  it('matches protected branches by name or pattern', () => {
+    expect(matchesBranchPattern(['master', 'release/*'], 'master')).toBe(true);
+    expect(matchesBranchPattern(['master', 'release/*'], 'release/1.2')).toBe(true);
+    expect(matchesBranchPattern(['master', 'release/*'], 'master-fix')).toBe(false);
+  });
+});

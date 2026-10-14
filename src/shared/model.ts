@@ -74,6 +74,23 @@ export interface CommitDetails {
   message: string;
 }
 
+export type OperationKind = 'merge' | 'rebase' | 'cherry-pick' | 'revert';
+
+/** A merge, rebase, cherry-pick or revert stopped half-way, waiting for conflicts or an edit. */
+export interface OperationState {
+  kind: OperationKind;
+  /** Short name of the branch being rebased. */
+  branch?: string;
+  /** Commit the branch is rebased onto, or the one being merged, picked or reverted. */
+  onto?: string;
+  /** 1-based step of a rebase and the number of its steps. */
+  step?: number;
+  total?: number;
+  /** Commit the rebase stopped at, e.g. for an edit. */
+  stoppedAt?: string;
+  conflicted: string[];
+}
+
 export interface RepositorySnapshot {
   root: string;
   head: Head;
@@ -81,4 +98,5 @@ export interface RepositorySnapshot {
   refs: Ref[];
   worktrees: Worktree[];
   stashes: Stash[];
+  operation?: OperationState;
 }

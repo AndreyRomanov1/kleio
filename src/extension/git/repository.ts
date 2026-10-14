@@ -1,6 +1,17 @@
+import { readFile } from 'node:fs/promises';
 import * as path from 'node:path';
-import type { CommitDetails, FileChange, Head, Ref, RepositorySnapshot, Stash } from '../../shared/model';
-import { GitRunner } from './gitRunner';
+import type {
+  Commit,
+  CommitDetails,
+  FileChange,
+  Head,
+  OperationKind,
+  OperationState,
+  Ref,
+  RepositorySnapshot,
+  Stash,
+} from '../../shared/model';
+import { GitError, GitRunner } from './gitRunner';
 import {
   FIELD,
   RECORD,
@@ -29,6 +40,12 @@ export interface WorkingChanges {
   untracked: string[];
   conflicted: string[];
 }
+
+/** How a merge, rebase or update ended. */
+export type OperationOutcome = 'done' | 'conflicts' | 'stopped';
+
+/** Commands that would open an editor for a message take the prepared one instead. */
+const NO_EDITOR = { GIT_EDITOR: 'true', GIT_SEQUENCE_EDITOR: 'true' };
 
 export interface LogFilter {
   /** Revisions to show history of; all refs when empty. */
@@ -72,12 +89,13 @@ export class Repository {
 
   async snapshot(filter: LogFilter = {}): Promise<RepositorySnapshot> {
     const revisions = filter.revisions?.length ? filter.revisions : ['--exclude=refs/stash', '--all'];
-    const [log, refs, head, worktrees, stashes] = await Promise.all([
+    const [log, refs, head, worktrees, stashes, operation] = await Promise.all([
       this.git.run(['log', '--date-order', `--format=${LOG_FORMAT}`, ...revisions, '--']),
       this.git.run(['for-each-ref', `--format=${REF_FORMAT}`]),
       this.head(),
       this.git.run(['worktree', 'list', '--porcelain']),
       this.git.run(['stash', 'list', `--format=${STASH_FORMAT}`]),
+      this.operation(),
     ]);
     return {
       root: this.root,
@@ -86,6 +104,7 @@ export class Repository {
       refs: parseRefs(refs),
       worktrees: parseWorktrees(worktrees, this.root),
       stashes: parseStashes(stashes),
+      operation,
     };
   }
 
@@ -266,12 +285,122 @@ export class Repository {
     return parseStashes(await this.git.run(['stash', 'list', `--format=${STASH_FORMAT}`]));
   }
 
-  /** Pushes the current branch, setting its upstream on the first push. */
-  async push(): Promise<void> {
-    const upstream = await this.git.run(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], {
-      allowExitCodes: [128],
-    });
-    await this.git.run(upstream.trim() ? ['push'] : ['push', '--set-upstream', 'origin', 'HEAD']);
+  /** The merge, rebase, cherry-pick or revert this worktree is in the middle of, if any. */
+  async operation(): Promise<OperationState | undefined> {
+    const read = (file: string) =>
+      readFile(path.join(this.gitDir, file), 'utf8').then(
+        (text) => text.trim(),
+        () => undefined,
+      );
+    const [rebaseMerge, rebaseApply, merge, pick, revert] = await Promise.all([
+      read('rebase-merge/head-name'),
+      read('rebase-apply/head-name'),
+      read('MERGE_HEAD'),
+      read('CHERRY_PICK_HEAD'),
+      read('REVERT_HEAD'),
+    ]);
+    let state: Omit<OperationState, 'conflicted'> | undefined;
+    if (rebaseMerge !== undefined || rebaseApply !== undefined) {
+      const dir = rebaseMerge !== undefined ? 'rebase-merge' : 'rebase-apply';
+      const [onto, step, total, stopped] = await Promise.all([
+        read(`${dir}/onto`),
+        read(dir === 'rebase-merge' ? `${dir}/msgnum` : `${dir}/next`),
+        read(dir === 'rebase-merge' ? `${dir}/end` : `${dir}/last`),
+        read(`${dir}/stopped-sha`),
+      ]);
+      const headName = rebaseMerge ?? rebaseApply;
+      state = {
+        kind: 'rebase',
+        branch: headName?.startsWith('refs/heads/') ? headName.slice('refs/heads/'.length) : undefined,
+        onto,
+        step: step ? Number(step) : undefined,
+        total: total ? Number(total) : undefined,
+        stoppedAt: stopped || undefined,
+      };
+    } else if (merge !== undefined) {
+      state = { kind: 'merge', onto: merge.split('\n')[0] };
+    } else if (pick !== undefined) {
+      state = { kind: 'cherry-pick', onto: pick };
+    } else if (revert !== undefined) {
+      state = { kind: 'revert', onto: revert };
+    }
+    if (!state) return undefined;
+    const conflicted = await this.git.run(['diff', '--name-only', '--diff-filter=U', '-z']);
+    return { ...state, conflicted: conflicted.split('\0').filter(Boolean) };
+  }
+
+  /**
+   * Merges a revision into the current branch. Uncommitted changes are stashed for the time of the merge and
+   * brought back after it, as Rider does.
+   */
+  merge(
+    revision: string,
+    options: { noFastForward?: boolean; fastForwardOnly?: boolean; squash?: boolean } = {},
+  ): Promise<OperationOutcome> {
+    const args = ['merge', '--autostash'];
+    if (options.noFastForward) args.push('--no-ff');
+    if (options.fastForwardOnly) args.push('--ff-only');
+    if (options.squash) args.push('--squash');
+    return this.runOperation([...args, revision]);
+  }
+
+  /** Rebases the current branch onto a revision, stashing uncommitted changes for the time of it. */
+  rebase(onto: string): Promise<OperationOutcome> {
+    return this.runOperation(['rebase', '--autostash', onto]);
+  }
+
+  cherryPick(hash: string): Promise<OperationOutcome> {
+    return this.runOperation(['cherry-pick', hash]);
+  }
+
+  /** Goes on with the stopped operation once its conflicts are resolved, keeping the prepared message. */
+  async continueOperation(kind: OperationKind): Promise<OperationOutcome> {
+    return this.runOperation([kind, '--continue']);
+  }
+
+  /** Skips the commit the rebase or cherry-pick stopped at. */
+  skipOperation(kind: OperationKind): Promise<OperationOutcome> {
+    return this.runOperation([kind, '--skip']);
+  }
+
+  async abortOperation(kind: OperationKind): Promise<void> {
+    await this.git.run([kind, '--abort'], { env: NO_EDITOR });
+  }
+
+  /**
+   * Runs a command that may stop half-way. A stop for conflicts or for an edit is a normal outcome, not an
+   * error; any other failure, e.g. local changes in the way, is thrown.
+   */
+  private async runOperation(args: string[]): Promise<OperationOutcome> {
+    try {
+      await this.git.run(args, { env: NO_EDITOR });
+    } catch (error) {
+      if (!(error instanceof GitError)) throw error;
+      const state = await this.operation();
+      if (state?.conflicted.length) return 'conflicts';
+      throw error;
+    }
+    const state = await this.operation();
+    if (!state) return 'done';
+    return state.conflicted.length ? 'conflicts' : 'stopped';
+  }
+
+  /**
+   * Moves a branch that is not checked out to a new commit, but only if it still points where it did when
+   * the caller looked at it.
+   */
+  async moveBranch(branch: string, to: string, from: string): Promise<void> {
+    await this.git.run(['update-ref', '-m', `grove: update ${branch}`, `refs/heads/${branch}`, to, from]);
+  }
+
+  async reset(revision: string, mode: 'soft' | 'mixed' | 'hard'): Promise<void> {
+    await this.git.run(['reset', `--${mode}`, revision]);
+  }
+
+  /** Commits of `branch` not yet on its remote: after `upstream`, or after every remote branch when it has none. */
+  async outgoing(branch: string, upstream: string | undefined): Promise<Commit[]> {
+    const range = upstream ? [`${upstream}..${branch}`] : [branch, '--not', '--remotes'];
+    return parseLog(await this.git.run(['log', `--format=${LOG_FORMAT}`, '-n500', ...range, '--']));
   }
 
   async lastCommitMessage(): Promise<string> {

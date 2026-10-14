@@ -2,7 +2,8 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { Repository } from './repository';
 
-const WATCHED_GIT_FILES = '{HEAD,ORIG_HEAD,FETCH_HEAD,packed-refs,refs/**,worktrees/*/HEAD}';
+const WATCHED_GIT_FILES =
+  '{HEAD,ORIG_HEAD,FETCH_HEAD,MERGE_HEAD,CHERRY_PICK_HEAD,REVERT_HEAD,packed-refs,refs/**,worktrees/*/HEAD,rebase-merge,rebase-merge/msgnum,rebase-apply,rebase-apply/next}';
 const REFRESH_DELAY_MS = 400;
 
 /** Finds repositories of the workspace folders and reports changes to their refs. */
