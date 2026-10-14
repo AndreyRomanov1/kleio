@@ -1,12 +1,15 @@
 /**
- * Development preview of the log UI in a regular browser, backed by a real repository.
+ * Development preview of the Grove webviews in a regular browser, backed by a real repository.
  * Serves dist/webview.* with a fake VS Code API and answers webview messages over HTTP.
+ * The log is at `/`, the commit view at `/commit`; the commit view never commits, it only records the request
+ * (`GET /last-commit`), so the preview is safe on any repository.
  *
  *   npm run preview -- /path/to/repo [port]
  */
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import * as path from 'node:path';
+import type { CommitFile, CommitHostMessage, CommitWebviewMessage } from '../../src/shared/commitProtocol';
 import type { HostMessage, WebviewMessage } from '../../src/shared/protocol';
 import { commitChangeSet, describeRange, rangeChangeSet } from '../../src/extension/changes/changeSet';
 import { Repository } from '../../src/extension/git/repository';
@@ -19,6 +22,44 @@ const page = readFileSync(path.resolve(__dirname, '../../scripts/preview/index.h
 let focus: string[] = [];
 let favorites: string[] = [];
 let changeSetId = 0;
+let lastCommit: CommitWebviewMessage | undefined;
+
+async function handleCommit(
+  repository: Repository,
+  message: CommitWebviewMessage,
+): Promise<CommitHostMessage[]> {
+  switch (message.type) {
+    case 'ready':
+    case 'refresh': {
+      const [changes, stashes, head] = await Promise.all([
+        repository.workingChanges(),
+        repository.stashes(),
+        repository.head(),
+      ]);
+      const files: CommitFile[] = [
+        ...changes.tracked.map((c): CommitFile => ({
+          path: c.path,
+          oldPath: c.oldPath,
+          status: c.status,
+          kind: 'tracked',
+        })),
+        ...changes.untracked.map((p): CommitFile => ({ path: p, status: '?', kind: 'untracked' })),
+      ];
+      return [{ type: 'state', branch: head.branch, files, stashes }];
+    }
+    case 'requestAmendMessage':
+      return [{ type: 'amendMessage', message: await repository.lastCommitMessage() }];
+    case 'requestRecentMessages':
+      return [{ type: 'recentMessages', messages: await repository.recentMessages() }];
+    case 'commit':
+      lastCommit = message;
+      console.log('commit requested (not executed in preview):', JSON.stringify(message));
+      return [{ type: 'committed' }];
+    default:
+      console.log('ignored in preview:', message.type);
+      return [];
+  }
+}
 
 async function handle(repository: Repository, message: WebviewMessage): Promise<HostMessage[]> {
   switch (message.type) {
@@ -81,6 +122,35 @@ async function main(): Promise<void> {
 
   createServer((request, response) => {
     const url = (request.url ?? '/').split('?')[0];
+    if (request.method === 'POST' && url === '/commit-message') {
+      let body = '';
+      request.on('data', (chunk) => (body += chunk));
+      request.on('end', () => {
+        handleCommit(repository, JSON.parse(body) as CommitWebviewMessage)
+          .then((messages) => {
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify(messages));
+          })
+          .catch((error: unknown) => {
+            console.error(error);
+            response.statusCode = 500;
+            response.end(String(error));
+          });
+      });
+      return;
+    }
+    if (url === '/last-commit') {
+      response.setHeader('Content-Type', 'application/json');
+      response.end(JSON.stringify(lastCommit ?? null));
+      return;
+    }
+    if (url === '/commit') {
+      response.setHeader('Content-Type', 'text/html');
+      response.end(
+        page.replace('<body class="vscode-dark">', '<body class="vscode-dark" data-view="commit">'),
+      );
+      return;
+    }
     if (request.method === 'POST' && url === '/message') {
       let body = '';
       request.on('data', (chunk) => (body += chunk));
