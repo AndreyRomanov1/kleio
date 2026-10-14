@@ -2,7 +2,7 @@
   "name": "grove",
   "displayName": "Grove",
   "description": "JetBrains-style Git log, diff and history for VS Code",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "publisher": "aroma",
   "license": "MIT",
   "private": true,
@@ -277,18 +277,23 @@
         },
         {
           "command": "grove.diff.openCurrent",
-          "when": "grove.inChangeSet",
+          "when": "grove.inChangeSet && !grove.reviewActive",
           "group": "navigation@-15"
+        },
+        {
+          "command": "grove.diff.openCurrent",
+          "when": "grove.inChangeSet && grove.reviewActive",
+          "group": "1_grove_review@1"
         },
         {
           "command": "grove.review.publishDrafts",
           "when": "grove.reviewActive && grove.inChangeSet",
-          "group": "navigation@-3"
+          "group": "1_grove_review@2"
         },
         {
           "command": "grove.review.refresh",
           "when": "grove.reviewActive && grove.inChangeSet",
-          "group": "navigation@-2"
+          "group": "1_grove_review@3"
         },
         {
           "command": "grove.review.previousComment",
