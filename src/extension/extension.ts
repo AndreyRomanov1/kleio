@@ -19,6 +19,7 @@ import { MergeRequestCards } from './hosting/mergeRequestCards';
 import { LogWebviews } from './log/logWebview';
 import { PushDialog } from './push/pushDialog';
 import { RebaseDialog } from './rebase/rebaseDialog';
+import { ConflictsWindow } from './conflicts/conflictsWindow';
 
 export interface GroveApi {
   repositories: RepositoryManager;
@@ -27,6 +28,7 @@ export interface GroveApi {
   blame: BlameAnnotations;
   review: ReviewController;
   rebase: RebaseDialog;
+  conflicts: ConflictsWindow;
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<GroveApi> {
@@ -36,6 +38,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<GroveA
   const actions = new GitActions(repositories, sync);
   const push = new PushDialog(context, repositories, navigator);
   const rebase = new RebaseDialog(context, navigator, sync);
+  const conflicts = new ConflictsWindow(context, repositories, sync);
+  sync.showConflicts = (repository) => conflicts.open(repository);
   const gitlabAuth = new GitLabAuth(context.secrets);
   const hosting = new HostingService(gitlabAuth);
   const hostingActions = new HostingActions(repositories, hosting);
@@ -74,7 +78,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<GroveA
     new AuthorLens(repositories),
     push,
     rebase,
-    new CommitView(context, repositories, navigator, (repository) => push.open(repository)),
+    conflicts,
+    new CommitView(context, repositories, navigator, {
+      push: (repository) => push.open(repository),
+      merge: (repository, filePath) => conflicts.openMerge(repository, filePath),
+    }),
     vscode.workspace.registerTextDocumentContentProvider(
       REVISION_SCHEME,
       new RevisionContentProvider(repositories),
@@ -95,7 +103,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<GroveA
   );
 
   await repositories.scan();
-  return { repositories, navigator, logs, blame, review, rebase };
+  return { repositories, navigator, logs, blame, review, rebase, conflicts };
 }
 
 /** The repository of the active editor, or the only one, or the one the user picks. */

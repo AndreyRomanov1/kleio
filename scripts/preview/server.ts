@@ -14,6 +14,7 @@ import type { CommitFile, CommitHostMessage, CommitWebviewMessage } from '../../
 import type { HostMessage, WebviewMessage } from '../../src/shared/protocol';
 import type { PushHostMessage, PushWebviewMessage } from '../../src/shared/pushProtocol';
 import type { RebaseHostMessage, RebaseWebviewMessage } from '../../src/shared/rebaseProtocol';
+import type { ConflictsHostMessage, ConflictsWebviewMessage } from '../../src/shared/conflictsProtocol';
 import { matchesBranchPattern, readPushState } from '../../src/extension/push/pushState';
 import { commitChangeSet, describeRange, rangeChangeSet } from '../../src/extension/changes/changeSet';
 import { Repository } from '../../src/extension/git/repository';
@@ -112,6 +113,38 @@ let changeSetId = 0;
 let lastCommit: CommitWebviewMessage | undefined;
 let lastPush: PushWebviewMessage | undefined;
 let lastRebase: RebaseWebviewMessage | undefined;
+
+/** The conflicts window over the repository as it is; resolving only logs the request. */
+async function handleConflicts(
+  repository: Repository,
+  message: ConflictsWebviewMessage,
+): Promise<ConflictsHostMessage[]> {
+  if (message.type !== 'ready') {
+    console.log('conflicts action (not executed in preview):', JSON.stringify(message));
+    return [];
+  }
+  const [files, state, head] = await Promise.all([
+    repository.conflicts(),
+    repository.operation(),
+    repository.head(),
+  ]);
+  const short = (hash?: string) => hash?.slice(0, 8) ?? '?';
+  return [
+    {
+      type: 'state',
+      operation: state?.kind,
+      title: state ? `${state.kind} ${state.branch ?? head.branch ?? ''} на ${short(state.onto)}` : '',
+      sides:
+        state?.kind === 'rebase'
+          ? {
+              ours: `${short(state.onto)} (база rebase)`,
+              theirs: `${state.branch}: ${short(state.stoppedAt)}`,
+            }
+          : { ours: head.branch ?? 'HEAD', theirs: short(state?.onto) },
+      files,
+    },
+  ];
+}
 
 /** The rebase dialog from GROVE_PREVIEW_REBASE_FROM (default HEAD~3) to HEAD; starting it only records the plan. */
 async function handleRebase(
@@ -361,6 +394,30 @@ async function main(): Promise<void> {
             response.end(String(error));
           });
       });
+      return;
+    }
+    if (request.method === 'POST' && url === '/conflicts-message') {
+      let body = '';
+      request.on('data', (chunk) => (body += chunk));
+      request.on('end', () => {
+        handleConflicts(repository, JSON.parse(body) as ConflictsWebviewMessage)
+          .then((messages) => {
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify(messages));
+          })
+          .catch((error: unknown) => {
+            console.error(error);
+            response.statusCode = 500;
+            response.end(String(error));
+          });
+      });
+      return;
+    }
+    if (url === '/conflicts') {
+      response.setHeader('Content-Type', 'text/html');
+      response.end(
+        page.replace('<body class="vscode-dark">', '<body class="vscode-dark" data-view="conflicts">'),
+      );
       return;
     }
     if (url === '/last-rebase') {

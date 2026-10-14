@@ -279,6 +279,55 @@ const tests: Test[] = [
     },
   ],
   [
+    'merges a conflicted file in the merge editor and marks it resolved on save',
+    async (api) => {
+      const git = (...args: string[]) => execFileSync('git', args, { cwd: root(), encoding: 'utf8' });
+      const write = (text: string) => require('node:fs').writeFileSync(path.join(root(), 'b.txt'), text);
+      git('checkout', '-q', '-b', 'side');
+      write('side\n');
+      git('commit', '-q', '-am', 'side');
+      git('checkout', '-q', 'main');
+      write('main\n');
+      git('commit', '-q', '-am', 'main');
+      try {
+        try {
+          git('merge', 'side');
+        } catch {
+          // Stops on the conflict.
+        }
+        const repository = (await api.repositories.get(root()))!;
+        assert.deepEqual(
+          (await repository.conflicts()).map((f) => f.path),
+          ['b.txt'],
+        );
+        await api.conflicts.openMerge(repository, 'b.txt');
+        const merge = await waitFor(() => {
+          const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input as
+            { result?: vscode.Uri; input1?: vscode.Uri } | undefined;
+          return input?.result ? input : undefined;
+        }, 'merge editor');
+        assert.equal(merge.input1?.scheme, REVISION_SCHEME);
+
+        const document = await vscode.workspace.openTextDocument(vscode.Uri.file(path.join(root(), 'b.txt')));
+        // The editor picks up the conflict markers git wrote a moment ago.
+        await waitFor(() => (document.getText().includes('<<<<<<<') ? true : undefined), 'markers loaded');
+        const edit = new vscode.WorkspaceEdit();
+        edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), 'main and side\n');
+        await vscode.workspace.applyEdit(edit);
+        await document.save();
+        await waitFor(
+          async () => ((await repository.conflicts()).length === 0 ? true : undefined),
+          'resolved',
+        );
+        assert.equal(git('diff', '--cached', '--name-only').trim(), 'b.txt');
+      } finally {
+        git('merge', '--abort');
+        git('reset', '-q', '--hard', 'HEAD~1');
+        git('branch', '-q', '-D', 'side');
+      }
+    },
+  ],
+  [
     'opens the log in an editor tab',
     async (api) => {
       const panel = api.logs.openInEditor();

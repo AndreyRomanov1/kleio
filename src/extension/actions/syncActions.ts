@@ -253,17 +253,18 @@ export class SyncActions {
       );
       return;
     }
+    if (this.showConflicts) {
+      await this.showConflicts(repository);
+      return;
+    }
     const files = state?.conflicted ?? [];
-    const resolve = 'Разрешить конфликты';
     const abort = 'Прервать';
     const choice = await vscode.window.showWarningMessage(
       `${name}: конфликты в ${files.length} файл(ах)`,
       { detail: files.slice(0, 10).join('\n') },
-      ...(this.showConflicts ? [resolve] : []),
       abort,
     );
-    if (choice === resolve) await this.showConflicts?.(repository);
-    else if (choice === abort && state) await this.abort(repository, state.kind);
+    if (choice === abort && state) await this.abort(repository, state.kind);
   }
 
   private async upstream(repository: Repository, branch: string): Promise<string | undefined> {

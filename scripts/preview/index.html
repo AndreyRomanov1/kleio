@@ -80,6 +80,7 @@
             '/commit': '/commit-message',
             '/push': '/push-message',
             '/rebase': '/rebase-message',
+            '/conflicts': '/conflicts-message',
           };
           const endpoint = endpoints[location.pathname] ?? '/message';
           fetch(endpoint, { method: 'POST', body: JSON.stringify(message) })

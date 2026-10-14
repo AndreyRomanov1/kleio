@@ -23,8 +23,12 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
     private readonly context: vscode.ExtensionContext,
     private readonly repositories: RepositoryManager,
     private readonly navigator: ChangeSetNavigator,
-    /** Opens the push dialog, as "Commit and Push" does in Rider. */
-    private readonly openPush: (repository: Repository) => Promise<void>,
+    private readonly dialogs: {
+      /** Opens the push dialog, as "Commit and Push" does in Rider. */
+      push: (repository: Repository) => Promise<void>;
+      /** Opens the three-way merge of a conflicted file. */
+      merge: (repository: Repository, filePath: string) => Promise<void>;
+    },
   ) {
     const watcher = vscode.workspace.createFileSystemWatcher('**/*');
     const refresh = () => this.scheduleRefresh();
@@ -134,6 +138,10 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
         path: f.path,
         oldPath: f.oldPath,
       }));
+    if (this.files.some((f) => f.path === filePath && f.kind === 'conflict')) {
+      await this.dialogs.merge(repository, filePath);
+      return;
+    }
     const index = files.findIndex((f) => f.path === filePath);
     if (index < 0) {
       await vscode.window.showTextDocument(workingFileUri(repository.root, filePath));
@@ -215,7 +223,7 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
       this.post({ type: 'committed' });
       this.repositories.notifyChanged(repository);
       vscode.window.setStatusBarMessage(`Grove: закоммичено ${selected.length} файл(ов)`, 4000);
-      if (message.push) await this.openPush(repository);
+      if (message.push) await this.dialogs.push(repository);
     } finally {
       this.post({ type: 'busy', value: false });
       await this.refresh();
