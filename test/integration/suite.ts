@@ -77,8 +77,11 @@ const tests: Test[] = [
         const diff = activeDiff();
         return diff && path.basename(diff.modified.fsPath) === name ? diff : undefined;
       };
+      await vscode.window.showTextDocument(vscode.Uri.file(path.join(root(), 'b.txt')), { preview: false });
       await api.navigator.open(await headChangeSet(api), 0);
       await waitFor(activeDiff, 'diff editor');
+      const diffIndex = () => vscode.window.tabGroups.activeTabGroup.tabs.findIndex((t) => t.isActive);
+      const initialIndex = diffIndex();
       await vscode.commands.executeCommand('grove.diff.nextChange');
       assert.equal(vscode.window.activeTextEditor?.selection.active.line, 24, 'second change of a.txt');
 
@@ -92,6 +95,7 @@ const tests: Test[] = [
         .flatMap((g) => g.tabs)
         .filter((t) => t.input instanceof vscode.TabInputTextDiff);
       assert.equal(diffTabs.length, 1, 'the diff of a.txt is replaced, not kept in another tab');
+      assert.equal(diffIndex(), initialIndex, 'the new diff takes the place of the old one');
 
       await vscode.commands.executeCommand('grove.diff.previousChange');
       await vscode.commands.executeCommand('grove.diff.previousChange');

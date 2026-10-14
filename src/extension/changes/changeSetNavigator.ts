@@ -74,32 +74,54 @@ export class ChangeSetNavigator implements vscode.Disposable {
       change.status === 'D' ? emptyUri(root, change.path) : await this.rightSideUri(changeSet, change);
     const hunks = await repository.hunks(left, right, change).catch(() => []);
 
-    const previous = this.current;
+    const previous = this.replaceable(this.current, leftUri, rightUri);
     this.current = { changeSet, index, left: leftUri, right: rightUri, hunks };
     this.clearEdgeHint();
     const target = edge === 'first' ? hunks[0] : hunks[hunks.length - 1];
     const line = target ? hunkLine(target, 'right') : 0;
     const title = `${path.basename(change.path)} (${describeRange(changeSet)}) — ${index + 1}/${changeSet.files.length}`;
-    await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title, {
+    const options: vscode.TextDocumentShowOptions = {
       preview: true,
       selection: new vscode.Range(line, 0, line, 0),
-    } satisfies vscode.TextDocumentShowOptions);
-    await this.closeReplaced(previous);
+    };
+
+    // Grove keeps one diff tab, as Rider's diff window, even with editor previews turned off. The old tab is
+    // closed first and the new one takes its place, so the tab bar does not grow and shift for a moment.
+    // A tab that is alone in its group is closed afterwards instead: closing it first would close the group.
+    if (previous && previous.group.tabs.length > 1) {
+      await vscode.window.tabGroups.close(previous.tab, true);
+      await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title, {
+        ...options,
+        viewColumn: previous.group.viewColumn,
+      });
+      await this.moveActiveTabTo(previous.index);
+    } else {
+      await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title, options);
+      if (previous) await vscode.window.tabGroups.close(previous.tab, true);
+    }
     this.updateContext();
   }
 
-  /** Grove keeps one diff tab, as Rider's diff window, even when editor previews are turned off. */
-  private async closeReplaced(previous: OpenedFile | undefined): Promise<void> {
-    const current = this.current;
-    if (!previous || !current) return;
-    if (
-      previous.left.toString() === current.left.toString() &&
-      previous.right.toString() === current.right.toString()
-    ) {
-      return;
-    }
-    const tab = this.findTab(previous);
-    if (tab && !tab.isDirty && !tab.isPinned) await vscode.window.tabGroups.close(tab, true);
+  /** The tab of the previously shown file, if it can be replaced: not the same file, not edited, not pinned. */
+  private replaceable(
+    file: OpenedFile | undefined,
+    left: vscode.Uri,
+    right: vscode.Uri,
+  ): { tab: vscode.Tab; group: vscode.TabGroup; index: number } | undefined {
+    if (!file) return undefined;
+    if (file.left.toString() === left.toString() && file.right.toString() === right.toString())
+      return undefined;
+    const tab = this.findTab(file);
+    if (!tab || tab.isDirty || tab.isPinned) return undefined;
+    return { tab, group: tab.group, index: tab.group.tabs.indexOf(tab) };
+  }
+
+  private async moveActiveTabTo(index: number): Promise<void> {
+    const group = vscode.window.tabGroups.activeTabGroup;
+    if (index < 0) return;
+    const current = group.tabs.findIndex((t) => t.isActive);
+    if (current === index || current < 0) return;
+    await vscode.commands.executeCommand('moveActiveEditor', { to: 'position', by: 'tab', value: index + 1 });
   }
 
   private findTab(file: OpenedFile | undefined): vscode.Tab | undefined {
