@@ -209,10 +209,12 @@ export class LogStore {
       if (kept.length !== this.selected.size) this.select(new Set(kept));
       return;
     }
+    // The log starts at HEAD; a history view starts at its latest commit.
     const head = this.snapshot?.head.hash;
-    if (head && this.indexByHash.has(head)) {
-      this.anchor = head;
-      this.select(new Set([head]));
+    const start = this.history ? this.snapshot?.commits[0]?.hash : head;
+    if (start && this.indexByHash.has(start)) {
+      this.anchor = start;
+      this.select(new Set([start]));
       this.revealRequest++;
     }
   }

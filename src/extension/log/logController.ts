@@ -33,6 +33,9 @@ export class LogController implements vscode.Disposable {
   private pendingReveal?: string;
   /** Path of the history file in each commit, as it may have been renamed. */
   private historyPaths: Record<string, string> = {};
+  /** 1-based line where the traced fragment was changed in each commit. */
+  private historyLines: Record<string, number> = {};
+  private historyDiffTimer?: NodeJS.Timeout;
   private readonly changeSets = new Map<number, ChangeSet>();
   private nextChangeSetId = 1;
   private loadVersion = 0;
@@ -140,6 +143,7 @@ export class LogController implements vscode.Disposable {
       repository.head(),
     ]);
     this.historyPaths = history.paths;
+    this.historyLines = history.lines;
     return { root: repository.root, head, commits: history.commits, refs, worktrees: [], stashes: [] };
   }
 
@@ -187,6 +191,26 @@ export class LogController implements vscode.Disposable {
     const view = this.register(changeSet);
     if (this.history && commits.length === 1) view.focusIndex = this.historyFileIndex(changeSet, newest.hash);
     this.post({ type: 'details', requestId, commits, changeSet: view });
+    if (this.history && commits.length === 1 && view.focusIndex !== undefined) {
+      this.showHistoryDiff(changeSet, view.focusIndex, newest.hash);
+    }
+  }
+
+  /**
+   * As in Rider's file history, the diff of the selected commit is shown next to the list; focus stays in the
+   * list, so arrow keys walk through the history. Debounced for fast scrolling.
+   */
+  private showHistoryDiff(changeSet: ChangeSet, index: number, hash: string): void {
+    if (!vscode.workspace.getConfiguration('grove').get<boolean>('history.showDiffOnSelect', true)) return;
+    clearTimeout(this.historyDiffTimer);
+    this.historyDiffTimer = setTimeout(() => {
+      const line = this.historyLines[hash];
+      void this.services.navigator.open(changeSet, index, 'first', {
+        viewColumn: vscode.ViewColumn.Beside,
+        preserveFocus: true,
+        line: line === undefined ? undefined : line - 1,
+      });
+    }, 200);
   }
 
   /** Index of the traced file in a commit of a history view; it may have had another name back then. */
@@ -339,6 +363,7 @@ export class LogController implements vscode.Disposable {
   }
 
   dispose(): void {
+    clearTimeout(this.historyDiffTimer);
     for (const d of this.disposables) d.dispose();
   }
 }

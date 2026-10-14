@@ -130,6 +130,11 @@
         "command": "grove.compare.withRevision",
         "title": "Сравнить с веткой или ревизией…",
         "category": "Grove"
+      },
+      {
+        "command": "grove.blame.toggle",
+        "title": "Переключить аннотации Git (blame)",
+        "category": "Grove"
       }
     ],
     "menus": {
@@ -311,7 +316,22 @@
         "id": "grove.editorGit",
         "label": "Git"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Grove",
+      "properties": {
+        "grove.codeLens.authors": {
+          "type": "boolean",
+          "default": true,
+          "description": "Показывать над классами и методами автора большинства строк и число других авторов (как code vision в Rider)."
+        },
+        "grove.history.showDiffOnSelect": {
+          "type": "boolean",
+          "default": true,
+          "description": "Во вкладке истории сразу показывать diff выбранного коммита в соседней группе редактора."
+        }
+      }
+    }
   },
   "scripts": {
     "build": "node scripts/build.mjs",

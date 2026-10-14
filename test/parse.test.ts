@@ -234,5 +234,6 @@ describe('parseHistory', () => {
       ['eee', 'deleted', ['fff']],
     ]);
     expect(history.paths).toEqual({ aaa: 'new/x.ts', bbb: 'old/x.ts', ccc: 'y.ts', eee: 'z.ts' });
+    expect(history.lines).toEqual({ ccc: 1 });
   });
 });

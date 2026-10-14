@@ -259,6 +259,8 @@ export interface FileHistory {
   commits: Commit[];
   /** Path of the file in each commit, for histories that follow renames. */
   paths: Record<string, string>;
+  /** 1-based first changed line on the new side in each commit, when the output carries patches. */
+  lines: Record<string, number>;
 }
 
 /**
@@ -268,6 +270,7 @@ export interface FileHistory {
 export function parseHistory(output: string): FileHistory {
   const commits: Commit[] = [];
   const paths: Record<string, string> = {};
+  const lines: Record<string, number> = {};
   for (const record of output.split(RECORD)) {
     if (!record.trim()) continue;
     const newline = record.indexOf('\n');
@@ -284,8 +287,10 @@ export function parseHistory(output: string): FileHistory {
     });
     const path = pathInBody(body);
     if (path) paths[hash] = path;
+    const hunk = /^@@ -\d+(?:,\d+)? \+(\d+)/m.exec(body);
+    if (hunk) lines[hash] = Number(hunk[1]);
   }
-  return { commits, paths };
+  return { commits, paths, lines };
 }
 
 function pathInBody(body: string): string | undefined {

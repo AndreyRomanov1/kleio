@@ -117,7 +117,7 @@
         })}
     />
     {#if store.history}
-      <span class="hint">двойной клик — diff файла в коммите</span>
+      <span class="hint">diff выбранного коммита — справа, стрелками по истории</span>
     {:else if store.focus.length}
       <div class="focus" title="Лог показывает только историю этих веток">
         <span class="focus-label">Фокус:</span>
