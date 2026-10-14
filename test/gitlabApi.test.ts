@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { GitLabApi, GitLabApiError } from '../src/extension/hosting/gitlabApi';
 
-const requests: { method: string; url: string; auth?: string }[] = [];
+const requests: { method: string; url: string; auth?: string; body?: unknown }[] = [];
 let server: Server;
 let origin: string;
 
@@ -33,6 +33,60 @@ const routes: Record<string, unknown> = {
     approvals_required: 2,
     approvals_left: 1,
   },
+  '/api/v4/projects/group%2Fproject/merge_requests/9/discussions?per_page=100&page=1': [
+    {
+      id: 'd1',
+      individual_note: false,
+      notes: [
+        {
+          id: 1,
+          body: 'why?',
+          author: { name: 'Bob', username: 'bob' },
+          created_at: '2026-10-14T10:00:00Z',
+          resolvable: true,
+          resolved: false,
+          position: {
+            base_sha: 'b',
+            start_sha: 's',
+            head_sha: 'h',
+            old_path: 'a.cs',
+            new_path: 'a.cs',
+            old_line: null,
+            new_line: 12,
+          },
+        },
+      ],
+    },
+    {
+      id: 'd2',
+      individual_note: true,
+      notes: [
+        {
+          id: 2,
+          body: 'added 1 commit',
+          author: { name: 'Ann', username: 'ann' },
+          created_at: 'x',
+          system: true,
+        },
+      ],
+    },
+  ],
+  '/api/v4/projects/group%2Fproject/merge_requests/9/draft_notes': [
+    {
+      id: 5,
+      note: 'draft',
+      discussion_id: null,
+      position: {
+        base_sha: 'b',
+        start_sha: 's',
+        head_sha: 'h',
+        old_path: 'a.cs',
+        new_path: 'a.cs',
+        old_line: 3,
+        new_line: 4,
+      },
+    },
+  ],
   '/api/v4/projects/group%2Fproject/pipelines?per_page=100&order_by=id&sort=desc': [
     { id: 52, sha: 'aaa', status: 'running' },
     { id: 51, sha: 'aaa', status: 'failed' },
@@ -53,8 +107,15 @@ const routes: Record<string, unknown> = {
 };
 
 beforeAll(async () => {
-  server = createServer((req: IncomingMessage, res) => {
-    requests.push({ method: req.method!, url: req.url!, auth: req.headers.authorization });
+  server = createServer(async (req: IncomingMessage, res) => {
+    let text = '';
+    for await (const chunk of req) text += chunk;
+    requests.push({
+      method: req.method!,
+      url: req.url!,
+      auth: req.headers.authorization,
+      body: text ? JSON.parse(text) : undefined,
+    });
     if (req.headers.authorization !== 'Bearer secret') {
       res.statusCode = 401;
       res.end('{"message":"401 Unauthorized"}');
@@ -64,7 +125,7 @@ beforeAll(async () => {
       res.end('log line\n');
       return;
     }
-    if (req.method === 'POST') {
+    if (req.method !== 'GET') {
       res.statusCode = 201;
       res.end('{}');
       return;
@@ -134,6 +195,79 @@ describe('GitLabApi', () => {
     expect(requests.at(-1)).toMatchObject({
       method: 'POST',
       url: '/api/v4/projects/group%2Fproject/pipelines/50/retry',
+    });
+  });
+
+  it('reads discussions and draft notes with their diff positions', async () => {
+    const [thread, system] = await api().discussions(9);
+    expect(thread).toMatchObject({ id: 'd1', individual: false });
+    expect(thread.notes[0]).toMatchObject({
+      body: 'why?',
+      resolvable: true,
+      resolved: false,
+      position: { newLine: 12, oldLine: undefined },
+    });
+    expect(system.notes[0].system).toBe(true);
+    expect(await api().draftNotes(9)).toEqual([
+      {
+        id: 5,
+        body: 'draft',
+        discussionId: undefined,
+        position: {
+          baseSha: 'b',
+          startSha: 's',
+          headSha: 'h',
+          oldPath: 'a.cs',
+          newPath: 'a.cs',
+          oldLine: 3,
+          newLine: 4,
+        },
+      },
+    ]);
+  });
+
+  it('creates threads, replies, drafts and resolves with the bodies GitLab expects', async () => {
+    const position = {
+      baseSha: 'b',
+      startSha: 's',
+      headSha: 'h',
+      oldPath: 'a.cs',
+      newPath: 'a.cs',
+      newLine: 7,
+    };
+    await api().createDiscussion(9, 'line comment', position);
+    expect(requests.at(-1)).toMatchObject({
+      method: 'POST',
+      url: '/api/v4/projects/group%2Fproject/merge_requests/9/discussions',
+      body: {
+        body: 'line comment',
+        position: {
+          position_type: 'text',
+          base_sha: 'b',
+          start_sha: 's',
+          head_sha: 'h',
+          old_path: 'a.cs',
+          new_path: 'a.cs',
+          new_line: 7,
+        },
+      },
+    });
+    await api().createDiscussion(9, 'general');
+    expect(requests.at(-1)?.body).toEqual({ body: 'general' });
+    await api().createDraftNote(9, 'later', { discussionId: 'd1' });
+    expect(requests.at(-1)).toMatchObject({
+      url: '/api/v4/projects/group%2Fproject/merge_requests/9/draft_notes',
+      body: { note: 'later', in_reply_to_discussion_id: 'd1' },
+    });
+    await api().publishDraftNotes(9);
+    expect(requests.at(-1)).toMatchObject({
+      method: 'POST',
+      url: '/api/v4/projects/group%2Fproject/merge_requests/9/draft_notes/bulk_publish',
+    });
+    await api().resolve(9, 'd1', true);
+    expect(requests.at(-1)).toMatchObject({
+      method: 'PUT',
+      url: '/api/v4/projects/group%2Fproject/merge_requests/9/discussions/d1?resolved=true',
     });
   });
 });

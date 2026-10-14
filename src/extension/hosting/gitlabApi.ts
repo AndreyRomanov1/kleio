@@ -37,6 +37,11 @@ export interface Job {
   allowFailure: boolean;
 }
 
+export interface Bridge extends Job {
+  /** The child pipeline, once the trigger job has run. */
+  downstream?: { id: number; status: PipelineStatus; webUrl: string; projectId: number };
+}
+
 export interface MergeRequestDetails extends MergeRequestSummary {
   author: Person;
   reviewers: Person[];
@@ -47,12 +52,60 @@ export interface MergeRequestDetails extends MergeRequestSummary {
   mergeStatus?: string;
   userNotesCount: number;
   pipeline?: { id: number; status: PipelineStatus; webUrl: string };
+  diffRefs?: DiffRefs;
 }
 
 export interface Approvals {
   approvedBy: Person[];
   required: number;
   left: number;
+}
+
+/** A place in a merge request diff: GitLab needs the versions of both sides and the line on one or both of them. */
+export interface DiffPosition {
+  baseSha: string;
+  startSha: string;
+  headSha: string;
+  oldPath: string;
+  newPath: string;
+  /** 1-based; set for removed and unchanged lines. */
+  oldLine?: number;
+  /** 1-based; set for added and unchanged lines. */
+  newLine?: number;
+}
+
+export interface Note {
+  id: number;
+  body: string;
+  author: Person;
+  /** ISO time. */
+  createdAt: string;
+  /** Notes GitLab writes itself, e.g. "added 2 commits". */
+  system: boolean;
+  resolvable: boolean;
+  resolved: boolean;
+  position?: DiffPosition;
+}
+
+export interface Discussion {
+  id: string;
+  /** A single comment that cannot be replied to as a thread. */
+  individual: boolean;
+  notes: Note[];
+}
+
+export interface DraftNote {
+  id: number;
+  body: string;
+  /** The thread a draft reply belongs to. */
+  discussionId?: string;
+  position?: DiffPosition;
+}
+
+export interface DiffRefs {
+  baseSha: string;
+  startSha: string;
+  headSha: string;
 }
 
 export class GitLabApiError extends Error {
@@ -119,6 +172,13 @@ export class GitLabApi {
       pipeline: raw.head_pipeline
         ? { id: raw.head_pipeline.id, status: raw.head_pipeline.status, webUrl: raw.head_pipeline.web_url }
         : undefined,
+      diffRefs: raw.diff_refs
+        ? {
+            baseSha: raw.diff_refs.base_sha,
+            startSha: raw.diff_refs.start_sha,
+            headSha: raw.diff_refs.head_sha,
+          }
+        : undefined,
     };
   }
 
@@ -141,9 +201,10 @@ export class GitLabApi {
     return bySha;
   }
 
-  async jobs(pipelineId: number): Promise<Job[]> {
+  /** Jobs of a pipeline; `projectId` for a child pipeline that runs in another project. */
+  async jobs(pipelineId: number, projectId?: number): Promise<Job[]> {
     const raw = await this.get<RawJob[]>(
-      `${this.projectPath}/pipelines/${pipelineId}/jobs?per_page=100&include_retried=false`,
+      `${this.projectRef(projectId)}/pipelines/${pipelineId}/jobs?per_page=100&include_retried=false`,
     );
     return raw
       .map((j) => ({
@@ -158,8 +219,38 @@ export class GitLabApi {
       .sort((a, b) => a.id - b.id);
   }
 
-  async jobLog(jobId: number): Promise<string> {
-    return this.request(`${this.projectPath}/jobs/${jobId}/trace`, 'GET').then((r) => r.text());
+  async jobLog(jobId: number, projectId?: number): Promise<string> {
+    return this.request(`${this.projectRef(projectId)}/jobs/${jobId}/trace`, 'GET').then((r) => r.text());
+  }
+
+  /** Trigger jobs of a pipeline, which GitLab lists apart from the other jobs; they start child pipelines. */
+  async bridges(pipelineId: number): Promise<Bridge[]> {
+    const raw = await this.get<RawBridge[]>(
+      `${this.projectPath}/pipelines/${pipelineId}/bridges?per_page=100`,
+    );
+    return raw
+      .map((b) => ({
+        id: b.id,
+        name: b.name,
+        stage: b.stage,
+        status: b.status,
+        duration: b.duration ?? undefined,
+        webUrl: b.web_url,
+        allowFailure: !!b.allow_failure,
+        downstream: b.downstream_pipeline
+          ? {
+              id: b.downstream_pipeline.id,
+              status: b.downstream_pipeline.status,
+              webUrl: b.downstream_pipeline.web_url,
+              projectId: b.downstream_pipeline.project_id,
+            }
+          : undefined,
+      }))
+      .sort((a, b) => a.id - b.id);
+  }
+
+  private projectRef(projectId: number | undefined): string {
+    return projectId === undefined ? this.projectPath : `/projects/${projectId}`;
   }
 
   async retryPipeline(pipelineId: number): Promise<void> {
@@ -170,15 +261,100 @@ export class GitLabApi {
     await this.request(`${this.projectPath}/jobs/${jobId}/retry`, 'POST');
   }
 
+  async discussions(iid: number): Promise<Discussion[]> {
+    const raw: RawDiscussion[] = [];
+    for (let page = 1; ; page++) {
+      const batch = await this.get<RawDiscussion[]>(
+        `${this.projectPath}/merge_requests/${iid}/discussions?per_page=100&page=${page}`,
+      );
+      raw.push(...batch);
+      if (batch.length < 100) break;
+    }
+    return raw.map((d) => ({
+      id: d.id,
+      individual: !!d.individual_note,
+      notes: d.notes.map(note),
+    }));
+  }
+
+  /** A new thread, on a diff line when `position` is given, otherwise on the merge request as a whole. */
+  async createDiscussion(iid: number, body: string, position?: DiffPosition): Promise<void> {
+    await this.request(`${this.projectPath}/merge_requests/${iid}/discussions`, 'POST', {
+      body,
+      ...(position ? { position: rawPosition(position) } : {}),
+    });
+  }
+
+  async reply(iid: number, discussionId: string, body: string): Promise<void> {
+    await this.request(
+      `${this.projectPath}/merge_requests/${iid}/discussions/${discussionId}/notes`,
+      'POST',
+      {
+        body,
+      },
+    );
+  }
+
+  async resolve(iid: number, discussionId: string, resolved: boolean): Promise<void> {
+    await this.request(
+      `${this.projectPath}/merge_requests/${iid}/discussions/${discussionId}?resolved=${resolved}`,
+      'PUT',
+    );
+  }
+
+  async draftNotes(iid: number): Promise<DraftNote[]> {
+    const raw = await this.get<RawDraftNote[]>(`${this.projectPath}/merge_requests/${iid}/draft_notes`);
+    return raw.map((d) => ({
+      id: d.id,
+      body: d.note,
+      discussionId: d.discussion_id ?? undefined,
+      position: d.position ? position(d.position) : undefined,
+    }));
+  }
+
+  /**
+   * A pending comment, stored by GitLab and published together with the others ("Submit review" on the web).
+   * `discussionId` makes it a reply.
+   */
+  async createDraftNote(
+    iid: number,
+    body: string,
+    target: { position?: DiffPosition; discussionId?: string },
+  ): Promise<void> {
+    await this.request(`${this.projectPath}/merge_requests/${iid}/draft_notes`, 'POST', {
+      note: body,
+      ...(target.position ? { position: rawPosition(target.position) } : {}),
+      ...(target.discussionId ? { in_reply_to_discussion_id: target.discussionId } : {}),
+    });
+  }
+
+  async deleteDraftNote(iid: number, id: number): Promise<void> {
+    await this.request(`${this.projectPath}/merge_requests/${iid}/draft_notes/${id}`, 'DELETE');
+  }
+
+  async publishDraftNotes(iid: number): Promise<void> {
+    await this.request(`${this.projectPath}/merge_requests/${iid}/draft_notes/bulk_publish`, 'POST');
+  }
+
   private async get<T>(path: string): Promise<T> {
     return (await (await this.request(path, 'GET')).json()) as T;
   }
 
-  private async request(path: string, method: 'GET' | 'POST'): Promise<Response> {
+  private async request(
+    path: string,
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+    body?: unknown,
+  ): Promise<Response> {
     // Bearer works for both personal access tokens and OAuth tokens (GitLab Workflow's gitlab.com accounts).
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${this.token}`,
+      Accept: 'application/json',
+    };
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
     const response = await this.fetchImpl(`${this.base}${path}`, {
       method,
-      headers: { Authorization: `Bearer ${this.token}`, Accept: 'application/json' },
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
     });
     if (!response.ok) {
       const text = await response.text().catch(() => '');
@@ -186,6 +362,10 @@ export class GitLabApi {
     }
     return response;
   }
+}
+
+interface RawBridge extends RawJob {
+  downstream_pipeline?: { id: number; status: PipelineStatus; web_url: string; project_id: number } | null;
 }
 
 interface RawPerson {
@@ -209,6 +389,80 @@ interface RawMergeRequest {
   merge_status?: string;
   user_notes_count?: number;
   head_pipeline?: { id: number; status: PipelineStatus; web_url: string } | null;
+  diff_refs?: { base_sha: string; start_sha: string; head_sha: string } | null;
+}
+
+interface RawPosition {
+  base_sha: string;
+  start_sha: string;
+  head_sha: string;
+  old_path: string;
+  new_path: string;
+  old_line?: number | null;
+  new_line?: number | null;
+  position_type?: string;
+}
+
+interface RawNote {
+  id: number;
+  body: string;
+  author: RawPerson;
+  created_at: string;
+  system?: boolean;
+  resolvable?: boolean;
+  resolved?: boolean;
+  position?: RawPosition | null;
+}
+
+interface RawDiscussion {
+  id: string;
+  individual_note?: boolean;
+  notes: RawNote[];
+}
+
+interface RawDraftNote {
+  id: number;
+  note: string;
+  discussion_id?: string | null;
+  position?: RawPosition | null;
+}
+
+function position(raw: RawPosition): DiffPosition {
+  return {
+    baseSha: raw.base_sha,
+    startSha: raw.start_sha,
+    headSha: raw.head_sha,
+    oldPath: raw.old_path,
+    newPath: raw.new_path,
+    oldLine: raw.old_line ?? undefined,
+    newLine: raw.new_line ?? undefined,
+  };
+}
+
+function rawPosition(p: DiffPosition): RawPosition {
+  return {
+    position_type: 'text',
+    base_sha: p.baseSha,
+    start_sha: p.startSha,
+    head_sha: p.headSha,
+    old_path: p.oldPath,
+    new_path: p.newPath,
+    ...(p.oldLine !== undefined ? { old_line: p.oldLine } : {}),
+    ...(p.newLine !== undefined ? { new_line: p.newLine } : {}),
+  };
+}
+
+function note(raw: RawNote): Note {
+  return {
+    id: raw.id,
+    body: raw.body,
+    author: person(raw.author),
+    createdAt: raw.created_at,
+    system: !!raw.system,
+    resolvable: !!raw.resolvable,
+    resolved: !!raw.resolved,
+    position: raw.position ? position(raw.position) : undefined,
+  };
 }
 
 interface RawApprovals {
