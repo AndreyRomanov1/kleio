@@ -14,7 +14,7 @@
   let height = $state(600);
 
   // Details move under the log when the log itself would get too narrow next to them.
-  const narrow = $derived(width - (ui.showBranches ? ui.branchWidth : 0) - ui.detailsWidth < 480);
+  const narrow = $derived(width - (ui.showBranches ? ui.branchWidth : 0) - ui.detailsWidth < 600);
   const collapsed = $derived(new Set(ui.collapsed));
 
   $effect(() => {
@@ -128,7 +128,15 @@
       {/if}
       <div class="center">
         <div class="log-area">
-          <CommitLog {store} />
+          <CommitLog
+            {store}
+            authorWidth={ui.authorWidth}
+            dateWidth={ui.dateWidth}
+            onresize={(column, value) => {
+              if (column === 'author') ui.authorWidth = value;
+              else ui.dateWidth = value;
+            }}
+          />
         </div>
         {#if narrow}
           <Splitter

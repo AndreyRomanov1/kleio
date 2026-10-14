@@ -16,6 +16,8 @@ export function post(message: WebviewMessage): void {
 
 export interface UiState {
   branchWidth: number;
+  authorWidth: number;
+  dateWidth: number;
   detailsWidth: number;
   detailsHeight: number;
   fileView: 'tree' | 'list';
@@ -26,6 +28,8 @@ export interface UiState {
 
 const defaults: UiState = {
   branchWidth: 240,
+  authorWidth: 110,
+  dateWidth: 100,
   detailsWidth: 380,
   detailsHeight: 260,
   fileView: 'tree',

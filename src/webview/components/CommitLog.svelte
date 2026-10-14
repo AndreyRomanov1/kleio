@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import { formatDate, formatFullDate, shortHash } from '../format';
   import { menu } from '../menu.svelte';
   import { commitMenu } from '../menus';
@@ -9,9 +9,12 @@
 
   interface Props {
     store: LogStore;
+    authorWidth: number;
+    dateWidth: number;
+    onresize: (column: 'author' | 'date', width: number) => void;
   }
 
-  let { store }: Props = $props();
+  let { store, authorWidth, dateWidth, onresize }: Props = $props();
 
   const ROW_HEIGHT = 24;
   const OVERSCAN = 12;
@@ -41,6 +44,29 @@
     void tick().then(() => scrollIntoView(hash));
   });
 
+  // Keeps the selected commit in view when the text filter changes, e.g. to see it in the full history
+  // after clearing a search.
+  $effect(() => {
+    void store.filtered;
+    const hash = untrack(() => [...store.selected][0]);
+    void tick().then(() => scrollIntoView(hash));
+  });
+
+  function startResize(event: PointerEvent, column: 'author' | 'date'): void {
+    const handle = event.currentTarget as HTMLElement;
+    handle.setPointerCapture(event.pointerId);
+    const startX = event.clientX;
+    const startWidth = column === 'author' ? authorWidth : dateWidth;
+    const move = (e: PointerEvent) =>
+      onresize(column, Math.max(50, Math.min(400, startWidth - (e.clientX - startX))));
+    const up = () => {
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', up);
+    };
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', up);
+  }
+
   function scrollIntoView(hash: string | undefined): void {
     if (!viewport || !hash) return;
     const row = store.rowOf(hash);
@@ -68,11 +94,25 @@
   }
 </script>
 
-<div class="log">
+<div class="log" style:--author-width="{authorWidth}px" style:--date-width="{dateWidth}px">
   <div class="header">
     <span>Коммит</span>
-    <span>Автор</span>
-    <span>Дата</span>
+    <span class="resizable"
+      ><span
+        class="resize"
+        role="separator"
+        aria-label="Ширина колонки автора"
+        onpointerdown={(e) => startResize(e, 'author')}
+      ></span>Автор</span
+    >
+    <span class="resizable"
+      ><span
+        class="resize"
+        role="separator"
+        aria-label="Ширина колонки даты"
+        onpointerdown={(e) => startResize(e, 'date')}
+      ></span>Дата</span
+    >
     <span>Хэш</span>
   </div>
   <div
@@ -145,7 +185,7 @@
   @container (max-width: 720px) {
     .header,
     .row {
-      grid-template-columns: minmax(0, 1fr) 110px 120px;
+      grid-template-columns: minmax(0, 1fr) var(--author-width) var(--date-width);
     }
     .header > :nth-child(4),
     .row > .hash {
@@ -155,7 +195,7 @@
   @container (max-width: 520px) {
     .header,
     .row {
-      grid-template-columns: minmax(0, 1fr) 120px;
+      grid-template-columns: minmax(0, 1fr) var(--date-width);
     }
     .header > :nth-child(2),
     .row > .author {
@@ -165,8 +205,8 @@
   .header,
   .row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) var(--author-width, 150px) var(--date-width, 130px) 72px;
-    column-gap: 10px;
+    grid-template-columns: minmax(0, 1fr) var(--author-width) var(--date-width) 64px;
+    column-gap: 8px;
     align-items: center;
     padding: 0 8px 0 4px;
   }
@@ -176,6 +216,20 @@
     font-size: 0.9em;
     opacity: 0.7;
     border-bottom: 1px solid var(--vscode-panel-border, var(--vscode-widget-border));
+  }
+  .resizable {
+    position: relative;
+  }
+  .resize {
+    position: absolute;
+    left: -6px;
+    top: 0;
+    bottom: 0;
+    width: 5px;
+    cursor: col-resize;
+  }
+  .resize:hover {
+    background: var(--vscode-sash-hoverBorder);
   }
   .viewport {
     position: relative;
