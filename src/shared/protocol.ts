@@ -100,6 +100,8 @@ export interface MergeRequestCardView {
   discussions?: DiscussionsView;
   /** Whether this merge request is open for review in the diff viewer right now. */
   reviewing?: boolean;
+  /** Whether the current GitLab user has approved it. */
+  approvedByMe?: boolean;
 }
 
 export interface DiscussionsView {
@@ -187,6 +189,10 @@ export type WebviewMessage =
   | { type: 'startReview'; number: number; path?: string; line?: number }
   | { type: 'postComment'; number: number; body: string; draft: boolean }
   | { type: 'publishDrafts'; number: number }
+  | { type: 'approveMergeRequest'; number: number; approve: boolean }
+  | { type: 'mergeMergeRequest'; number: number }
+  | { type: 'rebaseMergeRequest'; number: number }
+  | { type: 'playJob'; jobId: number; name: string; projectId?: number; number: number }
   /** Double click on a commit: its diff, or in a history view the diff of the file in that commit. */
   | { type: 'openCommitDiff'; hash: string }
   | { type: 'showStash'; requestId: number; hash: string };

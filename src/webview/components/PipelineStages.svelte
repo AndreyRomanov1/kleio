@@ -6,9 +6,11 @@
 
   interface Props {
     stages: PipelineStageView[];
+    /** The merge request the pipeline belongs to, to refresh its card after starting a job. */
+    number: number;
   }
 
-  let { stages }: Props = $props();
+  let { stages, number }: Props = $props();
   let expanded = $state<ReadonlySet<number>>(new Set());
 
   function toggle(id: number): void {
@@ -20,8 +22,11 @@
 
   function click(job: PipelineJobView): void {
     if (job.child) toggle(job.id);
-    else if (!job.bridge)
+    else if (job.status === 'manual') {
+      post({ type: 'playJob', jobId: job.id, name: job.name, projectId: job.projectId, number });
+    } else if (!job.bridge) {
       post({ type: 'openJobLog', jobId: job.id, name: job.name, projectId: job.projectId });
+    }
   }
 
   function title(job: PipelineJobView): string {
@@ -33,9 +38,11 @@
       ? expanded.has(job.id)
         ? 'свернуть дочерний пайплайн'
         : 'развернуть дочерний пайплайн'
-      : job.bridge
-        ? 'запускается вручную в GitLab'
-        : 'открыть лог';
+      : job.status === 'manual'
+        ? 'запустить'
+        : job.bridge
+          ? 'ещё не запускался'
+          : 'открыть лог';
     return `${job.name}: ${state}${job.allowFailure ? ' (падение допустимо)' : ''} — ${action}`;
   }
 </script>
@@ -53,7 +60,7 @@
           title={title(job)}
           onclick={() => click(job)}
         >
-          <i class="codicon codicon-{icon.icon}"></i>{job.name}
+          <i class="codicon codicon-{job.status === 'manual' ? 'play' : icon.icon}"></i>{job.name}
           {#if job.duration !== undefined}<span class="muted">{formatDuration(job.duration)}</span>{/if}
           {#if job.child}<i class="codicon codicon-chevron-{expanded.has(job.id) ? 'up' : 'down'}"></i>{/if}
         </button>
@@ -70,7 +77,7 @@
         >
       </div>
       {#if job.child!.stages.length}
-        <PipelineStages stages={job.child!.stages} />
+        <PipelineStages stages={job.child!.stages} {number} />
       {:else}
         <div class="muted">джоб нет</div>
       {/if}

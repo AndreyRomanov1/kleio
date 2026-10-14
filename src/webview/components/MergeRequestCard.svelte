@@ -134,7 +134,7 @@
               >
             {/if}
           </div>
-          <PipelineStages stages={pipeline.stages} />
+          <PipelineStages stages={pipeline.stages} number={card.iid} />
         </div>
       {:else}
         <div class="section muted">Пайплайна нет</div>
@@ -236,6 +236,27 @@
         <button class="primary" onclick={() => post({ type: 'startReview', number: card.iid })}
           ><i class="codicon codicon-eye"></i> {card.reviewing ? 'Ревью открыто' : 'Ревью'}</button
         >
+        {#if card.state === 'opened'}
+          <button
+            title={card.approvedByMe ? 'Снять ваш аппрув' : 'Поставить аппрув'}
+            onclick={() =>
+              post({ type: 'approveMergeRequest', number: card.iid, approve: !card.approvedByMe })}
+            ><i class="codicon codicon-{card.approvedByMe ? 'circle-slash' : 'pass'}"></i>
+            {card.approvedByMe ? 'Снять аппрув' : 'Аппрув'}</button
+          >
+          {#if card.mergeStatus === 'need_rebase'}
+            <button
+              title="Перебазировать ветку на сервере GitLab"
+              onclick={() => post({ type: 'rebaseMergeRequest', number: card.iid })}
+              ><i class="codicon codicon-git-compare"></i> Rebase</button
+            >
+          {/if}
+          <button
+            title="Влить MR — с подтверждением"
+            onclick={() => post({ type: 'mergeMergeRequest', number: card.iid })}
+            ><i class="codicon codicon-git-merge"></i> Влить…</button
+          >
+        {/if}
         <a class="button" href={card.webUrl}><i class="codicon codicon-link-external"></i> Открыть в GitLab</a
         >
       </div>
@@ -455,6 +476,7 @@
     cursor: default;
   }
   .actions {
+    flex-wrap: wrap;
     display: flex;
     gap: 6px;
     margin-top: 12px;

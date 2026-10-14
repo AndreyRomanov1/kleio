@@ -142,6 +142,22 @@ export class LogController implements vscode.Disposable {
           await this.loadCard(message.number);
         }
         return;
+      case 'approveMergeRequest':
+      case 'mergeMergeRequest':
+      case 'rebaseMergeRequest':
+      case 'playJob': {
+        const repository = this.repository;
+        if (!repository) return;
+        const cards = this.services.cards;
+        if (message.type === 'approveMergeRequest')
+          await cards.approve(repository, message.number, message.approve);
+        else if (message.type === 'mergeMergeRequest') await cards.merge(repository, message.number);
+        else if (message.type === 'rebaseMergeRequest') await cards.rebase(repository, message.number);
+        else await cards.playJob(repository, message.jobId, message.name, message.projectId);
+        await this.loadCard(message.number);
+        void this.loadHosting(true);
+        return;
+      }
       case 'retryPipeline':
         if (this.repository) {
           await this.services.cards.retryPipeline(this.repository, message.pipelineId);
