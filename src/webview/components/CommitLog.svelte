@@ -2,6 +2,7 @@
   import { tick, untrack } from 'svelte';
   import { formatDate, formatFullDate, shortHash } from '../format';
   import { menu } from '../menu.svelte';
+  import { pipelineIcons } from '../hostingView';
   import { commitMenu } from '../menus';
   import type { LogStore } from '../store.svelte';
   import { post } from '../vscode';
@@ -169,7 +170,13 @@
           </span>
           <span class="author" title={commit.authorEmail}>{commit.authorName}</span>
           <span class="date" title={formatFullDate(commit.authorDate)}>{formatDate(commit.authorDate)}</span>
-          <span class="hash">{shortHash(commit.hash)}</span>
+          <span class="hash"
+            >{#if store.hosting?.pipelines[commit.hash]}{@const icon =
+                pipelineIcons[store.hosting.pipelines[commit.hash]]}<i
+                class="pipeline codicon codicon-{icon.icon} {icon.tone}"
+                title={icon.label}
+              ></i>{/if}{shortHash(commit.hash)}</span
+          >
         </div>
       {/each}
     </div>
@@ -211,7 +218,7 @@
   .header,
   .row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) var(--author-width) var(--date-width) 64px;
+    grid-template-columns: minmax(0, 1fr) var(--author-width) var(--date-width) 82px;
     column-gap: 8px;
     align-items: center;
     padding: 0 8px 0 4px;
@@ -288,8 +295,27 @@
     opacity: 0.8;
   }
   .hash {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
     font-family: var(--vscode-editor-font-family);
     font-size: 0.92em;
+  }
+  .pipeline {
+    font-size: 13px !important;
+  }
+  .pipeline.ok {
+    color: var(--vscode-charts-green);
+  }
+  .pipeline.bad {
+    color: var(--vscode-charts-red);
+  }
+  .pipeline.run {
+    color: var(--vscode-charts-blue);
+  }
+  .pipeline.idle {
+    opacity: 0.6;
   }
   .empty {
     position: absolute;

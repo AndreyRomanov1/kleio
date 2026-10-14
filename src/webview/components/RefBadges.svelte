@@ -4,7 +4,7 @@
   import { refMenu } from '../menus';
   import type { Decorations, LogStore } from '../store.svelte';
   import { basename } from '../format';
-  import { post } from '../vscode';
+  import { mergeRequestStateLabel, mergeRequestTone } from '../hostingView';
 
   interface Props {
     hash: string;
@@ -99,15 +99,28 @@
   </span>
 {/each}
 {#each store.hosting?.mergeRequests[hash] ?? [] as number (number)}
+  {@const info = store.hosting?.mergeRequestInfo[number]}
   <button
-    class="badge mr"
-    title="Merge request !{number} — открыть в {store.hosting?.name}"
+    class="badge mr {mergeRequestTone(info)}"
+    title={info ? `!${number} · ${mergeRequestStateLabel(info)} · ${info.title}` : `Merge request !${number}`}
     onmousedown={(e) => e.stopPropagation()}
-    onclick={() => post({ type: 'openMergeRequest', number })}>!{number}</button
+    onclick={() => store.openCard(number)}>!{number}</button
   >
 {/each}
 
 <style>
+  .mr.draft {
+    background: color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+    border-color: color-mix(in srgb, var(--vscode-foreground) 35%, transparent);
+  }
+  .mr.merged {
+    background: color-mix(in srgb, var(--vscode-charts-purple) 22%, transparent);
+    border-color: color-mix(in srgb, var(--vscode-charts-purple) 55%, transparent);
+  }
+  .mr.closed {
+    opacity: 0.6;
+    text-decoration: line-through;
+  }
   .mr {
     font: inherit;
     font-size: 0.92em;

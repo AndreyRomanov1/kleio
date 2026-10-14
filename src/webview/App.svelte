@@ -3,6 +3,7 @@
   import BranchPanel from './components/BranchPanel.svelte';
   import CommitLog from './components/CommitLog.svelte';
   import ContextMenu from './components/ContextMenu.svelte';
+  import MergeRequestCard from './components/MergeRequestCard.svelte';
   import Details from './components/Details.svelte';
   import Splitter from './components/Splitter.svelte';
   import { LogStore } from './store.svelte';
@@ -142,6 +143,14 @@
     {/if}
     <span class="spacer"></span>
     {#if store.loading}<i class="loading codicon codicon-loading codicon-modifier-spin"></i>{/if}
+    {#if store.hosting?.api === 'needsAuth' && !store.history}
+      <button
+        class="tool"
+        title="Дать Grove доступ к {store.hosting.name ?? 'GitLab'}: статусы MR, пайплайны"
+        onclick={() => post({ type: 'connectHosting' })}
+        ><i class="codicon codicon-plug"></i> Подключить GitLab</button
+      >
+    {/if}
     {#if !store.history}
       <button class="tool" title="git fetch --all --prune" onclick={() => post({ type: 'fetch' })}
         ><i class="codicon codicon-cloud-download"></i> Fetch</button
@@ -204,6 +213,7 @@
       {/if}
     </div>
   {/if}
+  <MergeRequestCard {store} />
   <ContextMenu />
 </div>
 

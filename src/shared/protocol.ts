@@ -37,6 +37,59 @@ export type RefAction =
   | 'openInHosting'
   | 'createMergeRequest';
 
+export type PipelineStatusView =
+  | 'created'
+  | 'waiting_for_resource'
+  | 'preparing'
+  | 'pending'
+  | 'running'
+  | 'success'
+  | 'failed'
+  | 'canceled'
+  | 'skipped'
+  | 'manual'
+  | 'scheduled';
+
+export interface MergeRequestInfoView {
+  title: string;
+  state: 'opened' | 'closed' | 'locked' | 'merged';
+  draft: boolean;
+}
+
+export interface MergeRequestCardView {
+  iid: number;
+  title: string;
+  state: MergeRequestInfoView['state'];
+  draft: boolean;
+  webUrl: string;
+  author: string;
+  sourceBranch: string;
+  targetBranch: string;
+  hasConflicts: boolean;
+  /** GitLab's merge readiness, e.g. `mergeable`, `not_approved`. */
+  mergeStatus?: string;
+  notes: number;
+  reviewers: { name: string; approved: boolean }[];
+  /** Other approvers who are not reviewers. */
+  approvedBy: string[];
+  approvalsLeft: number;
+  pipeline?: {
+    id: number;
+    status: PipelineStatusView;
+    webUrl: string;
+    stages: {
+      name: string;
+      jobs: {
+        id: number;
+        name: string;
+        status: PipelineStatusView;
+        duration?: number;
+        allowFailure: boolean;
+      }[];
+    }[];
+  };
+}
+
 /** What the log knows about the hosting of the repository; sent after the snapshot, as it needs the network. */
 export interface HostingView {
   /** `GitLab` or `GitHub`; undefined when the remote is not a known hosting. */
@@ -49,6 +102,11 @@ export interface HostingView {
   merged: string[];
   /** Rules turning text of commit messages into links. */
   autolinks: { pattern: string; url: string }[];
+  /** Whether merge request details and pipelines can be loaded, or the user should give access first. */
+  api: 'none' | 'available' | 'needsAuth';
+  mergeRequestInfo: Record<number, MergeRequestInfoView>;
+  /** Commit → status of its latest pipeline. */
+  pipelines: Record<string, PipelineStatusView>;
 }
 
 export type FileAction = 'openDiff' | 'openCurrent' | 'openRevision' | 'compareWithWorktree' | 'copyPath';
@@ -67,7 +125,14 @@ export type HostMessage =
   | { type: 'loading'; value: boolean }
   | { type: 'details'; requestId: number; commits: CommitDetails[]; changeSet: ChangeSetView }
   | { type: 'revealCommit'; hash: string }
-  | { type: 'hosting'; hosting: HostingView };
+  | { type: 'hosting'; hosting: HostingView }
+  | {
+      type: 'mergeRequestCard';
+      number: number;
+      card?: MergeRequestCardView;
+      needsAuth?: boolean;
+      error?: string;
+    };
 
 export type WebviewMessage =
   | { type: 'ready' }
@@ -84,6 +149,10 @@ export type WebviewMessage =
   | { type: 'openWorktree'; path: string; newWindow: boolean }
   | { type: 'openUrl'; url: string }
   | { type: 'openMergeRequest'; number: number }
+  | { type: 'loadMergeRequestCard'; number: number }
+  | { type: 'connectHosting'; number?: number }
+  | { type: 'openJobLog'; jobId: number; name: string }
+  | { type: 'retryPipeline'; pipelineId: number; number: number }
   /** Double click on a commit: its diff, or in a history view the diff of the file in that commit. */
   | { type: 'openCommitDiff'; hash: string }
   | { type: 'showStash'; requestId: number; hash: string };

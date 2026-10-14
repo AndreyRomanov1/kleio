@@ -161,6 +161,16 @@
         "command": "grove.hosting.copyFileLink",
         "title": "Копировать ссылку на GitLab/GitHub",
         "category": "Grove"
+      },
+      {
+        "command": "grove.gitlab.connect",
+        "title": "Подключить GitLab…",
+        "category": "Grove"
+      },
+      {
+        "command": "grove.gitlab.disconnect",
+        "title": "Удалить токен GitLab из Grove…",
+        "category": "Grove"
       }
     ],
     "menus": {

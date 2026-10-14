@@ -1,6 +1,20 @@
 import { layoutGraph, type GraphLayout } from '../shared/graph';
 import type { Commit, CommitDetails, Ref, RepositorySnapshot, Stash, Worktree } from '../shared/model';
-import type { ChangeSetView, HostingView, HostMessage, RepositoryInfo } from '../shared/protocol';
+import type {
+  ChangeSetView,
+  HostingView,
+  HostMessage,
+  MergeRequestCardView,
+  RepositoryInfo,
+} from '../shared/protocol';
+
+export interface CardState {
+  number: number;
+  loading: boolean;
+  card?: MergeRequestCardView;
+  needsAuth?: boolean;
+  error?: string;
+}
 import { post } from './vscode';
 
 export interface Decorations {
@@ -21,6 +35,7 @@ export class LogStore {
   focus = $state.raw<string[]>([]);
   favorites = $state.raw<string[]>([]);
   hosting = $state.raw<HostingView | undefined>(undefined);
+  card = $state.raw<CardState | undefined>(undefined);
   /** Title of the history view; undefined in the regular log. */
   history = $state<string | undefined>(undefined);
   loading = $state(false);
@@ -119,6 +134,17 @@ export class LogStore {
       case 'hosting':
         this.hosting = message.hosting;
         break;
+      case 'mergeRequestCard':
+        if (this.card?.number === message.number) {
+          this.card = {
+            number: message.number,
+            loading: false,
+            card: message.card,
+            needsAuth: message.needsAuth,
+            error: message.error,
+          };
+        }
+        break;
     }
   }
 
@@ -172,6 +198,20 @@ export class LogStore {
       // The commit may be hidden by the focus on branches: show everything to find it.
       if (this.focus.length) post({ type: 'setFocus', revisions: [] });
     }
+  }
+
+  /** The merge request card, or the browser when the hosting has no API to show it with. */
+  openCard(number: number): void {
+    if (this.hosting?.api === 'none') {
+      post({ type: 'openMergeRequest', number });
+      return;
+    }
+    this.card = { number, loading: true, card: this.card?.number === number ? this.card.card : undefined };
+    post({ type: 'loadMergeRequestCard', number });
+  }
+
+  closeCard(): void {
+    this.card = undefined;
   }
 
   showStash(stash: Stash): void {

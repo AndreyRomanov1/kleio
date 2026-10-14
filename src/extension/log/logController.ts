@@ -8,6 +8,7 @@ import { WORKTREE, type Repository } from '../git/repository';
 import type { RepositoryManager } from '../git/repositoryManager';
 import type { HostingActions } from '../hosting/hostingActions';
 import type { HostingService } from '../hosting/hostingService';
+import type { MergeRequestCards } from '../hosting/mergeRequestCards';
 
 const FOCUS_KEY = 'grove.focus';
 const FAVORITES_KEY = 'grove.favorites';
@@ -28,6 +29,7 @@ export interface LogServices {
   actions: GitActions;
   hosting: HostingService;
   hostingActions: HostingActions;
+  cards: MergeRequestCards;
 }
 
 /** Serves one log webview, wherever it is placed, or a history view of a file or of a fragment. */
@@ -58,6 +60,12 @@ export class LogController implements vscode.Disposable {
       }),
       services.repositories.onDidChangeRepositories(() => {
         if (!this.repository) void this.load();
+      }),
+      services.hosting.onDidChange(() => void this.loadHosting(true)),
+      vscode.workspace.onDidChangeConfiguration((e) => {
+        if (e.affectsConfiguration('grove.autolinks') || e.affectsConfiguration('grove.hosting')) {
+          void this.loadHosting(true);
+        }
       }),
     );
   }
@@ -92,6 +100,23 @@ export class LogController implements vscode.Disposable {
         return this.services.hostingActions.openUrl(message.url);
       case 'openMergeRequest':
         if (this.repository) await this.services.hostingActions.mergeRequest(this.repository, message.number);
+        return;
+      case 'loadMergeRequestCard':
+        return this.loadCard(message.number);
+      case 'connectHosting':
+        if (this.repository && (await this.services.cards.connect(this.repository)) && message.number) {
+          await this.loadCard(message.number);
+        }
+        return;
+      case 'openJobLog':
+        if (this.repository)
+          await this.services.cards.openJobLog(this.repository, message.jobId, message.name);
+        return;
+      case 'retryPipeline':
+        if (this.repository) {
+          await this.services.cards.retryPipeline(this.repository, message.pipelineId);
+          await this.loadCard(message.number);
+        }
         return;
       case 'selectRepository':
         this.repository = await this.services.repositories.get(message.root);
@@ -175,11 +200,21 @@ export class LogController implements vscode.Disposable {
           defaultBranch: hosting?.defaultBranch,
           merged,
           autolinks: this.services.hosting.autolinks(hosting),
+          api: hosting?.api ?? 'none',
+          mergeRequestInfo: hosting?.mergeRequestInfo ?? {},
+          pipelines: hosting?.pipelines ?? {},
         },
       });
     } catch {
       // Hosting details are an extra; the log works without them.
     }
+  }
+
+  private async loadCard(number: number): Promise<void> {
+    const repository = this.repository;
+    if (!repository) return;
+    const result = await this.services.cards.card(repository, number);
+    this.post({ type: 'mergeRequestCard', number, ...result });
   }
 
   /** Focus may name branches that were deleted since; they are skipped instead of failing the log. */

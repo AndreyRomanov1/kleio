@@ -4,6 +4,7 @@
   import { menu } from '../menu.svelte';
   import { refMenu, toggleFocus, worktreeMenu } from '../menus';
   import type { LogStore } from '../store.svelte';
+  import { mergeRequestStateLabel, mergeRequestTone } from '../hostingView';
   import { buildTree, flatten, type TreeNode } from '../tree';
   import { post } from '../vscode';
 
@@ -205,12 +206,16 @@
                     class="info codicon codicon-repo"
                     title="Ветка открыта в worktree {worktree.path} — ПКМ, чтобы открыть"
                   ></i>{/if}
-                {#if mergeRequest}<button
-                    class="mr"
-                    title="Merge request !{mergeRequest} — открыть в {store.hosting?.name}"
+                {#if mergeRequest}
+                  {@const info = store.hosting?.mergeRequestInfo[mergeRequest]}
+                  <button
+                    class="mr {mergeRequestTone(info)}"
+                    title={info
+                      ? `!${mergeRequest} · ${mergeRequestStateLabel(info)} · ${info.title}`
+                      : `Merge request !${mergeRequest}`}
                     onclick={(e) => {
                       e.stopPropagation();
-                      post({ type: 'openMergeRequest', number: mergeRequest });
+                      store.openCard(mergeRequest);
                     }}>!{mergeRequest}</button
                   >{/if}
                 {#if ref.upstreamGone}<span class="info gone" title="Ветка в origin удалена">origin</span
@@ -334,6 +339,16 @@
     font: inherit;
     font-size: 0.85em;
     cursor: pointer;
+  }
+  .mr.draft {
+    background: color-mix(in srgb, var(--vscode-foreground) 12%, transparent);
+  }
+  .mr.merged {
+    background: color-mix(in srgb, var(--vscode-charts-purple) 25%, transparent);
+  }
+  .mr.closed {
+    opacity: 0.6;
+    text-decoration: line-through;
   }
   .mr:hover {
     background: color-mix(in srgb, var(--vscode-charts-orange) 40%, transparent);

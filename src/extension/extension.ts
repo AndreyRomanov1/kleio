@@ -8,8 +8,10 @@ import { RevisionContentProvider } from './content/revisionContentProvider';
 import { REVISION_SCHEME } from './content/revisionUri';
 import { RepositoryManager } from './git/repositoryManager';
 import { HistoryCommands } from './history/historyCommands';
+import { GitLabAuth } from './hosting/gitlabAuth';
 import { HostingActions } from './hosting/hostingActions';
 import { HostingService } from './hosting/hostingService';
+import { MergeRequestCards } from './hosting/mergeRequestCards';
 import { LogWebviews } from './log/logWebview';
 
 export interface GroveApi {
@@ -23,9 +25,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<GroveA
   const repositories = new RepositoryManager();
   const navigator = new ChangeSetNavigator();
   const actions = new GitActions(repositories);
-  const hosting = new HostingService();
+  const gitlabAuth = new GitLabAuth(context.secrets);
+  const hosting = new HostingService(gitlabAuth);
   const hostingActions = new HostingActions(repositories, hosting);
-  const logs = new LogWebviews({ context, repositories, navigator, actions, hosting, hostingActions });
+  const cards = new MergeRequestCards(hosting);
+  const logs = new LogWebviews({ context, repositories, navigator, actions, hosting, hostingActions, cards });
   const history = new HistoryCommands(repositories, logs, navigator);
   const blame = new BlameAnnotations(repositories, {
     revealInLog: (hash) => logs.revealCommit(hash),
@@ -39,6 +43,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<GroveA
     history,
     blame,
     hostingActions,
+    gitlabAuth,
+    hosting,
+    cards,
     new AuthorLens(repositories),
     new CommitView(context, repositories, navigator),
     vscode.workspace.registerTextDocumentContentProvider(
