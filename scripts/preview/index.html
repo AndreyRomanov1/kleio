@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Grove preview</title>
+    <!-- A subset of the "Dark Modern" theme variables that VS Code injects into webviews. -->
+    <style>
+      :root {
+        --vscode-font-family: system-ui, 'Ubuntu', 'Segoe UI', sans-serif;
+        --vscode-font-size: 13px;
+        --vscode-editor-font-family: 'JetBrains Mono', 'Droid Sans Mono', monospace;
+        --vscode-foreground: #cccccc;
+        --vscode-editor-background: #1f1f1f;
+        --vscode-editor-foreground: #cccccc;
+        --vscode-panel-border: #2b2b2b;
+        --vscode-widget-border: #313131;
+        --vscode-widget-shadow: rgba(0, 0, 0, 0.36);
+        --vscode-focusBorder: #0078d4;
+        --vscode-input-background: #313131;
+        --vscode-input-foreground: #cccccc;
+        --vscode-input-border: #3c3c3c;
+        --vscode-input-placeholderForeground: #989898;
+        --vscode-list-hoverBackground: #2a2d2e;
+        --vscode-list-activeSelectionBackground: #04395e;
+        --vscode-list-activeSelectionForeground: #ffffff;
+        --vscode-list-inactiveSelectionBackground: #37373d;
+        --vscode-list-inactiveSelectionForeground: #cccccc;
+        --vscode-menu-background: #1f1f1f;
+        --vscode-menu-foreground: #cccccc;
+        --vscode-menu-border: #454545;
+        --vscode-menu-selectionBackground: #0078d4;
+        --vscode-menu-selectionForeground: #ffffff;
+        --vscode-menu-separatorBackground: #454545;
+        --vscode-badge-background: #616161;
+        --vscode-badge-foreground: #f8f8f8;
+        --vscode-toolbar-hoverBackground: rgba(90, 93, 94, 0.31);
+        --vscode-sash-hoverBorder: #0078d4;
+        --vscode-textLink-foreground: #4daafc;
+        --vscode-scrollbarSlider-background: rgba(121, 121, 121, 0.4);
+        --vscode-scrollbarSlider-hoverBackground: rgba(100, 100, 100, 0.7);
+        --vscode-charts-blue: #3794ff;
+        --vscode-charts-green: #89d185;
+        --vscode-charts-orange: #d18616;
+        --vscode-charts-purple: #b180d7;
+        --vscode-charts-red: #f14c4c;
+        --vscode-charts-yellow: #cca700;
+        --vscode-terminal-ansiCyan: #11a8cd;
+        --vscode-terminal-ansiMagenta: #bc3fbc;
+        --vscode-gitDecoration-addedResourceForeground: #81b88b;
+        --vscode-gitDecoration-modifiedResourceForeground: #e2c08d;
+        --vscode-gitDecoration-deletedResourceForeground: #c74e39;
+        --vscode-gitDecoration-renamedResourceForeground: #73c991;
+        --vscode-gitDecoration-conflictingResourceForeground: #e4676b;
+      }
+    </style>
+    <link rel="stylesheet" href="/webview.css" />
+  </head>
+  <body class="vscode-dark">
+    <div id="app"></div>
+    <script>
+      let state;
+      window.acquireVsCodeApi = () => ({
+        postMessage(message) {
+          fetch('/message', { method: 'POST', body: JSON.stringify(message) })
+            .then((response) => response.json())
+            .then((replies) => replies.forEach((reply) => window.postMessage(reply, '*')));
+        },
+        getState: () => state,
+        setState: (value) => (state = value),
+      });
+    </script>
+    <script src="/webview.js"></script>
+  </body>
+</html>
