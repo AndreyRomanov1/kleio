@@ -1,0 +1,208 @@
+{
+  "name": "grove",
+  "displayName": "Grove",
+  "description": "JetBrains-style Git log, diff and history for VS Code",
+  "version": "0.0.1",
+  "publisher": "aroma",
+  "license": "MIT",
+  "private": true,
+  "type": "commonjs",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "SCM Providers",
+    "Visualization"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "workspaceContains:.git",
+    "onWebviewPanel:grove.logPanel"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "grove",
+          "title": "Git Log",
+          "icon": "media/grove.svg"
+        }
+      ]
+    },
+    "views": {
+      "grove": [
+        {
+          "id": "grove.log",
+          "type": "webview",
+          "name": "Log",
+          "icon": "media/grove.svg"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "grove.log.focusView",
+        "title": "Показать лог",
+        "category": "Grove"
+      },
+      {
+        "command": "grove.log.openInEditor",
+        "title": "Открыть лог во вкладке",
+        "category": "Grove",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "grove.log.openInNewWindow",
+        "title": "Открыть лог в отдельном окне",
+        "category": "Grove",
+        "icon": "$(empty-window)"
+      },
+      {
+        "command": "grove.diff.previousChange",
+        "title": "Предыдущее изменение",
+        "category": "Grove",
+        "icon": "$(arrow-up)",
+        "enablement": "grove.inChangeSet"
+      },
+      {
+        "command": "grove.diff.nextChange",
+        "title": "Следующее изменение",
+        "category": "Grove",
+        "icon": "$(arrow-down)",
+        "enablement": "grove.inChangeSet"
+      },
+      {
+        "command": "grove.diff.previousFile",
+        "title": "Предыдущий файл",
+        "category": "Grove",
+        "icon": "$(arrow-left)",
+        "enablement": "grove.inChangeSet"
+      },
+      {
+        "command": "grove.diff.nextFile",
+        "title": "Следующий файл",
+        "category": "Grove",
+        "icon": "$(arrow-right)",
+        "enablement": "grove.inChangeSet"
+      },
+      {
+        "command": "grove.diff.selectFile",
+        "title": "Файлы набора изменений…",
+        "category": "Grove",
+        "icon": "$(list-tree)",
+        "enablement": "grove.inChangeSet"
+      },
+      {
+        "command": "grove.diff.openCurrent",
+        "title": "Открыть текущую версию файла",
+        "category": "Grove",
+        "icon": "$(go-to-file)",
+        "enablement": "grove.inChangeSet"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "grove.log.openInEditor",
+          "when": "view == grove.log",
+          "group": "navigation@1"
+        },
+        {
+          "command": "grove.log.openInNewWindow",
+          "when": "view == grove.log",
+          "group": "navigation@2"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "grove.diff.previousFile",
+          "when": "grove.inChangeSet",
+          "group": "navigation@-10"
+        },
+        {
+          "command": "grove.diff.selectFile",
+          "when": "grove.inChangeSet",
+          "group": "navigation@-9"
+        },
+        {
+          "command": "grove.diff.nextFile",
+          "when": "grove.inChangeSet",
+          "group": "navigation@-8"
+        },
+        {
+          "command": "grove.diff.openCurrent",
+          "when": "grove.inChangeSet",
+          "group": "navigation@-7"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "grove.diff.previousChange",
+          "when": "grove.inChangeSet"
+        },
+        {
+          "command": "grove.diff.nextChange",
+          "when": "grove.inChangeSet"
+        },
+        {
+          "command": "grove.diff.previousFile",
+          "when": "grove.inChangeSet"
+        },
+        {
+          "command": "grove.diff.nextFile",
+          "when": "grove.inChangeSet"
+        },
+        {
+          "command": "grove.diff.selectFile",
+          "when": "grove.inChangeSet"
+        },
+        {
+          "command": "grove.diff.openCurrent",
+          "when": "grove.inChangeSet"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "grove.diff.nextChange",
+        "key": "f7",
+        "when": "grove.inChangeSet && textCompareEditorVisible"
+      },
+      {
+        "command": "grove.diff.previousChange",
+        "key": "shift+f7",
+        "when": "grove.inChangeSet && textCompareEditorVisible"
+      },
+      {
+        "command": "grove.diff.openCurrent",
+        "key": "f4",
+        "when": "grove.inChangeSet && textCompareEditorVisible"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit -p . && svelte-check --tsconfig ./tsconfig.webview.json --fail-on-warnings",
+    "test": "vitest run",
+    "test:integration": "node scripts/build.mjs && node scripts/integration.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "preview": "node scripts/build.mjs && esbuild scripts/preview/server.ts --bundle --platform=node --target=node20 --log-level=warning --outfile=dist/preview/server.js && node dist/preview/server.js",
+    "package": "node scripts/build.mjs --production && vsce package --no-dependencies --allow-missing-repository -o grove.vsix"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@types/vscode": "~1.100.0",
+    "@vscode/codicons": "^0.0.46-24",
+    "@vscode/vsce": "^3.6.0",
+    "esbuild": "^0.28.2",
+    "esbuild-svelte": "^0.9.5",
+    "prettier": "^3.9.10",
+    "prettier-plugin-svelte": "^4.1.1",
+    "svelte": "^5.57.2",
+    "svelte-check": "^4.7.6",
+    "typescript": "^6.0.3",
+    "vitest": "^3.2.4"
+  }
+}
