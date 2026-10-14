@@ -17,7 +17,16 @@ interface OpenedFile {
 
 type Edge = 'first' | 'last';
 
+interface EdgeHint {
+  direction: 1 | -1;
+  index: number;
+  at: number;
+  document: vscode.Uri;
+  line: number;
+}
+
 const CONTEXT_KEY = 'grove.inChangeSet';
+const EDGE_HINT_MS = 4000;
 
 /**
  * Rider-style diff viewer on top of the built-in diff editor: one file of a change set at a time,
@@ -25,12 +34,23 @@ const CONTEXT_KEY = 'grove.inChangeSet';
  */
 export class ChangeSetNavigator implements vscode.Disposable {
   private current?: OpenedFile;
+  private edgeHint?: EdgeHint;
+  private readonly hintDecoration = vscode.window.createTextEditorDecorationType({
+    after: {
+      color: new vscode.ThemeColor('editorInfo.foreground'),
+      fontStyle: 'italic',
+      margin: '0 0 0 3em',
+    },
+  });
+  private hintTimer?: NodeJS.Timeout;
   private readonly disposables: vscode.Disposable[] = [];
 
   constructor() {
     this.disposables.push(
       vscode.window.tabGroups.onDidChangeTabs(() => this.updateContext()),
       vscode.window.onDidChangeActiveTextEditor(() => this.updateContext()),
+      vscode.window.onDidChangeTextEditorSelection((e) => this.onSelectionChanged(e)),
+      this.hintDecoration,
       vscode.commands.registerCommand('grove.diff.nextChange', () => this.moveChange(1)),
       vscode.commands.registerCommand('grove.diff.previousChange', () => this.moveChange(-1)),
       vscode.commands.registerCommand('grove.diff.nextFile', () => this.moveFile(1)),
@@ -54,7 +74,9 @@ export class ChangeSetNavigator implements vscode.Disposable {
       change.status === 'D' ? emptyUri(root, change.path) : await this.rightSideUri(changeSet, change);
     const hunks = await repository.hunks(left, right, change).catch(() => []);
 
+    const previous = this.current;
     this.current = { changeSet, index, left: leftUri, right: rightUri, hunks };
+    this.clearEdgeHint();
     const target = edge === 'first' ? hunks[0] : hunks[hunks.length - 1];
     const line = target ? hunkLine(target, 'right') : 0;
     const title = `${path.basename(change.path)} (${describeRange(changeSet)}) — ${index + 1}/${changeSet.files.length}`;
@@ -62,7 +84,39 @@ export class ChangeSetNavigator implements vscode.Disposable {
       preview: true,
       selection: new vscode.Range(line, 0, line, 0),
     } satisfies vscode.TextDocumentShowOptions);
+    await this.closeReplaced(previous);
     this.updateContext();
+  }
+
+  /** Grove keeps one diff tab, as Rider's diff window, even when editor previews are turned off. */
+  private async closeReplaced(previous: OpenedFile | undefined): Promise<void> {
+    const current = this.current;
+    if (!previous || !current) return;
+    if (
+      previous.left.toString() === current.left.toString() &&
+      previous.right.toString() === current.right.toString()
+    ) {
+      return;
+    }
+    const tab = this.findTab(previous);
+    if (tab && !tab.isDirty && !tab.isPinned) await vscode.window.tabGroups.close(tab, true);
+  }
+
+  private findTab(file: OpenedFile | undefined): vscode.Tab | undefined {
+    if (!file) return undefined;
+    for (const group of vscode.window.tabGroups.all) {
+      for (const tab of group.tabs) {
+        const input = tab.input;
+        if (
+          input instanceof vscode.TabInputTextDiff &&
+          input.original.toString() === file.left.toString() &&
+          input.modified.toString() === file.right.toString()
+        ) {
+          return tab;
+        }
+      }
+    }
+    return undefined;
   }
 
   async openCurrent(changeSet: ChangeSet, index: number, line = 0): Promise<void> {
@@ -142,7 +196,59 @@ export class ChangeSetNavigator implements vscode.Disposable {
       );
       return;
     }
-    await this.moveFile(direction);
+
+    // As in Rider: at the last change the first press only warns, the second one opens the next file.
+    const hint = this.edgeHint;
+    const confirmed =
+      hint?.direction === direction && hint.index === current.index && Date.now() - hint.at < EDGE_HINT_MS;
+    if (confirmed || lines.length === 0) {
+      this.clearEdgeHint();
+      await this.moveFile(direction);
+      return;
+    }
+    const target = current.changeSet.files[current.index + direction];
+    if (!target) {
+      this.showEdgeHint(
+        editor,
+        direction,
+        current.index,
+        direction === 1 ? 'Последнее изменение набора' : 'Первое изменение набора',
+      );
+      return;
+    }
+    const verb = direction === 1 ? 'следующий' : 'предыдущий';
+    this.showEdgeHint(
+      editor,
+      direction,
+      current.index,
+      `Ещё раз — ${verb} файл: ${path.basename(target.path)}`,
+    );
+  }
+
+  private showEdgeHint(editor: vscode.TextEditor, direction: 1 | -1, index: number, text: string): void {
+    this.clearEdgeHint();
+    const line = editor.selection.active.line;
+    const end = editor.document.lineAt(line).range.end;
+    editor.setDecorations(this.hintDecoration, [
+      { range: new vscode.Range(end, end), renderOptions: { after: { contentText: `⟶ ${text}` } } },
+    ]);
+    this.edgeHint = { direction, index, at: Date.now(), document: editor.document.uri, line };
+    this.hintTimer = setTimeout(() => this.clearEdgeHint(), EDGE_HINT_MS);
+  }
+
+  /** Selection events arrive late, so only a real move of the cursor away from the hint cancels it. */
+  private onSelectionChanged(event: vscode.TextEditorSelectionChangeEvent): void {
+    const hint = this.edgeHint;
+    if (!hint || event.textEditor.document.uri.toString() !== hint.document.toString()) return;
+    if (event.selections[0]?.active.line !== hint.line) this.clearEdgeHint();
+  }
+
+  private clearEdgeHint(): void {
+    clearTimeout(this.hintTimer);
+    this.hintTimer = undefined;
+    if (!this.edgeHint) return;
+    this.edgeHint = undefined;
+    for (const editor of vscode.window.visibleTextEditors) editor.setDecorations(this.hintDecoration, []);
   }
 
   private async moveFile(direction: 1 | -1): Promise<void> {
@@ -199,6 +305,7 @@ export class ChangeSetNavigator implements vscode.Disposable {
   }
 
   dispose(): void {
+    clearTimeout(this.hintTimer);
     for (const d of this.disposables) d.dispose();
   }
 }

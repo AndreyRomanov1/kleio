@@ -68,25 +68,34 @@ const tests: Test[] = [
     },
   ],
   [
-    'F7 walks through changes and continues into the next file',
+    'F7 walks through changes and, pressed twice at the end, continues into the next file',
     async (api) => {
+      await vscode.workspace
+        .getConfiguration('workbench.editor')
+        .update('enablePreview', false, vscode.ConfigurationTarget.Global);
+      const diffOf = (name: string) => () => {
+        const diff = activeDiff();
+        return diff && path.basename(diff.modified.fsPath) === name ? diff : undefined;
+      };
       await api.navigator.open(await headChangeSet(api), 0);
       await waitFor(activeDiff, 'diff editor');
       await vscode.commands.executeCommand('grove.diff.nextChange');
       assert.equal(vscode.window.activeTextEditor?.selection.active.line, 24, 'second change of a.txt');
 
       await vscode.commands.executeCommand('grove.diff.nextChange');
-      const next = await waitFor(() => {
-        const diff = activeDiff();
-        return diff && path.basename(diff.modified.fsPath) === 'b.txt' ? diff : undefined;
-      }, 'diff of b.txt');
-      assert.ok(next);
+      await wait(300);
+      assert.ok(diffOf('a.txt')(), 'the first press at the last change stays in the file');
+      await vscode.commands.executeCommand('grove.diff.nextChange');
+      await waitFor(diffOf('b.txt'), 'diff of b.txt after the second press');
+
+      const diffTabs = vscode.window.tabGroups.all
+        .flatMap((g) => g.tabs)
+        .filter((t) => t.input instanceof vscode.TabInputTextDiff);
+      assert.equal(diffTabs.length, 1, 'the diff of a.txt is replaced, not kept in another tab');
 
       await vscode.commands.executeCommand('grove.diff.previousChange');
-      await waitFor(() => {
-        const diff = activeDiff();
-        return diff && path.basename(diff.modified.fsPath) === 'a.txt' ? diff : undefined;
-      }, 'back to a.txt');
+      await vscode.commands.executeCommand('grove.diff.previousChange');
+      await waitFor(diffOf('a.txt'), 'back to a.txt');
       await waitFor(
         () => vscode.window.activeTextEditor?.selection.active.line === 24 || undefined,
         'last change of a.txt',

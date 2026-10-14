@@ -59,16 +59,16 @@
       },
       {
         "command": "grove.diff.previousChange",
-        "title": "Предыдущее изменение",
+        "title": "Предыдущее изменение (с переходом в предыдущий файл)",
         "category": "Grove",
-        "icon": "$(arrow-up)",
+        "icon": "$(chevron-up)",
         "enablement": "grove.inChangeSet"
       },
       {
         "command": "grove.diff.nextChange",
-        "title": "Следующее изменение",
+        "title": "Следующее изменение (с переходом в следующий файл)",
         "category": "Grove",
-        "icon": "$(arrow-down)",
+        "icon": "$(chevron-down)",
         "enablement": "grove.inChangeSet"
       },
       {
@@ -94,9 +94,9 @@
       },
       {
         "command": "grove.diff.openCurrent",
-        "title": "Открыть текущую версию файла",
+        "title": "Открыть текущую версию для правки",
         "category": "Grove",
-        "icon": "$(go-to-file)",
+        "icon": "$(edit)",
         "enablement": "grove.inChangeSet"
       }
     ],
@@ -117,22 +117,32 @@
         {
           "command": "grove.diff.previousFile",
           "when": "grove.inChangeSet",
-          "group": "navigation@-10"
+          "group": "navigation@-20"
         },
         {
           "command": "grove.diff.selectFile",
           "when": "grove.inChangeSet",
-          "group": "navigation@-9"
+          "group": "navigation@-19"
         },
         {
           "command": "grove.diff.nextFile",
           "when": "grove.inChangeSet",
-          "group": "navigation@-8"
+          "group": "navigation@-18"
+        },
+        {
+          "command": "grove.diff.previousChange",
+          "when": "grove.inChangeSet",
+          "group": "navigation@-17"
+        },
+        {
+          "command": "grove.diff.nextChange",
+          "when": "grove.inChangeSet",
+          "group": "navigation@-16"
         },
         {
           "command": "grove.diff.openCurrent",
           "when": "grove.inChangeSet",
-          "group": "navigation@-7"
+          "group": "navigation@-15"
         }
       ],
       "commandPalette": [
