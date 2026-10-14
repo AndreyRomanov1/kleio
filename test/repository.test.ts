@@ -160,4 +160,43 @@ describe('Repository', () => {
     expect((await repository.workingChanges()).tracked).toEqual([]);
     expect(await repository.recentMessages()).toEqual(['renamed message', 'init b', 'init']);
   });
+
+  it('commits chosen hunks of a file and keeps the rest and the staged changes of others', async () => {
+    const dir = path.join(work, 'hunks');
+    git(work, 'init', '-q', '-b', 'main', dir);
+    git(dir, 'config', 'user.name', 'T');
+    git(dir, 'config', 'user.email', 't@x');
+    const lines = Array.from({ length: 20 }, (_, i) => `line ${i + 1}`);
+    commitFile(dir, 'a.txt', lines.join('\n') + '\n', 'init');
+    commitFile(dir, 'staged.txt', 's\n', 'staged');
+    const changed = [...lines];
+    changed[1] = 'line 2 changed';
+    changed[17] = 'line 18 changed';
+    writeFileSync(path.join(dir, 'a.txt'), changed.join('\n') + '\n');
+    writeFileSync(path.join(dir, 'staged.txt'), 's staged\n');
+    git(dir, 'add', 'staged.txt');
+    writeFileSync(path.join(dir, 'new.txt'), 'new\n');
+    const repository = (await Repository.open(dir))!;
+
+    const patch = await repository.workingPatch('a.txt');
+    expect(patch.hunks).toHaveLength(2);
+    await repository.commitFiles({
+      message: 'only line 18',
+      paths: [],
+      untracked: ['new.txt'],
+      amend: false,
+      hunks: { 'a.txt': [patch.hunks[1].key] },
+    });
+
+    expect(git(dir, 'show', 'HEAD:a.txt').split('\n')[1]).toBe('line 2');
+    expect(git(dir, 'show', 'HEAD:a.txt').split('\n')[17]).toBe('line 18 changed');
+    expect(git(dir, 'show', '--name-only', '--format=', 'HEAD').trim().split('\n')).toEqual(['a.txt', 'new.txt']);
+    expect(git(dir, 'diff', '--name-only').trim()).toBe('a.txt');
+    expect(git(dir, 'diff', '-U0', 'a.txt')).toContain('+line 2 changed');
+    expect(git(dir, 'diff', '--cached', '--name-only').trim()).toBe('staged.txt');
+
+    await expect(
+      repository.commitFiles({ message: 'x', paths: [], untracked: [], amend: false, hunks: { 'a.txt': ['gone'] } }),
+    ).rejects.toThrow(/изменился/);
+  });
 });

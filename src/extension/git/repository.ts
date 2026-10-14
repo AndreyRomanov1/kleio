@@ -14,6 +14,7 @@ import type {
 import type { ConflictFileView } from '../../shared/conflictsProtocol';
 import type { RebaseEntry } from '../../shared/rebaseProtocol';
 import { GitError, GitRunner } from './gitRunner';
+import { parseFilePatch, selectHunks, type FilePatch } from './patch';
 import { buildRebaseTodo } from './rebasePlan';
 import {
   FIELD,
@@ -245,22 +246,73 @@ export class Repository {
     };
   }
 
+  /** Uncommitted changes of a tracked file against HEAD, split into hunks. */
+  async workingPatch(filePath: string): Promise<FilePatch> {
+    return parseFilePatch(
+      await this.git.run(['diff', '--no-ext-diff', '--no-color', '-U3', 'HEAD', '--', filePath]),
+    );
+  }
+
   /**
    * Commits only the given files, leaving other changes (staged or not) as they are. Unversioned files are
    * added with intent-to-add first, so that `commit --only` picks them up.
+   *
+   * With `hunks`, parts of files are committed: the commit is built in a temporary index from HEAD, the whole
+   * files and the chosen hunks are put there, and `git commit` (with its hooks) commits that index. The index
+   * of the user is then brought up to date only for the committed paths.
    */
   async commitFiles(options: {
     message: string;
     paths: string[];
     untracked: string[];
     amend: boolean;
+    /** File → keys of the hunks to commit, for files committed in part. */
+    hunks?: Record<string, string[]>;
   }): Promise<void> {
+    const partial = Object.entries(options.hunks ?? {});
+    if (partial.length) return this.commitParts(options, partial);
     if (options.untracked.length) await this.git.run(['add', '--intent-to-add', '--', ...options.untracked]);
     const args = ['commit', '--only', '--cleanup=strip', '-F', '-'];
     if (options.amend) args.push('--amend');
     const paths = [...options.paths, ...options.untracked];
     if (paths.length) args.push('--', ...paths);
     await this.git.run(args, { input: options.message });
+  }
+
+  private async commitParts(
+    options: { message: string; paths: string[]; untracked: string[]; amend: boolean },
+    partial: [string, string[]][],
+  ): Promise<void> {
+    const patches = await Promise.all(
+      partial.map(async ([filePath, keys]) => {
+        const patch = await this.workingPatch(filePath);
+        const known = new Set(patch.hunks.map((h) => h.key));
+        if (keys.some((k) => !known.has(k)))
+          throw new Error(`Файл ${filePath} изменился — проверьте выбранные куски и повторите коммит.`);
+        return selectHunks(patch, new Set(keys));
+      }),
+    );
+    const indexFile = path.join(this.gitDir, 'grove-commit-index');
+    const env = { GIT_INDEX_FILE: indexFile };
+    await rm(indexFile, { force: true });
+    try {
+      await this.git.run(['read-tree', 'HEAD'], { env });
+      const whole = [...options.paths, ...options.untracked];
+      if (whole.length) await this.git.run(['add', '-A', '--', ...whole], { env });
+      for (const patch of patches) {
+        await this.git.run(['apply', '--cached', '--recount', '--whitespace=nowarn', '-'], {
+          env,
+          input: patch,
+        });
+      }
+      const args = ['commit', '--cleanup=strip', '-F', '-'];
+      if (options.amend) args.push('--amend');
+      await this.git.run(args, { env, input: options.message });
+    } finally {
+      await rm(indexFile, { force: true });
+    }
+    const committed = [...options.paths, ...options.untracked, ...partial.map(([p]) => p)];
+    await this.git.run(['reset', '-q', '--', ...committed]);
   }
 
   /** Discards changes of tracked files, including newly added ones. */
