@@ -5,6 +5,8 @@ import { GitLabApi, GitLabApiError } from './gitlabApi';
 const WORKFLOW_PROVIDER = 'gitlab';
 const SCOPES = ['api'];
 const SECRET_PREFIX = 'grove.gitlab.token:';
+const WORKFLOW_EXTENSION = 'gitlab.gitlab-workflow';
+const WORKFLOW_ACTIVATION_TIMEOUT_MS = 20_000;
 
 export interface TokenSource {
   token: string;
@@ -19,6 +21,7 @@ export interface TokenSource {
  */
 export class GitLabAuth implements vscode.Disposable {
   private readonly changed = new vscode.EventEmitter<void>();
+  private workflowActivation?: Promise<void>;
   private readonly disposables: vscode.Disposable[];
 
   /** Fires when a token may have appeared or disappeared, so views reload. */
@@ -142,6 +145,7 @@ export class GitLabAuth implements vscode.Disposable {
     host: string,
   ): Promise<vscode.AuthenticationSessionAccountInformation | undefined> {
     try {
+      await this.workflowReady();
       const accounts = await vscode.authentication.getAccounts(WORKFLOW_PROVIDER);
       return accounts.find((a) => {
         const url = a.label.split(' - ').pop() ?? '';
@@ -154,6 +158,20 @@ export class GitLabAuth implements vscode.Disposable {
     } catch {
       return undefined;
     }
+  }
+
+  /**
+   * After a reload Grove may start before GitLab Workflow, whose authentication provider is then not registered
+   * yet and its accounts look missing. Activating it first (or waiting for it) avoids that race.
+   */
+  private workflowReady(): Promise<void> {
+    this.workflowActivation ??= (async () => {
+      const extension = vscode.extensions.getExtension(WORKFLOW_EXTENSION);
+      if (!extension || extension.isActive) return;
+      const timeout = new Promise<void>((resolve) => setTimeout(resolve, WORKFLOW_ACTIVATION_TIMEOUT_MS));
+      await Promise.race([Promise.resolve(extension.activate()).then(() => undefined), timeout]);
+    })().catch(() => undefined);
+    return this.workflowActivation;
   }
 
   dispose(): void {
