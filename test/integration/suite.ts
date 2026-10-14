@@ -183,6 +183,67 @@ const tests: Test[] = [
     },
   ],
   [
+    'reviews a GitLab merge request: threads in the code, comments with positions, drafts and the journal',
+    async (api) => {
+      const repository = await api.repositories.get(root());
+      assert.ok(repository);
+      const origin = process.env.GROVE_TEST_GITLAB_ORIGIN!;
+      const requests = async () =>
+        (await (await fetch(`${origin}/__requests`)).json()) as { method: string; url: string; body?: any }[];
+
+      await api.review.start(repository, 1, 'a.txt', 25);
+      const diff = await waitFor(activeDiff, 'merge request diff');
+      assert.equal(path.basename(diff.modified.fsPath), 'a.txt');
+      const [existing] = await waitFor(
+        () => (api.review.openThreads().length ? api.review.openThreads() : undefined),
+        'threads',
+      );
+      assert.equal(existing.line, 25);
+      assert.equal(existing.uri, diff.modified.toString());
+      assert.deepEqual(existing.comments, ['Почему так?']);
+
+      // A comment typed on a changed line and on an unchanged one: GitLab needs one or both line numbers.
+      const thread = (uri: vscode.Uri, line: number) => ({
+        uri,
+        range: new vscode.Range(line - 1, 0, line - 1, 0),
+        comments: [],
+        dispose() {},
+      });
+      await vscode.commands.executeCommand('grove.review.publish', {
+        thread: thread(diff.modified, 5),
+        text: 'Изменённая строка',
+      });
+      await vscode.commands.executeCommand('grove.review.draft', {
+        thread: thread(diff.modified, 10),
+        text: 'Черновик',
+      });
+      let sent = (await requests()).filter((r) => r.method === 'POST');
+      assert.deepEqual(sent[0].body.position.new_line, 5);
+      assert.equal(sent[0].body.position.old_line, undefined);
+      assert.equal(sent[0].body.body, 'Изменённая строка');
+      assert.deepEqual([sent[1].body.position.old_line, sent[1].body.position.new_line], [10, 10]);
+      assert.ok(sent[1].url.endsWith('/draft_notes'));
+      await waitFor(
+        () => (api.review.openThreads().some((t) => t.label === 'Черновик') ? true : undefined),
+        'draft thread',
+      );
+
+      await vscode.commands.executeCommand('grove.review.publishDrafts');
+      sent = (await requests()).filter((r) => r.method === 'POST');
+      assert.ok(sent.at(-1)!.url.endsWith('/draft_notes/bulk_publish'));
+      await waitFor(
+        () => (api.review.openThreads().length === 3 ? true : undefined),
+        'three published threads',
+      );
+
+      await vscode.commands.executeCommand('grove.review.openJournal');
+      const journal = vscode.window.activeTextEditor!.document.getText();
+      assert.match(journal, /"text":"Изменённая строка"/);
+      assert.match(journal, /"status":"sent"/);
+      await vscode.commands.executeCommand('grove.review.end');
+    },
+  ],
+  [
     'opens the log in an editor tab',
     async (api) => {
       const panel = api.logs.openInEditor();

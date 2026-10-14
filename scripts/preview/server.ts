@@ -14,7 +14,7 @@ import type { HostMessage, WebviewMessage } from '../../src/shared/protocol';
 import { commitChangeSet, describeRange, rangeChangeSet } from '../../src/extension/changes/changeSet';
 import { Repository } from '../../src/extension/git/repository';
 import { GitLabApi } from '../../src/extension/hosting/gitlabApi';
-import { buildCard } from '../../src/extension/hosting/mergeRequestCard';
+import { buildCard, buildDiscussions } from '../../src/extension/hosting/mergeRequestCard';
 import {
   detectHosting,
   HostingLinks,
@@ -206,10 +206,24 @@ async function handle(repository: Repository, message: WebviewMessage): Promise<
         const bridges = details.pipeline ? await api.bridges(details.pipeline.id).catch(() => []) : [];
         const children: Record<number, Awaited<ReturnType<GitLabApi['jobs']>>> = {};
         for (const bridge of bridges.filter((b) => b.downstream)) {
-          children[bridge.downstream!.id] = await api.jobs(bridge.downstream!.id, bridge.downstream!.projectId);
+          children[bridge.downstream!.id] = await api.jobs(
+            bridge.downstream!.id,
+            bridge.downstream!.projectId,
+          );
         }
         return [
-          { type: 'mergeRequestCard', number: message.number, card: buildCard(details, approvals, jobs, bridges, children) },
+          {
+            type: 'mergeRequestCard',
+            number: message.number,
+            card: {
+              ...buildCard(details, approvals, jobs, bridges, children),
+              discussions: buildDiscussions(
+                await api.discussions(message.number).catch(() => []),
+                await api.draftNotes(message.number).catch(() => []),
+                details.diffRefs?.headSha,
+              ),
+            },
+          },
         ];
       } catch (error) {
         return [{ type: 'mergeRequestCard', number: message.number, error: String(error) }];

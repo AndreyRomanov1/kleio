@@ -4,11 +4,12 @@
 //
 // On Linux without a display the editor is started under xvfb-run. The editor gets its own profile and
 // extension directories, so a running editor of the user is not touched.
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import * as esbuild from 'esbuild';
+import { startFakeGitLab } from './fakeGitLab.mjs';
 
 const code = process.env.GROVE_CODE ?? 'codium';
 const projectRoot = path.resolve(import.meta.dirname, '..');
@@ -54,6 +55,15 @@ writeFileSync(path.join(repo, 'c.txt'), 'new file\n');
 writeFileSync(path.join(repo, 'greeter.ts'), source('return `hello ${name}`;'));
 git('add', '.');
 git('-c', 'user.name=Other Dev', '-c', 'user.email=other@example.com', 'commit', '-q', '-m', 'second');
+// The repository looks hosted on a GitLab, which is the fake server below.
+git('remote', 'add', 'origin', 'git@gitlab.test:group/project.git');
+const sha = (rev) => execFileSync('git', ['rev-parse', rev], { cwd: repo, encoding: 'utf8' }).trim();
+const gitlab = await startFakeGitLab({ baseSha: sha('HEAD~1'), headSha: sha('HEAD') });
+mkdirSync(path.join(work, 'user-data', 'User'), { recursive: true });
+writeFileSync(
+  path.join(work, 'user-data', 'User', 'settings.json'),
+  JSON.stringify({ 'grove.hosting.instances': { 'gitlab.test': 'gitlab' } }),
+);
 
 const editorArgs = [
   repo,
@@ -74,8 +84,14 @@ const [command, args] = headless ? ['xvfb-run', ['-a', code, ...editorArgs]] : [
 const env = {
   ...process.env,
   ELECTRON_RUN_AS_NODE: undefined,
+  GROVE_TEST_GITLAB_ORIGIN: gitlab.origin,
+  GROVE_TEST_GITLAB_TOKEN: 'test-token',
   ...(headless ? { WAYLAND_DISPLAY: undefined } : {}),
 };
-const result = spawnSync(command, args, { stdio: 'inherit', env });
+const status = await new Promise((resolve) => {
+  const child = spawn(command, args, { stdio: 'inherit', env });
+  child.on('close', (code) => resolve(code ?? 1));
+});
+gitlab.close();
 rmSync(work, { recursive: true, force: true });
-process.exit(result.status ?? 1);
+process.exit(status);
