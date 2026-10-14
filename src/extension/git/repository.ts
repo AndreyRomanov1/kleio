@@ -1,9 +1,12 @@
 import * as path from 'node:path';
-import type { CommitDetails, FileChange, Head, RepositorySnapshot } from '../../shared/model';
+import type { CommitDetails, FileChange, Head, Ref, RepositorySnapshot } from '../../shared/model';
 import { GitRunner } from './gitRunner';
 import {
   FIELD,
+  HISTORY_FORMAT,
   LOG_FORMAT,
+  parseBlame,
+  parseHistory,
   parseHunks,
   parseLog,
   parseNameStatus,
@@ -12,6 +15,8 @@ import {
   parseWorktrees,
   REF_FORMAT,
   STASH_FORMAT,
+  type BlameLine,
+  type FileHistory,
   type Hunk,
 } from './parse';
 
@@ -159,6 +164,43 @@ export class Repository {
       .split('\n')
       .filter((line) => line.startsWith('+ '))
       .map((line) => line.slice(2));
+  }
+
+  /**
+   * Blames a file at a revision, or the given unsaved contents of the working file when `revision` is omitted.
+   */
+  async blame(
+    filePath: string,
+    options: { revision?: string; contents?: string } = {},
+  ): Promise<BlameLine[]> {
+    const args = ['blame', '--porcelain'];
+    if (options.revision) args.push(options.revision);
+    else if (options.contents !== undefined) args.push('--contents', '-');
+    args.push('--', filePath);
+    return parseBlame(await this.git.run(args, { input: options.contents }));
+  }
+
+  /** Commits that changed the file, following renames. */
+  async fileHistory(filePath: string): Promise<FileHistory> {
+    const output = await this.git.run([
+      'log',
+      '--follow',
+      '--name-status',
+      `--format=${HISTORY_FORMAT}`,
+      '--',
+      filePath,
+    ]);
+    return parseHistory(output);
+  }
+
+  /** Commits that changed the given lines (1-based, inclusive) of the file. */
+  async lineHistory(filePath: string, start: number, end: number): Promise<FileHistory> {
+    const output = await this.git.run(['log', `-L${start},${end}:${filePath}`, `--format=${HISTORY_FORMAT}`]);
+    return parseHistory(output);
+  }
+
+  async refs(): Promise<Ref[]> {
+    return parseRefs(await this.git.run(['for-each-ref', `--format=${REF_FORMAT}`]));
   }
 
   private getEmptyTree(): Promise<string> {

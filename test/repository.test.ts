@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { UNCOMMITTED } from '../src/extension/git/parse';
 import { Repository, WORKTREE } from '../src/extension/git/repository';
 
 let work: string;
@@ -89,5 +90,32 @@ describe('Repository', () => {
     writeFileSync(path.join(dir, 'a.txt'), 'a\nB\nc\nd\n');
     expect(await repository.changes('HEAD', WORKTREE)).toEqual([{ status: 'M', path: 'a.txt' }]);
     expect(await repository.blobHash('HEAD', 'a.txt')).not.toBe(await repository.worktreeBlobHash('a.txt'));
+  });
+
+  it('blames unsaved contents and follows a file through a rename in its history', async () => {
+    const dir = path.join(work, 'history');
+    git(work, 'init', '-q', '-b', 'main', dir);
+    commitFile(dir, 'old.txt', 'one\ntwo\nthree\n', 'add');
+    git(dir, 'mv', 'old.txt', 'new.txt');
+    git(dir, 'commit', '-q', '-m', 'rename');
+    commitFile(dir, 'new.txt', 'one\nTWO\nthree\n', 'change two');
+    const repository = (await Repository.open(dir))!;
+
+    const blame = await repository.blame('new.txt', { contents: 'one\nTWO\nthree\nfour\n' });
+    expect(blame.map((l) => (l.commit.hash === UNCOMMITTED ? 'uncommitted' : l.commit.summary))).toEqual([
+      'add',
+      'change two',
+      'add',
+      'uncommitted',
+    ]);
+    expect(blame[0].commit.filename).toBe('old.txt');
+
+    const history = await repository.fileHistory('new.txt');
+    expect(history.commits.map((c) => c.subject)).toEqual(['change two', 'rename', 'add']);
+    expect(history.paths[history.commits[2].hash]).toBe('old.txt');
+
+    const lines = await repository.lineHistory('new.txt', 2, 2);
+    expect(lines.commits.map((c) => c.subject)).toEqual(['change two', 'add']);
+    expect(lines.paths[lines.commits[1].hash]).toBe('old.txt');
   });
 });

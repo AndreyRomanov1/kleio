@@ -175,3 +175,124 @@ export function parseHunks(output: string): Hunk[] {
   }
   return hunks;
 }
+
+export interface BlameCommit {
+  hash: string;
+  author: string;
+  authorMail: string;
+  /** Unix time, seconds. */
+  authorTime: number;
+  summary: string;
+  /** Path of the file in this commit, which differs from the current path after a rename. */
+  filename: string;
+  /** Parent commit and the path there, absent for the commit that added the line. */
+  previous?: { hash: string; filename: string };
+}
+
+export interface BlameLine {
+  /** 1-based line in the blamed contents. */
+  line: number;
+  /** 1-based line in the commit that last changed it. */
+  originalLine: number;
+  commit: BlameCommit;
+}
+
+export const UNCOMMITTED = '0000000000000000000000000000000000000000';
+
+/** Parses `git blame --porcelain`, where commit details are printed only at the first line of each commit. */
+export function parseBlame(output: string): BlameLine[] {
+  const commits = new Map<string, BlameCommit>();
+  const lines: BlameLine[] = [];
+  let current: BlameCommit | undefined;
+  let originalLine = 0;
+  let finalLine = 0;
+  for (const raw of output.split('\n')) {
+    if (raw.startsWith('\t')) {
+      if (current) lines.push({ line: finalLine, originalLine, commit: current });
+      continue;
+    }
+    const header = /^([0-9a-f]{40,64}) (\d+) (\d+)/.exec(raw);
+    if (header) {
+      const hash = header[1];
+      originalLine = Number(header[2]);
+      finalLine = Number(header[3]);
+      current = commits.get(hash);
+      if (!current) {
+        current = { hash, author: '', authorMail: '', authorTime: 0, summary: '', filename: '' };
+        commits.set(hash, current);
+      }
+      continue;
+    }
+    if (!current) continue;
+    const space = raw.indexOf(' ');
+    const key = space < 0 ? raw : raw.slice(0, space);
+    const value = space < 0 ? '' : raw.slice(space + 1);
+    switch (key) {
+      case 'author':
+        current.author = value;
+        break;
+      case 'author-mail':
+        current.authorMail = value.replace(/^<|>$/g, '');
+        break;
+      case 'author-time':
+        current.authorTime = Number(value);
+        break;
+      case 'summary':
+        current.summary = value;
+        break;
+      case 'filename':
+        current.filename = value;
+        break;
+      case 'previous': {
+        const [hash, ...name] = value.split(' ');
+        current.previous = { hash, filename: name.join(' ') };
+        break;
+      }
+    }
+  }
+  return lines;
+}
+
+export const HISTORY_FORMAT = '%x1e' + ['%H', '%P', '%an', '%ae', '%at', '%s'].join('%x1f') + '%x1f';
+
+export interface FileHistory {
+  commits: Commit[];
+  /** Path of the file in each commit, for histories that follow renames. */
+  paths: Record<string, string>;
+}
+
+/**
+ * Parses `git log --follow --name-status` or `git log -L` output printed with {@link HISTORY_FORMAT}: a header
+ * per commit followed by the file's name-status line or its patch.
+ */
+export function parseHistory(output: string): FileHistory {
+  const commits: Commit[] = [];
+  const paths: Record<string, string> = {};
+  for (const record of output.split(RECORD)) {
+    if (!record.trim()) continue;
+    const newline = record.indexOf('\n');
+    const header = newline < 0 ? record : record.slice(0, newline);
+    const body = newline < 0 ? '' : record.slice(newline + 1);
+    const [hash, parents, authorName, authorEmail, authorDate, subject] = header.split(FIELD);
+    commits.push({
+      hash,
+      parents: parents ? parents.split(' ') : [],
+      authorName,
+      authorEmail,
+      authorDate: Number(authorDate),
+      subject: subject ?? '',
+    });
+    const path = pathInBody(body);
+    if (path) paths[hash] = path;
+  }
+  return { commits, paths };
+}
+
+function pathInBody(body: string): string | undefined {
+  const added = /^\+\+\+ b\/(.+)$/m.exec(body);
+  if (added) return added[1];
+  const removed = /^--- a\/(.+)$/m.exec(body);
+  if (removed) return removed[1];
+  const status = /^([AMDTRC])\d*\t(?:[^\t\n]+\t)?([^\t\n]+)$/m.exec(body);
+  return status?.[2];
+}
