@@ -23,6 +23,16 @@ The UI is in Russian for now.
   server — can replace the local branch, with a check whether any local commit would be lost), new branch,
   new tag, delete, fetch, compare with the current branch. **Commit actions**: checkout, new branch/tag,
   revert, compare with the working tree.
+- **Merge, rebase and updates**: merge a branch into the current one, rebase the current one onto a branch,
+  cherry-pick, reset. Uncommitted changes are stashed for the time of the operation and brought back. A stop
+  for conflicts shows a bar in the log with Continue / Skip / Abort. **Update Project** fetches every remote
+  and brings the current branch up to its upstream (fast-forward, or rebase/merge per `grove.update.method`);
+  any other branch without own commits can be updated without checking it out.
+- **Push dialog** as in Rider: outgoing commits of the current branch and of other branches ahead of their
+  upstream, their files and diffs, the remote branch name for a new branch. A diverged branch is pushed only
+  with force-with-lease against the remote state seen in the dialog, and never into
+  `grove.push.protectedBranches` (`master`, `main` by default). Links the server prints (e.g. "create merge
+  request") are offered to open.
 - The log lives in the bottom panel (movable anywhere), in an editor tab, or in a separate window.
 
 ## Key bindings

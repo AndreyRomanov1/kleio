@@ -251,6 +251,19 @@ const tests: Test[] = [
     },
   ],
   [
+    'opens the push dialog for the current branch',
+    async () => {
+      await vscode.commands.executeCommand('grove.git.push');
+      const tab = await waitFor(() => {
+        const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+        return input instanceof vscode.TabInputWebview && input.viewType.endsWith('grove.push')
+          ? input
+          : undefined;
+      }, 'push dialog tab');
+      assert.ok(tab);
+    },
+  ],
+  [
     'opens the log in an editor tab',
     async (api) => {
       const panel = api.logs.openInEditor();

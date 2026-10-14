@@ -2,12 +2,14 @@ import * as vscode from 'vscode';
 import type { RepositorySnapshot } from '../../shared/model';
 import type { ChangeSetView, HostMessage, WebviewMessage } from '../../shared/protocol';
 import type { GitActions } from '../actions/gitActions';
+import type { SyncActions } from '../actions/syncActions';
 import { commitChangeSet, describeRange, rangeChangeSet, type ChangeSet } from '../changes/changeSet';
 import type { ChangeSetNavigator } from '../changes/changeSetNavigator';
 import { WORKTREE, type Repository } from '../git/repository';
 import type { RepositoryManager } from '../git/repositoryManager';
 import type { HostingActions } from '../hosting/hostingActions';
 import type { HostingService } from '../hosting/hostingService';
+import type { PushDialog } from '../push/pushDialog';
 import type { MergeRequestCards } from '../hosting/mergeRequestCards';
 import type { ReviewController } from '../review/reviewController';
 
@@ -28,6 +30,8 @@ export interface LogServices {
   repositories: RepositoryManager;
   navigator: ChangeSetNavigator;
   actions: GitActions;
+  sync: SyncActions;
+  push: PushDialog;
   hosting: HostingService;
   hostingActions: HostingActions;
   cards: MergeRequestCards;
@@ -98,6 +102,14 @@ export class LogController implements vscode.Disposable {
           void this.loadHosting(true);
         }
         return;
+      case 'updateProject':
+        if (this.repository) await this.services.sync.updateProject(this.repository);
+        return;
+      case 'push':
+        if (this.repository) await this.services.push.open(this.repository);
+        return;
+      case 'operation':
+        return this.operation(message.action);
       case 'openUrl':
         return this.services.hostingActions.openUrl(message.url);
       case 'openMergeRequest':
@@ -194,6 +206,26 @@ export class LogController implements vscode.Disposable {
         await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(message.path), {
           forceNewWindow: message.newWindow,
         });
+        return;
+    }
+  }
+
+  private async operation(action: Extract<WebviewMessage, { type: 'operation' }>['action']): Promise<void> {
+    const repository = this.repository;
+    if (!repository) return;
+    const state = await repository.operation();
+    if (!state) return this.load();
+    const sync = this.services.sync;
+    switch (action) {
+      case 'continue':
+        return sync.continueOperation(repository, state.kind);
+      case 'skip':
+        return sync.skip(repository, state.kind);
+      case 'abort':
+        return sync.abort(repository, state.kind);
+      case 'resolve':
+        if (sync.showConflicts) return sync.showConflicts(repository);
+        await vscode.commands.executeCommand('grove.commit.focus');
         return;
     }
   }
@@ -400,6 +432,11 @@ export class LogController implements vscode.Disposable {
         const details = await repository.commitDetails(hash);
         return actions.revert(repository, hash, details.parents);
       }
+      case 'cherryPick':
+        return this.services.sync.cherryPick(repository, hash);
+      case 'reset':
+        if (this.snapshot) return this.services.sync.reset(repository, this.snapshot, hash);
+        return;
       case 'copyHash':
         await vscode.env.clipboard.writeText(hash);
         return;
@@ -457,6 +494,14 @@ export class LogController implements vscode.Disposable {
         const changeSet = await rangeChangeSet(repository, head, ref.name, `${head} ↔ ${ref.name}`);
         return this.openChangeSet(changeSet);
       }
+      case 'merge':
+        return this.services.sync.merge(repository, snapshot, ref);
+      case 'rebaseOnto':
+        return this.services.sync.rebase(repository, snapshot, ref.name);
+      case 'updateBranch':
+        return this.services.sync.updateBranch(repository, snapshot, ref);
+      case 'push':
+        return this.services.push.open(repository, ref.name);
       case 'copyName':
         await vscode.env.clipboard.writeText(ref.name);
         return;

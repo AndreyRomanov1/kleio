@@ -164,7 +164,7 @@
           {store.amend ? 'Amend' : 'Commit'}
         </button>
         <button disabled={!canCommit} title="Ctrl+Shift+Enter" onclick={() => store.commit(true)}>
-          {store.amend ? 'Amend' : 'Commit'} and Push
+          {store.amend ? 'Amend' : 'Commit'} and Push…
         </button>
         <span class="spacer"></span>
         <span class="count">{checkedCount} из {store.files.length}</span>

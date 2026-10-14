@@ -2,7 +2,7 @@
   "name": "grove",
   "displayName": "Grove",
   "description": "JetBrains-style Git log, diff and history for VS Code",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "publisher": "aroma",
   "license": "MIT",
   "private": true,
@@ -234,6 +234,18 @@
         "title": "Следующее замечание ревью",
         "category": "Grove",
         "icon": "$(arrow-circle-down)"
+      },
+      {
+        "command": "grove.git.updateProject",
+        "title": "Обновить проект",
+        "category": "Grove",
+        "icon": "$(repo-pull)"
+      },
+      {
+        "command": "grove.git.push",
+        "title": "Push…",
+        "category": "Grove",
+        "icon": "$(repo-push)"
       }
     ],
     "menus": {
@@ -246,6 +258,16 @@
         {
           "command": "grove.log.openInNewWindow",
           "when": "view == grove.log",
+          "group": "navigation@2"
+        },
+        {
+          "command": "grove.git.updateProject",
+          "when": "view == grove.commit",
+          "group": "navigation@1"
+        },
+        {
+          "command": "grove.git.push",
+          "when": "view == grove.commit",
           "group": "navigation@2"
         }
       ],
@@ -575,6 +597,30 @@
             ]
           },
           "markdownDescription": "Тип хостинга для своих серверов, если Grove не определил его сам: `{\"git.example.com\": \"gitlab\"}`. github.com и gitlab.com известны; сервер GitLab обычно определяется сам по ссылкам на merge requests."
+        },
+        "grove.update.method": {
+          "type": "string",
+          "enum": [
+            "rebase",
+            "merge"
+          ],
+          "default": "rebase",
+          "enumDescriptions": [
+            "Свои коммиты перебазируются поверх пришедших",
+            "Пришедшие коммиты вливаются merge-коммитом"
+          ],
+          "markdownDescription": "Как «Обновить проект» подтягивает текущую ветку из upstream, когда в ней есть свои коммиты. Без своих коммитов ветка просто переезжает вперёд (fast-forward)."
+        },
+        "grove.push.protectedBranches": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "master",
+            "main"
+          ],
+          "markdownDescription": "Ветки на сервере, в которые push с force запрещён. Можно использовать `*`, например `release/*`."
         }
       }
     }

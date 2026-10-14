@@ -24,7 +24,9 @@ export type CommitAction =
   | 'copySubject'
   | 'compareWithWorktree'
   | 'openInHosting'
-  | 'copyHostingLink';
+  | 'copyHostingLink'
+  | 'cherryPick'
+  | 'reset';
 
 export type RefAction =
   | 'checkout'
@@ -35,7 +37,11 @@ export type RefAction =
   | 'showDiffWithCurrent'
   | 'copyName'
   | 'openInHosting'
-  | 'createMergeRequest';
+  | 'createMergeRequest'
+  | 'merge'
+  | 'rebaseOnto'
+  | 'updateBranch'
+  | 'push';
 
 export type PipelineStatusView =
   | 'created'
@@ -171,6 +177,10 @@ export type WebviewMessage =
   | { type: 'ready' }
   | { type: 'refresh' }
   | { type: 'fetch' }
+  | { type: 'updateProject' }
+  | { type: 'push' }
+  /** Controls the merge or rebase that stopped half-way. */
+  | { type: 'operation'; action: 'continue' | 'skip' | 'abort' | 'resolve' }
   | { type: 'selectRepository'; root: string }
   | { type: 'setFocus'; revisions: string[] }
   | { type: 'toggleFavorite'; fullName: string }

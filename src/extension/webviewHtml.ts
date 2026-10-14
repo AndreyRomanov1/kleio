@@ -9,7 +9,7 @@ export function webviewOptions(extensionUri: vscode.Uri): vscode.WebviewOptions 
 export function renderHtml(
   webview: vscode.Webview,
   extensionUri: vscode.Uri,
-  view: 'log' | 'commit',
+  view: 'log' | 'commit' | 'push',
 ): string {
   const nonce = randomBytes(16).toString('base64');
   const asset = (file: string) => webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'dist', file));

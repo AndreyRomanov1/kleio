@@ -31,7 +31,16 @@ export function commitMenu(commit: Commit, store: LogStore): MenuEntry[] {
     { label: 'Новая ветка…', run: action({ type: 'commitAction', action: 'newBranch', hash }) },
     { label: 'Новый тег…', run: action({ type: 'commitAction', action: 'newTag', hash }) },
     'separator',
+    {
+      label: 'Cherry-pick в текущую',
+      disabled: store.decorations.get(hash)?.isHead,
+      run: action({ type: 'commitAction', action: 'cherryPick', hash }),
+    },
     { label: 'Revert коммита', run: action({ type: 'commitAction', action: 'revert', hash }) },
+    {
+      label: `Reset ${store.snapshot?.head.branch ?? 'HEAD'} сюда…`,
+      run: action({ type: 'commitAction', action: 'reset', hash }),
+    },
     'separator',
     {
       label: 'Сравнить с рабочей копией',
@@ -87,6 +96,8 @@ export function refMenu(ref: Ref, store: LogStore): MenuEntry[] {
       run: run({ type: 'refAction', action: 'checkout', fullName }),
     },
     { label: 'Новая ветка отсюда…', run: run({ type: 'refAction', action: 'newBranch', fullName }) },
+    'separator',
+    ...syncEntries(ref, store, isCurrent),
     'separator',
     {
       label: 'Сравнить с текущей',
@@ -177,6 +188,44 @@ export function refMenu(ref: Ref, store: LogStore): MenuEntry[] {
     entries.push({
       label: `Удалить ветку в ${ref.name.slice(0, ref.name.indexOf('/'))}…`,
       run: run({ type: 'refAction', action: 'deleteRemoteBranch', fullName }),
+    });
+  }
+  return entries;
+}
+
+/** Merge, rebase, update and push, named after the current branch as in Rider. */
+function syncEntries(ref: Ref, store: LogStore, isCurrent: boolean): MenuEntry[] {
+  const run = (action: Parameters<typeof post>[0] & { type: 'refAction' }) => () => post(action);
+  const fullName = ref.fullName;
+  const current = store.snapshot?.head.branch;
+  const busy = !!store.snapshot?.operation;
+  const entries: MenuEntry[] = [];
+  if (!isCurrent && current) {
+    entries.push(
+      {
+        label: `Влить ${ref.name} в ${current}`,
+        icon: 'git-merge',
+        disabled: busy,
+        run: run({ type: 'refAction', action: 'merge', fullName }),
+      },
+      {
+        label: `Перебазировать ${current} на ${ref.name}`,
+        disabled: busy,
+        run: run({ type: 'refAction', action: 'rebaseOnto', fullName }),
+      },
+    );
+  }
+  if (ref.kind === 'head') {
+    entries.push({
+      label: isCurrent ? 'Обновить (fetch + подтянуть из origin)' : 'Обновить из origin без переключения',
+      icon: 'repo-pull',
+      disabled: !ref.upstream || busy,
+      run: run({ type: 'refAction', action: 'updateBranch', fullName }),
+    });
+    entries.push({
+      label: 'Push…',
+      icon: 'repo-push',
+      run: run({ type: 'refAction', action: 'push', fullName }),
     });
   }
   return entries;

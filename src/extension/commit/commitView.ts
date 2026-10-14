@@ -23,6 +23,8 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
     private readonly context: vscode.ExtensionContext,
     private readonly repositories: RepositoryManager,
     private readonly navigator: ChangeSetNavigator,
+    /** Opens the push dialog, as "Commit and Push" does in Rider. */
+    private readonly openPush: (repository: Repository) => Promise<void>,
   ) {
     const watcher = vscode.workspace.createFileSystemWatcher('**/*');
     const refresh = () => this.scheduleRefresh();
@@ -213,13 +215,7 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
       this.post({ type: 'committed' });
       this.repositories.notifyChanged(repository);
       vscode.window.setStatusBarMessage(`Grove: закоммичено ${selected.length} файл(ов)`, 4000);
-      if (message.push) {
-        await vscode.window.withProgress(
-          { location: vscode.ProgressLocation.Notification, title: 'Grove: push' },
-          () => repository.push(),
-        );
-        this.repositories.notifyChanged(repository);
-      }
+      if (message.push) await this.openPush(repository);
     } finally {
       this.post({ type: 'busy', value: false });
       await this.refresh();

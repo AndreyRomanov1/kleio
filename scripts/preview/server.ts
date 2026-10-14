@@ -1,8 +1,8 @@
 /**
  * Development preview of the Grove webviews in a regular browser, backed by a real repository.
  * Serves dist/webview.* with a fake VS Code API and answers webview messages over HTTP.
- * The log is at `/`, the commit view at `/commit`; the commit view never commits, it only records the request
- * (`GET /last-commit`), so the preview is safe on any repository.
+ * The log is at `/`, the commit view at `/commit`, the push dialog at `/push`; they never commit or push, only
+ * record the request (`GET /last-commit`, `GET /last-push`), so the preview is safe on any repository.
  *
  *   npm run preview -- /path/to/repo [port]
  */
@@ -11,6 +11,8 @@ import { createServer } from 'node:http';
 import * as path from 'node:path';
 import type { CommitFile, CommitHostMessage, CommitWebviewMessage } from '../../src/shared/commitProtocol';
 import type { HostMessage, WebviewMessage } from '../../src/shared/protocol';
+import type { PushHostMessage, PushWebviewMessage } from '../../src/shared/pushProtocol';
+import { matchesBranchPattern, readPushState } from '../../src/extension/push/pushState';
 import { commitChangeSet, describeRange, rangeChangeSet } from '../../src/extension/changes/changeSet';
 import { Repository } from '../../src/extension/git/repository';
 import { GitLabApi } from '../../src/extension/hosting/gitlabApi';
@@ -106,6 +108,30 @@ let focus: string[] = [];
 let favorites: string[] = [];
 let changeSetId = 0;
 let lastCommit: CommitWebviewMessage | undefined;
+let lastPush: PushWebviewMessage | undefined;
+
+async function handlePush(repository: Repository, message: PushWebviewMessage): Promise<PushHostMessage[]> {
+  switch (message.type) {
+    case 'ready': {
+      const state = await readPushState(repository, process.env.GROVE_PREVIEW_PUSH_BRANCH, (b) =>
+        matchesBranchPattern(['master', 'main'], b),
+      );
+      return [{ type: 'state', remotes: state.remotes, branches: state.branches }];
+    }
+    case 'selectCommit': {
+      const details = await repository.commitDetails(message.hash);
+      const changeSet = await commitChangeSet(repository, message.hash, details.parents);
+      return [{ type: 'files', hash: message.hash, files: changeSet.files }];
+    }
+    case 'push':
+      lastPush = message;
+      console.log('push requested (not executed in preview):', JSON.stringify(message));
+      return [{ type: 'error', message: 'Превью: push не выполняется.' }];
+    default:
+      console.log('ignored in preview:', message.type);
+      return [];
+  }
+}
 
 async function handleCommit(
   repository: Repository,
@@ -256,6 +282,33 @@ async function main(): Promise<void> {
             response.end(String(error));
           });
       });
+      return;
+    }
+    if (request.method === 'POST' && url === '/push-message') {
+      let body = '';
+      request.on('data', (chunk) => (body += chunk));
+      request.on('end', () => {
+        handlePush(repository, JSON.parse(body) as PushWebviewMessage)
+          .then((messages) => {
+            response.setHeader('Content-Type', 'application/json');
+            response.end(JSON.stringify(messages));
+          })
+          .catch((error: unknown) => {
+            console.error(error);
+            response.statusCode = 500;
+            response.end(String(error));
+          });
+      });
+      return;
+    }
+    if (url === '/last-push') {
+      response.setHeader('Content-Type', 'application/json');
+      response.end(JSON.stringify(lastPush ?? null));
+      return;
+    }
+    if (url === '/push') {
+      response.setHeader('Content-Type', 'text/html');
+      response.end(page.replace('<body class="vscode-dark">', '<body class="vscode-dark" data-view="push">'));
       return;
     }
     if (url === '/last-commit') {

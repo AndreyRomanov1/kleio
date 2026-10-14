@@ -4,6 +4,7 @@
   import CommitLog from './components/CommitLog.svelte';
   import ContextMenu from './components/ContextMenu.svelte';
   import MergeRequestCard from './components/MergeRequestCard.svelte';
+  import OperationBanner from './components/OperationBanner.svelte';
   import Details from './components/Details.svelte';
   import Splitter from './components/Splitter.svelte';
   import { LogStore } from './store.svelte';
@@ -166,6 +167,15 @@
       <button class="tool" title="git fetch --all --prune" onclick={() => post({ type: 'fetch' })}
         ><i class="codicon codicon-cloud-download"></i> Fetch</button
       >
+      <button
+        class="tool"
+        title="Обновить проект: fetch и подтянуть текущую ветку из origin"
+        onclick={() => post({ type: 'updateProject' })}
+        ><i class="codicon codicon-repo-pull"></i> Обновить</button
+      >
+      <button class="tool" title="Push…" onclick={() => post({ type: 'push' })}
+        ><i class="codicon codicon-repo-push"></i> Push</button
+      >
     {/if}
     <button
       class="tool icon"
@@ -179,6 +189,9 @@
     >
   </div>
 
+  {#if store.snapshot?.operation && !store.history}
+    <OperationBanner {store} operation={store.snapshot.operation} />
+  {/if}
   {#if store.noRepository}
     <div class="empty">В открытых папках нет git-репозитория.</div>
   {:else}
