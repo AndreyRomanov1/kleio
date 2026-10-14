@@ -1,0 +1,71 @@
+:root {
+  --g0: var(--vscode-charts-blue);
+  --g1: var(--vscode-charts-green);
+  --g2: var(--vscode-charts-orange);
+  --g3: var(--vscode-charts-purple);
+  --g4: var(--vscode-charts-red);
+  --g5: var(--vscode-charts-yellow);
+  --g6: var(--vscode-terminal-ansiCyan);
+  --g7: var(--vscode-terminal-ansiMagenta);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--vscode-editor-background);
+  color: var(--vscode-foreground);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  user-select: none;
+}
+
+input,
+select {
+  padding: 3px 6px;
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 2px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  font: inherit;
+  outline: none;
+}
+
+input:focus,
+select:focus {
+  border-color: var(--vscode-focusBorder);
+}
+
+input::placeholder {
+  color: var(--vscode-input-placeholderForeground);
+}
+
+button:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--vscode-scrollbarSlider-background);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}

@@ -1,0 +1,214 @@
+import { layoutGraph, type GraphLayout } from '../shared/graph';
+import type { Commit, CommitDetails, Ref, RepositorySnapshot, Stash, Worktree } from '../shared/model';
+import type { ChangeSetView, HostMessage, RepositoryInfo } from '../shared/protocol';
+import { post } from './vscode';
+
+export interface Decorations {
+  refs: Ref[];
+  isHead: boolean;
+  worktrees: Worktree[];
+}
+
+export interface Details {
+  commits: CommitDetails[];
+  changeSet: ChangeSetView;
+}
+
+/** Everything the log UI shows, filled from host messages. Large lists are kept raw (not deeply reactive). */
+export class LogStore {
+  repositories = $state.raw<RepositoryInfo[]>([]);
+  snapshot = $state.raw<RepositorySnapshot | undefined>(undefined);
+  focus = $state.raw<string[]>([]);
+  favorites = $state.raw<string[]>([]);
+  loading = $state(false);
+  noRepository = $state(false);
+  filterText = $state('');
+  selected = $state.raw<ReadonlySet<string>>(new Set());
+  details = $state.raw<Details | undefined>(undefined);
+  /** Bumped to ask the commit list to scroll to the first selected commit. */
+  revealRequest = $state(0);
+
+  private anchor?: string;
+  private requestId = 0;
+  private pendingReveal?: string;
+
+  layout: GraphLayout = $derived(layoutGraph(this.snapshot?.commits ?? []));
+
+  indexByHash: ReadonlyMap<string, number> = $derived(
+    new Map((this.snapshot?.commits ?? []).map((c, i) => [c.hash, i])),
+  );
+
+  decorations: ReadonlyMap<string, Decorations> = $derived.by(() => {
+    const map = new Map<string, Decorations>();
+    const snapshot = this.snapshot;
+    if (!snapshot) return map;
+    const get = (hash: string) => {
+      let d = map.get(hash);
+      if (!d) map.set(hash, (d = { refs: [], isHead: false, worktrees: [] }));
+      return d;
+    };
+    for (const ref of snapshot.refs) get(ref.hash).refs.push(ref);
+    if (snapshot.head.hash) get(snapshot.head.hash).isHead = true;
+    for (const worktree of snapshot.worktrees)
+      if (worktree.head && !worktree.isCurrent) get(worktree.head).worktrees.push(worktree);
+    return map;
+  });
+
+  /** Indexes of commits passing the text filter; undefined when no filter is set. */
+  filtered: number[] | undefined = $derived.by(() => {
+    const text = this.filterText.trim().toLowerCase();
+    const commits = this.snapshot?.commits;
+    if (!text || !commits) return undefined;
+    const result: number[] = [];
+    commits.forEach((c, i) => {
+      if (
+        c.subject.toLowerCase().includes(text) ||
+        c.authorName.toLowerCase().includes(text) ||
+        c.authorEmail.toLowerCase().includes(text) ||
+        c.hash.startsWith(text)
+      ) {
+        result.push(i);
+      }
+    });
+    return result;
+  });
+
+  get rowCount(): number {
+    return this.filtered?.length ?? this.snapshot?.commits.length ?? 0;
+  }
+
+  commitIndexAt(row: number): number {
+    return this.filtered ? this.filtered[row] : row;
+  }
+
+  rowOf(hash: string): number | undefined {
+    const index = this.indexByHash.get(hash);
+    if (index === undefined) return undefined;
+    if (!this.filtered) return index;
+    const row = this.filtered.indexOf(index);
+    return row < 0 ? undefined : row;
+  }
+
+  handle(message: HostMessage): void {
+    switch (message.type) {
+      case 'snapshot':
+        this.noRepository = false;
+        this.repositories = message.repositories;
+        this.snapshot = message.snapshot;
+        this.focus = message.focus;
+        this.favorites = message.favorites;
+        this.afterSnapshot();
+        break;
+      case 'noRepository':
+        this.noRepository = true;
+        break;
+      case 'loading':
+        this.loading = message.value;
+        break;
+      case 'details':
+        if (message.requestId === this.requestId)
+          this.details = { commits: message.commits, changeSet: message.changeSet };
+        break;
+      case 'revealCommit':
+        this.reveal(message.hash);
+        break;
+    }
+  }
+
+  /** Selection handling for clicks: plain, with Ctrl/Cmd (toggle) and with Shift (range). */
+  click(hash: string, toggle: boolean, range: boolean): void {
+    if (range && this.anchor !== undefined) {
+      const from = this.rowOf(this.anchor);
+      const to = this.rowOf(hash);
+      if (from !== undefined && to !== undefined) {
+        const next = new Set<string>();
+        for (let r = Math.min(from, to); r <= Math.max(from, to); r++) next.add(this.commitAt(r).hash);
+        this.select(next);
+        return;
+      }
+    }
+    if (toggle) {
+      const next = new Set(this.selected);
+      if (next.has(hash)) next.delete(hash);
+      else next.add(hash);
+      this.anchor = hash;
+      this.select(next);
+      return;
+    }
+    this.anchor = hash;
+    this.select(new Set([hash]));
+  }
+
+  /** Moves the selection with the keyboard. */
+  step(delta: number, extend: boolean): void {
+    if (this.rowCount === 0) return;
+    const current = this.lastSelectedRow();
+    const row = Math.max(0, Math.min(this.rowCount - 1, (current ?? -1) + delta));
+    const hash = this.commitAt(row).hash;
+    if (extend) {
+      this.click(hash, false, true);
+    } else {
+      this.anchor = hash;
+      this.select(new Set([hash]));
+    }
+    this.revealRequest++;
+  }
+
+  reveal(hash: string): void {
+    if (this.indexByHash.has(hash)) {
+      this.filterText = '';
+      this.anchor = hash;
+      this.select(new Set([hash]));
+      this.revealRequest++;
+    } else {
+      this.pendingReveal = hash;
+    }
+  }
+
+  showStash(stash: Stash): void {
+    this.selected = new Set();
+    this.details = undefined;
+    post({ type: 'showStash', requestId: ++this.requestId, hash: stash.hash });
+  }
+
+  commitAt(row: number): Commit {
+    return this.snapshot!.commits[this.commitIndexAt(row)];
+  }
+
+  private lastSelectedRow(): number | undefined {
+    if (this.anchor === undefined) return undefined;
+    return this.rowOf(this.anchor);
+  }
+
+  private select(hashes: Set<string>): void {
+    this.selected = hashes;
+    const ordered = [...hashes].sort(
+      (a, b) => (this.indexByHash.get(a) ?? 0) - (this.indexByHash.get(b) ?? 0),
+    );
+    if (ordered.length === 0) {
+      this.details = undefined;
+      return;
+    }
+    post({ type: 'selectCommits', requestId: ++this.requestId, hashes: ordered });
+  }
+
+  private afterSnapshot(): void {
+    if (this.pendingReveal && this.indexByHash.has(this.pendingReveal)) {
+      const hash = this.pendingReveal;
+      this.pendingReveal = undefined;
+      this.reveal(hash);
+      return;
+    }
+    const kept = [...this.selected].filter((h) => this.indexByHash.has(h));
+    if (kept.length > 0) {
+      if (kept.length !== this.selected.size) this.select(new Set(kept));
+      return;
+    }
+    const head = this.snapshot?.head.hash;
+    if (head && this.indexByHash.has(head)) {
+      this.anchor = head;
+      this.select(new Set([head]));
+      this.revealRequest++;
+    }
+  }
+}
