@@ -25,6 +25,27 @@ The UI is in Russian for now.
   revert, compare with the working tree.
 - The log lives in the bottom panel (movable anywhere), in an editor tab, or in a separate window.
 
+## Key bindings
+
+`F7` / `Shift+F7` in Grove diffs go through changes and continue into the next file. Keymap extensions (e.g.
+IntelliJ IDEA Keybindings) bind the same keys in diff editors, and between two extensions VS Code picks one
+unpredictably. User key bindings always win, so add these to `keybindings.json` if F7 stays within one file:
+
+```json
+[
+  {
+    "key": "f7",
+    "command": "grove.diff.nextChange",
+    "when": "grove.inChangeSet && textCompareEditorVisible"
+  },
+  {
+    "key": "shift+f7",
+    "command": "grove.diff.previousChange",
+    "when": "grove.inChangeSet && textCompareEditorVisible"
+  }
+]
+```
+
 ## Development
 
 ```sh
