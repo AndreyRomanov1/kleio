@@ -195,7 +195,16 @@
     flex: 1;
     container-type: inline-size;
   }
-  @container (max-width: 720px) {
+  .header,
+  .row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--author-width) var(--date-width) 82px;
+    column-gap: 8px;
+    align-items: center;
+    padding: 0 8px 0 4px;
+  }
+  /* After the base grid: narrow logs drop the hash, then the author column. */
+  @container (max-width: 560px) {
     .header,
     .row {
       grid-template-columns: minmax(0, 1fr) var(--author-width) var(--date-width);
@@ -205,7 +214,7 @@
       display: none;
     }
   }
-  @container (max-width: 520px) {
+  @container (max-width: 440px) {
     .header,
     .row {
       grid-template-columns: minmax(0, 1fr) var(--date-width);
@@ -214,14 +223,6 @@
     .row > .author {
       display: none;
     }
-  }
-  .header,
-  .row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) var(--author-width) var(--date-width) 82px;
-    column-gap: 8px;
-    align-items: center;
-    padding: 0 8px 0 4px;
   }
   .header {
     flex: none;
