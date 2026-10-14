@@ -1,3 +1,4 @@
+import type { CommitWebviewMessage } from '../shared/commitProtocol';
 import type { WebviewMessage } from '../shared/protocol';
 
 interface VsCodeApi {
@@ -12,6 +13,19 @@ const api = acquireVsCodeApi();
 
 export function post(message: WebviewMessage): void {
   api.postMessage(message);
+}
+
+export function postCommit(message: CommitWebviewMessage): void {
+  api.postMessage(message);
+}
+
+/** Per-view state of webviews other than the log (each webview keeps its own state). */
+export function loadState<T extends object>(defaults: T): T {
+  return { ...defaults, ...((api.getState() as Partial<T> | undefined) ?? {}) };
+}
+
+export function saveState(state: object): void {
+  api.setState(state);
 }
 
 export interface UiState {
