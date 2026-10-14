@@ -2,7 +2,9 @@ import * as vscode from 'vscode';
 import type { MergeRequestCardView } from '../../shared/protocol';
 import type { Repository } from '../git/repository';
 import { GitLabApiError, type GitLabApi } from './gitlabApi';
-import { buildCard } from './mergeRequestCard';
+import { buildCard, type ChildJobs } from './mergeRequestCard';
+
+const MAX_CHILD_PIPELINES = 10;
 import type { HostingService } from './hostingService';
 import { cleanLog } from './jobLogText';
 
@@ -37,12 +39,12 @@ export class MergeRequestCards implements vscode.TextDocumentContentProvider, vs
     return this.hosting.auth.connect(links.remote.host);
   }
 
-  async openJobLog(repository: Repository, jobId: number, name: string): Promise<void> {
+  async openJobLog(repository: Repository, jobId: number, name: string, projectId?: number): Promise<void> {
     const api = await this.hosting.gitlab(repository, true);
     if (!api) return;
     const text = await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Window, title: `Grove: лог джобы ${name}` },
-      () => api.jobLog(jobId),
+      () => api.jobLog(jobId, projectId),
     );
     const uri = vscode.Uri.from({ scheme: LOG_SCHEME, path: `/${jobId}/${name.replace(/[/\\]/g, '_')}.log` });
     this.logs.set(uri.toString(), cleanLog(text));
@@ -67,8 +69,24 @@ export class MergeRequestCards implements vscode.TextDocumentContentProvider, vs
 
   private async load(api: GitLabApi, number: number): Promise<MergeRequestCardView> {
     const [details, approvals] = await Promise.all([api.mergeRequest(number), api.approvals(number)]);
-    const jobs = details.pipeline ? await api.jobs(details.pipeline.id) : [];
-    return buildCard(details, approvals, jobs);
+    if (!details.pipeline) return buildCard(details, approvals, []);
+    const [jobs, bridges] = await Promise.all([
+      api.jobs(details.pipeline.id),
+      api.bridges(details.pipeline.id).catch(() => []),
+    ]);
+    // Child pipelines are few (deploys started by hand), so their jobs are loaded with the card.
+    const children: ChildJobs = {};
+    await Promise.all(
+      bridges
+        .filter((b) => b.downstream)
+        .slice(0, MAX_CHILD_PIPELINES)
+        .map(async (b) => {
+          children[b.downstream!.id] = await api
+            .jobs(b.downstream!.id, b.downstream!.projectId)
+            .catch(() => []);
+        }),
+    );
+    return buildCard(details, approvals, jobs, bridges, children);
   }
 
   dispose(): void {

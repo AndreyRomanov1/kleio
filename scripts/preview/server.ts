@@ -203,8 +203,13 @@ async function handle(repository: Repository, message: WebviewMessage): Promise<
           api.approvals(message.number),
         ]);
         const jobs = details.pipeline ? await api.jobs(details.pipeline.id) : [];
+        const bridges = details.pipeline ? await api.bridges(details.pipeline.id).catch(() => []) : [];
+        const children: Record<number, Awaited<ReturnType<GitLabApi['jobs']>>> = {};
+        for (const bridge of bridges.filter((b) => b.downstream)) {
+          children[bridge.downstream!.id] = await api.jobs(bridge.downstream!.id, bridge.downstream!.projectId);
+        }
         return [
-          { type: 'mergeRequestCard', number: message.number, card: buildCard(details, approvals, jobs) },
+          { type: 'mergeRequestCard', number: message.number, card: buildCard(details, approvals, jobs, bridges, children) },
         ];
       } catch (error) {
         return [{ type: 'mergeRequestCard', number: message.number, error: String(error) }];

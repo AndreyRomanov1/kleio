@@ -1,13 +1,8 @@
 <script lang="ts">
-  import {
-    formatDuration,
-    mergeRequestStateLabel,
-    mergeRequestTone,
-    mergeStatusLabel,
-    pipelineIcons,
-  } from '../hostingView';
+  import { mergeRequestStateLabel, mergeRequestTone, mergeStatusLabel, pipelineIcons } from '../hostingView';
   import type { LogStore } from '../store.svelte';
   import { post } from '../vscode';
+  import PipelineStages from './PipelineStages.svelte';
 
   interface Props {
     store: LogStore;
@@ -122,28 +117,7 @@
               >
             {/if}
           </div>
-          {#each pipeline.stages as stage (stage.name)}
-            <div class="stage">
-              <span class="stage-name">{stage.name}</span>
-              <div class="jobs">
-                {#each stage.jobs as job (job.id)}
-                  {@const jobIcon = pipelineIcons[job.status]}
-                  <button
-                    class="job {jobIcon.tone}"
-                    class:allowed={job.allowFailure && job.status === 'failed'}
-                    title="{job.name}: {jobIcon.label.replace('пайплайн', 'джоба')}{job.allowFailure
-                      ? ' (падение допустимо)'
-                      : ''} — открыть лог"
-                    onclick={() => post({ type: 'openJobLog', jobId: job.id, name: job.name })}
-                  >
-                    <i class="codicon codicon-{jobIcon.icon}"></i>{job.name}
-                    {#if job.duration !== undefined}<span class="muted">{formatDuration(job.duration)}</span
-                      >{/if}
-                  </button>
-                {/each}
-              </div>
-            </div>
-          {/each}
+          <PipelineStages stages={pipeline.stages} />
         </div>
       {:else}
         <div class="section muted">Пайплайна нет</div>
@@ -268,55 +242,15 @@
   .person.approved .codicon {
     color: var(--vscode-charts-green);
   }
-  .stage {
-    display: flex;
-    gap: 8px;
-    padding: 3px 0;
-  }
-  .stage-name {
-    flex: none;
-    width: 70px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    opacity: 0.7;
-  }
-  .jobs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-  .job {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 1px 6px;
-    border: 1px solid var(--vscode-widget-border);
-    border-radius: 10px;
-    background: none;
-    color: inherit;
-    font: inherit;
-    font-size: 0.92em;
-    cursor: pointer;
-  }
-  .job:hover {
-    background: var(--vscode-toolbar-hoverBackground);
-  }
-  .ok .codicon,
   .status.ok {
     color: var(--vscode-charts-green);
   }
-  .bad .codicon,
   .status.bad {
     color: var(--vscode-charts-red);
   }
-  .job.allowed .codicon {
-    color: var(--vscode-charts-orange);
-  }
-  .run .codicon,
   .status.run {
     color: var(--vscode-charts-blue);
   }
-  .idle .codicon,
   .status.idle {
     opacity: 0.6;
   }

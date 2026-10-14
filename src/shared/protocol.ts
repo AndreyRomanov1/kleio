@@ -56,6 +56,24 @@ export interface MergeRequestInfoView {
   draft: boolean;
 }
 
+export interface PipelineJobView {
+  id: number;
+  name: string;
+  status: PipelineStatusView;
+  duration?: number;
+  allowFailure: boolean;
+  /** Set for jobs of a child pipeline in another project. */
+  projectId?: number;
+  /** Set for a trigger job; `child` once its child pipeline has started. */
+  bridge?: boolean;
+  child?: { id: number; status: PipelineStatusView; webUrl: string; stages: PipelineStageView[] };
+}
+
+export interface PipelineStageView {
+  name: string;
+  jobs: PipelineJobView[];
+}
+
 export interface MergeRequestCardView {
   iid: number;
   title: string;
@@ -77,16 +95,7 @@ export interface MergeRequestCardView {
     id: number;
     status: PipelineStatusView;
     webUrl: string;
-    stages: {
-      name: string;
-      jobs: {
-        id: number;
-        name: string;
-        status: PipelineStatusView;
-        duration?: number;
-        allowFailure: boolean;
-      }[];
-    }[];
+    stages: PipelineStageView[];
   };
 }
 
@@ -151,7 +160,7 @@ export type WebviewMessage =
   | { type: 'openMergeRequest'; number: number }
   | { type: 'loadMergeRequestCard'; number: number }
   | { type: 'connectHosting'; number?: number }
-  | { type: 'openJobLog'; jobId: number; name: string }
+  | { type: 'openJobLog'; jobId: number; name: string; projectId?: number }
   | { type: 'retryPipeline'; pipelineId: number; number: number }
   /** Double click on a commit: its diff, or in a history view the diff of the file in that commit. */
   | { type: 'openCommitDiff'; hash: string }
