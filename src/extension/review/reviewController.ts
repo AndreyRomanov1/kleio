@@ -101,6 +101,8 @@ export class ReviewController implements vscode.Disposable {
       vscode.commands.registerCommand('grove.review.refresh', () => this.reload()),
       vscode.commands.registerCommand('grove.review.end', () => this.end()),
       vscode.commands.registerCommand('grove.review.openJournal', () => this.journal.open()),
+      vscode.commands.registerCommand('grove.review.nextComment', () => this.moveToComment(1)),
+      vscode.commands.registerCommand('grove.review.previousComment', () => this.moveToComment(-1)),
     ];
   }
 
@@ -403,6 +405,61 @@ export class ReviewController implements vscode.Disposable {
       if (choice === retry) return this.deliver(entry, request);
       if (choice === journal) await this.journal.open();
       return false;
+    }
+  }
+
+  /** Jumps to the next or previous review thread in the order of files of the merge request, then lines. */
+  private async moveToComment(direction: 1 | -1): Promise<void> {
+    const session = this.session;
+    if (!session) return;
+    const order = (uri: vscode.Uri) => {
+      const placed = session.documents.get(uri.toString());
+      return placed ? session.files.indexOf(placed.file) : -1;
+    };
+    const targets = session.threads
+      .filter((t) => t.range)
+      .map((thread) => ({ thread, file: order(thread.uri), line: thread.range!.start.line }))
+      .filter((t) => t.file >= 0)
+      .sort((a, b) => a.file - b.file || a.line - b.line);
+    if (targets.length === 0) {
+      vscode.window.setStatusBarMessage('Grove: в MR нет замечаний к текущей версии', 3000);
+      return;
+    }
+    const editor = vscode.window.activeTextEditor;
+    const file = editor ? order(editor.document.uri) : -1;
+    const line = editor?.selection.active.line ?? -1;
+    const after = (t: (typeof targets)[number]) => t.file > file || (t.file === file && t.line > line);
+    const before = (t: (typeof targets)[number]) => t.file < file || (t.file === file && t.line < line);
+    const target = direction === 1 ? targets.find(after) : [...targets].reverse().find(before);
+    if (!target) {
+      vscode.window.setStatusBarMessage(
+        direction === 1 ? 'Grove: это последнее замечание' : 'Grove: это первое замечание',
+        3000,
+      );
+      return;
+    }
+    target.thread.collapsibleState = vscode.CommentThreadCollapsibleState.Expanded;
+    const visible = vscode.window.visibleTextEditors.find(
+      (e) => e.document.uri.toString() === target.thread.uri.toString(),
+    );
+    if (visible && target.file === file) {
+      const position = new vscode.Position(target.line, 0);
+      visible.selection = new vscode.Selection(position, position);
+      visible.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+      return;
+    }
+    const placed = session.documents.get(target.thread.uri.toString())!;
+    const index = session.changeSet.files.findIndex((f) => f.path === placed.file.change.path);
+    // The diff reveals lines of its new side; a thread on a removed line is shown at its place on the old side.
+    await this.navigator.open(session.changeSet, index, 'first', {
+      line: placed.side === 'new' ? target.line : undefined,
+    });
+    if (placed.side === 'old') {
+      const left = vscode.window.visibleTextEditors.find(
+        (e) => e.document.uri.toString() === target.thread.uri.toString(),
+      );
+      const position = new vscode.Position(target.line, 0);
+      if (left) left.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
     }
   }
 

@@ -202,6 +202,13 @@ const tests: Test[] = [
       assert.equal(existing.uri, diff.modified.toString());
       assert.deepEqual(existing.comments, ['Почему так?']);
 
+      const modified = vscode.window.visibleTextEditors.find(
+        (e) => e.document.uri.toString() === diff.modified.toString(),
+      )!;
+      modified.selection = new vscode.Selection(0, 0, 0, 0);
+      await vscode.commands.executeCommand('grove.review.nextComment');
+      assert.equal(modified.selection.active.line, 24, 'next review comment is the thread on line 25');
+
       // A comment typed on a changed line and on an unchanged one: GitLab needs one or both line numbers.
       const thread = (uri: vscode.Uri, line: number) => ({
         uri,

@@ -222,6 +222,18 @@
         "command": "grove.review.openJournal",
         "title": "Журнал комментариев ревью",
         "category": "Grove"
+      },
+      {
+        "command": "grove.review.previousComment",
+        "title": "Предыдущее замечание ревью",
+        "category": "Grove",
+        "icon": "$(arrow-circle-up)"
+      },
+      {
+        "command": "grove.review.nextComment",
+        "title": "Следующее замечание ревью",
+        "category": "Grove",
+        "icon": "$(arrow-circle-down)"
       }
     ],
     "menus": {
@@ -277,6 +289,16 @@
           "command": "grove.review.refresh",
           "when": "grove.reviewActive && grove.inChangeSet",
           "group": "navigation@-2"
+        },
+        {
+          "command": "grove.review.previousComment",
+          "when": "grove.reviewActive && grove.inChangeSet",
+          "group": "navigation@-5"
+        },
+        {
+          "command": "grove.review.nextComment",
+          "when": "grove.reviewActive && grove.inChangeSet",
+          "group": "navigation@-4"
         }
       ],
       "commandPalette": [
@@ -346,6 +368,14 @@
         },
         {
           "command": "grove.review.end",
+          "when": "grove.reviewActive"
+        },
+        {
+          "command": "grove.review.previousComment",
+          "when": "grove.reviewActive"
+        },
+        {
+          "command": "grove.review.nextComment",
           "when": "grove.reviewActive"
         }
       ],
