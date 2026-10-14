@@ -1,8 +1,10 @@
 export interface MenuItem {
   label: string;
   hint?: string;
+  icon?: string;
   disabled?: boolean;
-  run: () => void;
+  run?: () => void;
+  submenu?: MenuEntry[];
 }
 
 export type MenuEntry = MenuItem | 'separator';
