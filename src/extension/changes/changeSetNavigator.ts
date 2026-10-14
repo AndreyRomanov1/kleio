@@ -17,6 +17,15 @@ interface OpenedFile {
 
 type Edge = 'first' | 'last';
 
+export interface ShowOptions {
+  /** Group for the first diff; later files of the set replace it in place. */
+  viewColumn?: vscode.ViewColumn;
+  /** Keep focus where it is, e.g. in a history list browsed with arrow keys. */
+  preserveFocus?: boolean;
+  /** 0-based line of the new side to reveal instead of the first change. */
+  line?: number;
+}
+
 interface EdgeHint {
   direction: 1 | -1;
   index: number;
@@ -43,6 +52,13 @@ export class ChangeSetNavigator implements vscode.Disposable {
     },
   });
   private hintTimer?: NodeJS.Timeout;
+  private readonly renameDecoration = vscode.window.createTextEditorDecorationType({
+    after: {
+      color: new vscode.ThemeColor('descriptionForeground'),
+      fontStyle: 'italic',
+      margin: '0 0 0 3em',
+    },
+  });
   private readonly disposables: vscode.Disposable[] = [];
 
   constructor() {
@@ -51,6 +67,8 @@ export class ChangeSetNavigator implements vscode.Disposable {
       vscode.window.onDidChangeActiveTextEditor(() => this.updateContext()),
       vscode.window.onDidChangeTextEditorSelection((e) => this.onSelectionChanged(e)),
       this.hintDecoration,
+      this.renameDecoration,
+      vscode.window.onDidChangeVisibleTextEditors(() => this.markRename()),
       vscode.commands.registerCommand('grove.diff.nextChange', () => this.moveChange(1)),
       vscode.commands.registerCommand('grove.diff.previousChange', () => this.moveChange(-1)),
       vscode.commands.registerCommand('grove.diff.nextFile', () => this.moveFile(1)),
@@ -60,7 +78,12 @@ export class ChangeSetNavigator implements vscode.Disposable {
     );
   }
 
-  async open(changeSet: ChangeSet, index: number, edge: Edge = 'first'): Promise<void> {
+  async open(
+    changeSet: ChangeSet,
+    index: number,
+    edge: Edge = 'first',
+    show: ShowOptions = {},
+  ): Promise<void> {
     const change = changeSet.files[index];
     if (!change) return;
     const { repository, left, right } = changeSet;
@@ -78,10 +101,12 @@ export class ChangeSetNavigator implements vscode.Disposable {
     this.current = { changeSet, index, left: leftUri, right: rightUri, hunks };
     this.clearEdgeHint();
     const target = edge === 'first' ? hunks[0] : hunks[hunks.length - 1];
-    const line = target ? hunkLine(target, 'right') : 0;
-    const title = `${path.basename(change.path)} (${describeRange(changeSet)}) — ${index + 1}/${changeSet.files.length}`;
+    const line = show.line ?? (target ? hunkLine(target, 'right') : 0);
+    const moved = change.oldPath && change.oldPath !== change.path ? ' — перемещён' : '';
+    const title = `${path.basename(change.path)}${moved} (${describeRange(changeSet)}) — ${index + 1}/${changeSet.files.length}`;
     const options: vscode.TextDocumentShowOptions = {
       preview: true,
+      preserveFocus: show.preserveFocus,
       selection: new vscode.Range(line, 0, line, 0),
     };
 
@@ -94,12 +119,44 @@ export class ChangeSetNavigator implements vscode.Disposable {
         ...options,
         viewColumn: previous.group.viewColumn,
       });
-      await this.moveActiveTabTo(previous.index);
+      if (!show.preserveFocus) await this.moveActiveTabTo(previous.index);
     } else {
-      await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title, options);
+      await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title, {
+        ...options,
+        viewColumn: previous?.group.viewColumn ?? show.viewColumn,
+      });
       if (previous) await vscode.window.tabGroups.close(previous.tab, true);
     }
+    this.markRename();
     this.updateContext();
+  }
+
+  /** A moved file looks unchanged inside the diff, so its old and new paths are shown on the first line. */
+  private markRename(): void {
+    const current = this.current;
+    const change = current?.changeSet.files[current.index];
+    for (const editor of vscode.window.visibleTextEditors) {
+      const uri = editor.document.uri.toString();
+      const isLeft = uri === current?.left.toString();
+      const isRight = uri === current?.right.toString();
+      if (
+        !change?.oldPath ||
+        change.oldPath === change.path ||
+        (!isLeft && !isRight) ||
+        editor.document.lineCount === 0
+      ) {
+        editor.setDecorations(this.renameDecoration, []);
+        continue;
+      }
+      const unchanged = current!.hunks.length === 0 ? ', содержимое не изменилось' : '';
+      const text = isRight
+        ? `⟵ перемещён из ${change.oldPath}${unchanged}`
+        : `⟶ перемещён в ${change.path}${unchanged}`;
+      const end = editor.document.lineAt(0).range.end;
+      editor.setDecorations(this.renameDecoration, [
+        { range: new vscode.Range(end, end), renderOptions: { after: { contentText: text } } },
+      ]);
+    }
   }
 
   /** The tab of the previously shown file, if it can be replaced: not the same file, not edited, not pinned. */
