@@ -13,10 +13,7 @@ export class GitActions {
     if (ref.kind === 'tag') return this.checkoutRevision(repository, ref.name);
     if (snapshot.head.branch === ref.name) return;
     const busy = snapshot.worktrees.find((w) => w.branch === ref.name && !w.isCurrent);
-    if (busy) {
-      void vscode.window.showWarningMessage(`Ветка ${ref.name} уже открыта в worktree ${busy.path}.`);
-      return;
-    }
+    if (busy) return this.offerWorktree(ref.name, busy.path);
     await this.run(repository, `Checkout ${ref.name}`, ['checkout', ref.name]);
   }
 
@@ -44,12 +41,7 @@ export class GitActions {
     }
 
     const busy = snapshot.worktrees.find((w) => w.branch === localName && !w.isCurrent);
-    if (busy) {
-      void vscode.window.showWarningMessage(
-        `Ветка ${localName} открыта в worktree ${busy.path} — переключиться на неё здесь нельзя.`,
-      );
-      return;
-    }
+    if (busy) return this.offerWorktree(localName, busy.path);
 
     const { ahead, behind } = await repository.aheadBehind(local.name, remote.name);
     if (ahead === 0) {
@@ -84,6 +76,25 @@ export class GitActions {
     } else if (choice === keep && snapshot.head.branch !== localName) {
       await this.run(repository, `Checkout ${localName}`, ['checkout', localName]);
     }
+  }
+
+  /** A branch checked out in another worktree cannot be checked out here; its worktree can be opened instead. */
+  private async offerWorktree(branch: string, worktreePath: string): Promise<void> {
+    const newWindow = 'Открыть в новом окне';
+    const thisWindow = 'Открыть в этом окне';
+    const choice = await vscode.window.showInformationMessage(
+      `Ветка ${branch} открыта в worktree ${worktreePath}.`,
+      {
+        modal: true,
+        detail: 'Одна ветка не может быть выбрана в двух worktree сразу — работать с ней нужно там.',
+      },
+      newWindow,
+      thisWindow,
+    );
+    if (!choice) return;
+    await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(worktreePath), {
+      forceNewWindow: choice === newWindow,
+    });
   }
 
   async checkoutRevision(repository: Repository, revision: string): Promise<void> {
@@ -145,6 +156,22 @@ export class GitActions {
       );
       if (force) await this.run(repository, `Удаление ${ref.name}`, ['branch', '-D', ref.name]);
     }
+  }
+
+  async deleteRemoteBranch(repository: Repository, ref: Ref): Promise<void> {
+    if (ref.kind !== 'remote') return;
+    const slash = ref.name.indexOf('/');
+    const remote = ref.name.slice(0, slash);
+    const branch = ref.name.slice(slash + 1);
+    const ok = await vscode.window.showWarningMessage(
+      `Удалить ветку ${branch} в ${remote}?`,
+      {
+        modal: true,
+        detail: `Выполнится git push ${remote} --delete ${branch}. Ветка пропадёт на сервере для всех; локальная ветка ${branch}, если есть, останется.`,
+      },
+      'Удалить в ' + remote,
+    );
+    if (ok) await this.run(repository, `Удаление ${ref.name}`, ['push', remote, '--delete', branch], true);
   }
 
   async revert(repository: Repository, hash: string, parents: string[]): Promise<void> {

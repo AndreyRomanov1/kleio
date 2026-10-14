@@ -246,6 +246,8 @@ export class LogController implements vscode.Disposable {
         );
       case 'deleteBranch':
         return actions.deleteBranch(repository, snapshot, ref);
+      case 'deleteRemoteBranch':
+        return actions.deleteRemoteBranch(repository, ref);
       case 'fetchBranch':
         return actions.fetch(
           repository,

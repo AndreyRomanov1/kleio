@@ -4,14 +4,29 @@ import type { MenuEntry } from './menu.svelte';
 import type { LogStore } from './store.svelte';
 import { post } from './vscode';
 
-export function commitMenu(commit: Commit): MenuEntry[] {
+const refIcons: Record<Ref['kind'], string> = { head: 'git-branch', remote: 'cloud', tag: 'tag' };
+
+/** Branches pointing at the commit come first, each with its own actions, as in Rider. */
+export function commitMenu(commit: Commit, store: LogStore): MenuEntry[] {
   const action = (a: Parameters<typeof post>[0] & { type: 'commitAction' }) => () => post(a);
   const hash = commit.hash;
+  const order = { head: 0, remote: 1, tag: 2 };
+  const refs = [...(store.decorations.get(hash)?.refs ?? [])].sort((a, b) => order[a.kind] - order[b.kind]);
+  const branchEntries: MenuEntry[] = refs.map((ref) => ({
+    label: ref.name,
+    icon: refIcons[ref.kind],
+    submenu: refMenu(ref, store),
+  }));
   return [
+    ...branchEntries,
+    ...(branchEntries.length ? (['separator'] as const) : []),
     { label: 'Копировать хэш', run: action({ type: 'commitAction', action: 'copyHash', hash }) },
     { label: 'Копировать заголовок', run: action({ type: 'commitAction', action: 'copySubject', hash }) },
     'separator',
-    { label: 'Checkout ревизии', run: action({ type: 'commitAction', action: 'checkout', hash }) },
+    {
+      label: 'Checkout ревизии (без ветки)',
+      run: action({ type: 'commitAction', action: 'checkout', hash }),
+    },
     { label: 'Новая ветка…', run: action({ type: 'commitAction', action: 'newBranch', hash }) },
     { label: 'Новый тег…', run: action({ type: 'commitAction', action: 'newTag', hash }) },
     'separator',
@@ -30,10 +45,28 @@ export function refMenu(ref: Ref, store: LogStore): MenuEntry[] {
   const isCurrent = ref.kind === 'head' && store.snapshot?.head.branch === ref.name;
   const favorite = store.favorites.includes(fullName);
   const focused = store.focus.includes(ref.name);
-  const entries: MenuEntry[] = [
+  const worktree =
+    ref.kind === 'head'
+      ? store.snapshot?.worktrees.find((w) => w.branch === ref.name && !w.isCurrent)
+      : undefined;
+  const entries: MenuEntry[] = worktree
+    ? [
+        {
+          label: `Открыть worktree ${worktree.path.split(/[\\/]/).pop()} в новом окне`,
+          icon: 'empty-window',
+          run: () => post({ type: 'openWorktree', path: worktree.path, newWindow: true }),
+        },
+        {
+          label: 'Открыть worktree в этом окне',
+          run: () => post({ type: 'openWorktree', path: worktree.path, newWindow: false }),
+        },
+        'separator',
+      ]
+    : [];
+  entries.push(
     {
       label: ref.kind === 'remote' ? 'Checkout (локальная ветка = origin)' : 'Checkout',
-      disabled: isCurrent,
+      disabled: isCurrent || !!worktree,
       run: run({ type: 'refAction', action: 'checkout', fullName }),
     },
     { label: 'Новая ветка отсюда…', run: run({ type: 'refAction', action: 'newBranch', fullName }) },
@@ -43,7 +76,7 @@ export function refMenu(ref: Ref, store: LogStore): MenuEntry[] {
       disabled: isCurrent,
       run: run({ type: 'refAction', action: 'showDiffWithCurrent', fullName }),
     },
-  ];
+  );
   if (ref.kind === 'remote' || ref.upstream) {
     entries.push({ label: 'Fetch ветки', run: run({ type: 'refAction', action: 'fetchBranch', fullName }) });
   }
@@ -66,6 +99,12 @@ export function refMenu(ref: Ref, store: LogStore): MenuEntry[] {
       label: 'Удалить ветку…',
       disabled: isCurrent,
       run: run({ type: 'refAction', action: 'deleteBranch', fullName }),
+    });
+  }
+  if (ref.kind === 'remote') {
+    entries.push({
+      label: `Удалить ветку в ${ref.name.slice(0, ref.name.indexOf('/'))}…`,
+      run: run({ type: 'refAction', action: 'deleteRemoteBranch', fullName }),
     });
   }
   return entries;

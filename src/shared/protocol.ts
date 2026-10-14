@@ -17,7 +17,13 @@ export type CommitAction =
   'checkout' | 'newBranch' | 'newTag' | 'revert' | 'copyHash' | 'copySubject' | 'compareWithWorktree';
 
 export type RefAction =
-  'checkout' | 'newBranch' | 'deleteBranch' | 'fetchBranch' | 'showDiffWithCurrent' | 'copyName';
+  | 'checkout'
+  | 'newBranch'
+  | 'deleteBranch'
+  | 'deleteRemoteBranch'
+  | 'fetchBranch'
+  | 'showDiffWithCurrent'
+  | 'copyName';
 
 export type FileAction = 'openDiff' | 'openCurrent' | 'openRevision' | 'compareWithWorktree' | 'copyPath';
 

@@ -16,6 +16,7 @@
     ref?: Ref;
     label: string;
     kind: 'head' | 'remote' | 'tag' | 'detached' | 'worktree';
+    worktree?: string;
     current: boolean;
     synced: boolean;
     title: string;
@@ -45,20 +46,26 @@
       if (folded.has(ref.fullName)) continue;
       const current = ref.kind === 'head' && head?.branch === ref.name;
       const synced = ref.kind === 'head' && !!ref.upstream && folded.has(ref.upstream);
+      const worktree =
+        ref.kind === 'head'
+          ? store.snapshot?.worktrees.find((w) => w.branch === ref.name && !w.isCurrent)
+          : undefined;
+      const notes = [
+        current ? 'текущая ветка' : '',
+        synced ? `= ${ref.upstream?.replace('refs/remotes/', '')}` : '',
+        worktree ? `открыта в worktree ${worktree.path}` : '',
+      ].filter(Boolean);
       result.push({
         ref,
         label: ref.name,
         kind: ref.kind,
         current,
         synced,
-        title: current
-          ? `${ref.name} — текущая ветка`
-          : synced
-            ? `${ref.name} = ${ref.upstream?.replace('refs/remotes/', '')}`
-            : ref.name,
+        worktree: worktree ? basename(worktree.path) : undefined,
+        title: notes.length ? `${ref.name} — ${notes.join(', ')}` : ref.name,
       });
     }
-    for (const worktree of decorations.worktrees) {
+    for (const worktree of decorations.worktrees.filter((w) => !w.branch)) {
       result.push({
         label: basename(worktree.path),
         kind: 'worktree',
@@ -85,6 +92,7 @@
     {#if badge.kind === 'worktree'}<i class="marker codicon codicon-repo"></i>{/if}
     {#if badge.kind === 'tag'}<i class="marker codicon codicon-tag"></i>{/if}
     {badge.label}
+    {#if badge.worktree}<i class="marker codicon codicon-repo"></i>{/if}
     {#if badge.synced}<i class="marker codicon codicon-cloud" aria-label="совпадает с origin"></i>{/if}
   </span>
 {/each}

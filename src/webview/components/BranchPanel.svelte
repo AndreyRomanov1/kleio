@@ -79,18 +79,17 @@
         prefix,
       );
     result.push({ key: 'section:local', title: 'Локальные', nodes: toTree(byKind('head'), 'local') });
-    result.push({ key: 'section:remote', title: 'Удалённые', nodes: toTree(byKind('remote'), 'remote') });
-
-    const worktrees = snapshot.worktrees.filter((w) => matches(w.path) || matches(w.branch ?? ''));
-    if (snapshot.worktrees.length > 1 && worktrees.length) {
+    const detached = snapshot.worktrees.filter((w) => !w.branch && !w.isCurrent && matches(w.path));
+    if (detached.length) {
       result.push({
         key: 'section:worktrees',
-        title: 'Worktree',
-        nodes: worktrees.map((w) =>
+        title: 'Worktree без ветки',
+        nodes: detached.map((w) =>
           leaf(`worktree:${w.path}`, basename(w.path), { kind: 'worktree', worktree: w }),
         ),
       });
     }
+    result.push({ key: 'section:remote', title: 'Удалённые', nodes: toTree(byKind('remote'), 'remote') });
 
     const stashes = snapshot.stashes.filter((s) => matches(s.message));
     if (stashes.length) {
@@ -178,7 +177,9 @@
                   class:current={ref.kind === 'head' && store.snapshot?.head.branch === ref.name}
                   title={ref.name}>{node.label}</span
                 >
-                {#if worktree}<i class="info codicon codicon-repo" title="Открыта в worktree {worktree.path}"
+                {#if worktree}<i
+                    class="info codicon codicon-repo"
+                    title="Ветка открыта в worktree {worktree.path} — ПКМ, чтобы открыть"
                   ></i>{/if}
                 {#if ref.upstreamGone}<span class="info gone" title="Ветка в origin удалена">origin</span
                   >{/if}

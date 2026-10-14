@@ -106,7 +106,7 @@
           }}
           oncontextmenu={(e) => {
             if (!store.selected.has(commit.hash)) store.click(commit.hash, false, false);
-            menu.show(e, commitMenu(commit));
+            menu.show(e, commitMenu(commit, store));
           }}
         >
           <span class="subject-cell">
