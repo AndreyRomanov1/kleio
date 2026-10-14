@@ -1,0 +1,137 @@
+import * as assert from 'node:assert/strict';
+import * as path from 'node:path';
+import * as vscode from 'vscode';
+import { commitChangeSet } from '../../src/extension/changes/changeSet';
+import type { GroveApi } from '../../src/extension/extension';
+import { REVISION_SCHEME, revisionUri } from '../../src/extension/content/revisionUri';
+
+type Test = [name: string, body: (api: GroveApi) => Promise<void>];
+
+const root = () => vscode.workspace.workspaceFolders![0].uri.fsPath;
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function waitFor<T>(probe: () => T | undefined, what: string, timeout = 5000): Promise<T> {
+  const started = Date.now();
+  for (;;) {
+    const value = probe();
+    if (value) return value;
+    if (Date.now() - started > timeout) throw new Error(`Timed out waiting for ${what}`);
+    await wait(50);
+  }
+}
+
+function activeDiff(): vscode.TabInputTextDiff | undefined {
+  const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+  return input instanceof vscode.TabInputTextDiff ? input : undefined;
+}
+
+async function headChangeSet(api: GroveApi) {
+  const repository = await api.repositories.get(root());
+  assert.ok(repository, 'repository is found');
+  const head = await repository.commitDetails('HEAD');
+  return commitChangeSet(repository, head.hash, head.parents);
+}
+
+const tests: Test[] = [
+  [
+    'finds the workspace repository',
+    async (api) => {
+      assert.deepEqual(
+        api.repositories.all.map((r) => path.basename(r.root)),
+        [path.basename(root())],
+      );
+    },
+  ],
+  [
+    'reads file contents of a revision',
+    async () => {
+      const document = await vscode.workspace.openTextDocument(revisionUri(root(), 'HEAD~1', 'a.txt'));
+      assert.equal(document.uri.scheme, REVISION_SCHEME);
+      assert.equal(document.lineAt(4).text, 'line 5');
+      assert.equal(document.languageId, 'plaintext');
+    },
+  ],
+  [
+    'opens a commit diff with the editable working file on the right',
+    async (api) => {
+      const changeSet = await headChangeSet(api);
+      assert.deepEqual(
+        changeSet.files.map((f) => `${f.status} ${f.path}`),
+        ['M a.txt', 'M b.txt', 'A c.txt'],
+      );
+      await api.navigator.open(changeSet, 0);
+      const diff = await waitFor(activeDiff, 'diff editor');
+      assert.equal(diff.original.scheme, REVISION_SCHEME);
+      assert.equal(diff.modified.scheme, 'file', 'unchanged-since-commit file is opened as the real file');
+      const editor = await waitFor(() => vscode.window.activeTextEditor, 'active editor');
+      assert.equal(editor.selection.active.line, 4, 'cursor starts at the first change');
+    },
+  ],
+  [
+    'F7 walks through changes and continues into the next file',
+    async (api) => {
+      await api.navigator.open(await headChangeSet(api), 0);
+      await waitFor(activeDiff, 'diff editor');
+      await vscode.commands.executeCommand('grove.diff.nextChange');
+      assert.equal(vscode.window.activeTextEditor?.selection.active.line, 24, 'second change of a.txt');
+
+      await vscode.commands.executeCommand('grove.diff.nextChange');
+      const next = await waitFor(() => {
+        const diff = activeDiff();
+        return diff && path.basename(diff.modified.fsPath) === 'b.txt' ? diff : undefined;
+      }, 'diff of b.txt');
+      assert.ok(next);
+
+      await vscode.commands.executeCommand('grove.diff.previousChange');
+      await waitFor(() => {
+        const diff = activeDiff();
+        return diff && path.basename(diff.modified.fsPath) === 'a.txt' ? diff : undefined;
+      }, 'back to a.txt');
+      await waitFor(
+        () => vscode.window.activeTextEditor?.selection.active.line === 24 || undefined,
+        'last change of a.txt',
+      );
+    },
+  ],
+  [
+    'shows an added file against an empty left side',
+    async (api) => {
+      await api.navigator.open(await headChangeSet(api), 2);
+      const diff = await waitFor(activeDiff, 'diff editor');
+      const left = await vscode.workspace.openTextDocument(diff.original);
+      assert.equal(left.getText(), '');
+    },
+  ],
+  [
+    'opens the log in an editor tab',
+    async (api) => {
+      const panel = api.logs.openInEditor();
+      assert.equal(panel.viewType, 'grove.logPanel');
+      await wait(500);
+      panel.dispose();
+    },
+  ],
+];
+
+export async function run(): Promise<void> {
+  const extension = vscode.extensions.getExtension<GroveApi>('aroma.grove');
+  assert.ok(extension, 'extension is installed');
+  const api = await extension.activate();
+
+  const failures: string[] = [];
+  for (const [name, body] of tests) {
+    try {
+      await body(api);
+      console.log(`  ✓ ${name}`);
+    } catch (error) {
+      failures.push(name);
+      console.log(
+        `  ✗ ${name}\n    ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`,
+      );
+    } finally {
+      await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+    }
+  }
+  console.log(`\n${tests.length - failures.length}/${tests.length} passed`);
+  if (failures.length) throw new Error(`${failures.length} integration test(s) failed`);
+}
