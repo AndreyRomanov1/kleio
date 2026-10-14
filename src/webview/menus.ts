@@ -149,6 +149,12 @@ export function refMenu(ref: Ref, store: LogStore): MenuEntry[] {
       disabled: isCurrent || !!worktree,
       run: run({ type: 'refAction', action: 'checkout', fullName }),
     },
+    {
+      label: 'Checkout в новый worktree…',
+      icon: 'new-folder',
+      disabled: isCurrent || !!worktree || ref.kind === 'tag',
+      run: run({ type: 'refAction', action: 'checkoutToWorktree', fullName }),
+    },
     { label: 'Новая ветка отсюда…', run: run({ type: 'refAction', action: 'newBranch', fullName }) },
     'separator',
     ...syncEntries(ref, store, isCurrent),

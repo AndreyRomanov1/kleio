@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs';
+import { copyFile, mkdir } from 'node:fs/promises';
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Ref, RepositorySnapshot } from '../../shared/model';
 import { GitError } from '../git/gitRunner';
@@ -125,6 +128,62 @@ export class GitActions {
       });
     }
     return true;
+  }
+
+  /**
+   * Checks the branch out into a new worktree next to the main folder (`shop-PROJ-1234` by default), copies
+   * the files the setting lists (local secrets and the like that git does not track) and opens it.
+   */
+  async checkoutToWorktree(repository: Repository, snapshot: RepositorySnapshot, ref: Ref): Promise<void> {
+    if (ref.kind === 'tag') return;
+    const branch = ref.kind === 'remote' ? ref.name.slice(ref.name.indexOf('/') + 1) : ref.name;
+    const busy = snapshot.worktrees.find((w) => w.branch === branch);
+    if (busy) return this.offerWorktree(branch, busy.path);
+    const main = snapshot.worktrees.find((w) => w.isMain)?.path ?? repository.root;
+    const config = vscode.workspace.getConfiguration('grove');
+    const template = config.get<string>('worktree.path', '${repoParent}/${repoName}-${branch}');
+    const suggested = path.normalize(
+      template
+        .replace(/\$\{repoParent\}/g, path.dirname(main))
+        .replace(/\$\{repoName\}/g, path.basename(main))
+        .replace(/\$\{branch\}/g, branch.replace(/[\\/:*?"<>|\s]+/g, '-')),
+    );
+    const target = await vscode.window.showInputBox({
+      title: `Worktree для ${branch}`,
+      prompt: 'Папка нового worktree',
+      value: suggested,
+      valueSelection: [suggested.length - path.basename(suggested).length, suggested.length],
+      validateInput: (value) => (existsSync(value) ? 'Такая папка уже есть' : undefined),
+    });
+    if (!target) return;
+    const local = snapshot.refs.some((r) => r.kind === 'head' && r.name === branch);
+    const args =
+      ref.kind === 'remote' && !local
+        ? ['worktree', 'add', '--track', '-b', branch, target, ref.name]
+        : ['worktree', 'add', target, branch];
+    if (!(await this.run(repository, `Worktree ${branch}`, args, true))) return;
+
+    const copied: string[] = [];
+    for (const file of config.get<string[]>('worktree.copyFiles', [])) {
+      const from = path.join(main, file);
+      const to = path.join(target, file);
+      if (!existsSync(from) || existsSync(to)) continue;
+      await mkdir(path.dirname(to), { recursive: true });
+      await copyFile(from, to);
+      copied.push(file);
+    }
+    const newWindow = 'Открыть в новом окне';
+    const thisWindow = 'Открыть в этом окне';
+    const choice = await vscode.window.showInformationMessage(
+      `Worktree ${path.basename(target)} создан${copied.length ? `, скопировано: ${copied.join(', ')}` : ''}.`,
+      newWindow,
+      thisWindow,
+    );
+    if (choice) {
+      await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(target), {
+        forceNewWindow: choice === newWindow,
+      });
+    }
   }
 
   /** A branch checked out in another worktree cannot be checked out here; its worktree can be opened instead. */

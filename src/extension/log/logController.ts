@@ -511,6 +511,8 @@ export class LogController implements vscode.Disposable {
         return this.services.sync.merge(repository, snapshot, ref);
       case 'rebaseOnto':
         return this.services.sync.rebase(repository, snapshot, ref.name);
+      case 'checkoutToWorktree':
+        return actions.checkoutToWorktree(repository, snapshot, ref);
       case 'checkoutAndRebase':
         return actions.checkoutAndRebase(repository, snapshot, ref);
       case 'updateBranch':

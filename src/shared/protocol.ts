@@ -44,6 +44,7 @@ export type RefAction =
   | 'merge'
   | 'rebaseOnto'
   | 'checkoutAndRebase'
+  | 'checkoutToWorktree'
   | 'updateBranch'
   | 'push';
 

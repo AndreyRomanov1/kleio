@@ -2,7 +2,7 @@
   "name": "grove",
   "displayName": "Grove",
   "description": "JetBrains-style Git log, diff and history for VS Code",
-  "version": "0.10.2",
+  "version": "0.11.0",
   "publisher": "aroma",
   "license": "MIT",
   "private": true,
@@ -648,6 +648,19 @@
             "main"
           ],
           "markdownDescription": "Ветки на сервере, в которые push с force запрещён. Можно использовать `*`, например `release/*`."
+        },
+        "grove.worktree.path": {
+          "type": "string",
+          "default": "${repoParent}/${repoName}-${branch}",
+          "markdownDescription": "Папка нового worktree при «Checkout в новый worktree…». `${repoParent}` — папка, где лежит основная папка репозитория, `${repoName}` — её имя, `${branch}` — имя ветки (`/` заменяется на `-`). Путь можно поправить перед созданием."
+        },
+        "grove.worktree.copyFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Файлы, которые копируются из основной папки в новый worktree, — то, что git не хранит, но без чего проект не запустить, например `settings/vault.json`. Пути относительно корня репозитория."
         }
       }
     }

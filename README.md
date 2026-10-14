@@ -33,7 +33,8 @@ The UI is in Russian for now.
   as they are.
 - **Branch actions**: checkout (smart checkout through a stash when local changes are in the way; a remote
   branch whose local copy diverged after a rebase on the server can replace it, with a check whether any
-  local commit would be lost), new branch or tag, delete (with its worktree), compare with the current one.
+  local commit would be lost), new branch or tag, checkout into a new worktree next to the main folder (`grove.worktree.path`,
+  with files from `grove.worktree.copyFiles` copied over), delete (with its worktree), compare with the current one.
 - **Merge, rebase and updates**: merge a branch into the current one, rebase the current one onto a branch,
   check out a branch and rebase it onto the current one, cherry-pick, revert, reset. Uncommitted changes are
   stashed for the time of the operation and brought back. A stop shows a bar in the log with Continue /

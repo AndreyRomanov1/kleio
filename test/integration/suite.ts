@@ -364,6 +364,39 @@ const tests: Test[] = [
     },
   ],
   [
+    'checks a branch out into a new worktree next to the repository and copies listed files',
+    async (api) => {
+      const fs = require('node:fs') as typeof import('node:fs');
+      const git = (...args: string[]) => execFileSync('git', args, { cwd: root(), encoding: 'utf8' });
+      const target = path.join(path.dirname(root()), `${path.basename(root())}-feature-wt`);
+      git('branch', 'feature/wt');
+      fs.writeFileSync(path.join(root(), 'local.json'), '{"secret": 1}\n');
+      await vscode.workspace
+        .getConfiguration('grove')
+        .update('worktree.copyFiles', ['local.json', 'missing.json'], vscode.ConfigurationTarget.Global);
+      try {
+        const repository = (await api.repositories.get(root()))!;
+        const snapshot = await repository.snapshot();
+        const ref = snapshot.refs.find((r) => r.name === 'feature/wt')!;
+        void api.actions.checkoutToWorktree(repository, snapshot, ref);
+        await wait(1000);
+        await vscode.commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+        await waitFor(() => (fs.existsSync(path.join(target, 'local.json')) ? true : undefined), 'worktree');
+        assert.equal(
+          execFileSync('git', ['branch', '--show-current'], { cwd: target, encoding: 'utf8' }).trim(),
+          'feature/wt',
+        );
+      } finally {
+        await vscode.workspace
+          .getConfiguration('grove')
+          .update('worktree.copyFiles', undefined, vscode.ConfigurationTarget.Global);
+        if (fs.existsSync(target)) git('worktree', 'remove', '--force', target);
+        git('branch', '-q', '-D', 'feature/wt');
+        fs.rmSync(path.join(root(), 'local.json'));
+      }
+    },
+  ],
+  [
     'opens the log in an editor tab',
     async (api) => {
       const panel = api.logs.openInEditor();

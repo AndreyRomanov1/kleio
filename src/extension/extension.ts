@@ -29,6 +29,7 @@ export interface GroveApi {
   review: ReviewController;
   rebase: RebaseDialog;
   conflicts: ConflictsWindow;
+  actions: GitActions;
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<GroveApi> {
@@ -103,7 +104,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<GroveA
   );
 
   await repositories.scan();
-  return { repositories, navigator, logs, blame, review, rebase, conflicts };
+  return { repositories, navigator, logs, blame, review, rebase, conflicts, actions };
 }
 
 /** The repository of the active editor, or the only one, or the one the user picks. */
