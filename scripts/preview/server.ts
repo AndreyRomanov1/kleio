@@ -13,6 +13,8 @@ import type { CommitFile, CommitHostMessage, CommitWebviewMessage } from '../../
 import type { HostMessage, WebviewMessage } from '../../src/shared/protocol';
 import { commitChangeSet, describeRange, rangeChangeSet } from '../../src/extension/changes/changeSet';
 import { Repository } from '../../src/extension/git/repository';
+import { GitLabApi } from '../../src/extension/hosting/gitlabApi';
+import { buildCard } from '../../src/extension/hosting/mergeRequestCard';
 import {
   detectHosting,
   HostingLinks,
@@ -20,6 +22,38 @@ import {
   parseReviewRefs,
   type Autolink,
 } from '../../src/extension/hosting/hosting';
+
+/**
+ * GitLab API for the preview without handling tokens: with GROVE_PREVIEW_GLAB=1 read-only requests go through the
+ * glab CLI, which uses its own login. The extension itself talks to the API directly.
+ */
+function glabFetch(host: string): typeof fetch {
+  return (async (input: string | URL | Request, init?: RequestInit) => {
+    if ((init?.method ?? 'GET') !== 'GET') return new Response('read-only preview', { status: 405 });
+    const url = new URL(String(input));
+    const path = url.pathname.replace(/^\/api\/v4\//, '') + url.search;
+    const { execFile } = await import('node:child_process');
+    return new Promise<Response>((resolve) => {
+      execFile(
+        'glab',
+        ['api', '--hostname', host, path],
+        { maxBuffer: 64 * 1024 * 1024 },
+        (error, stdout) => {
+          resolve(
+            error ? new Response(String(error), { status: 502 }) : new Response(stdout, { status: 200 }),
+          );
+        },
+      );
+    });
+  }) as typeof fetch;
+}
+
+function previewApi(links: HostingLinks | undefined): GitLabApi | undefined {
+  if (process.env.GROVE_PREVIEW_GLAB !== '1' || links?.kind !== 'gitlab') return undefined;
+  return new GitLabApi(links.remote.host, links.remote.project, 'via-glab', glabFetch(links.remote.host));
+}
+
+let previewLinks: HostingLinks | undefined;
 
 /** Extra autolink rules for the preview, as JSON in GROVE_PREVIEW_AUTOLINKS (the extension reads settings). */
 const previewAutolinks: Autolink[] = JSON.parse(process.env.GROVE_PREVIEW_AUTOLINKS ?? '[]') as Autolink[];
@@ -37,6 +71,12 @@ async function hostingMessage(repository: Repository): Promise<HostMessage> {
   const reviews = parseReviewRefs(refs);
   const kind = remote ? detectHosting(remote, {}, reviews) : undefined;
   const links = remote && kind ? new HostingLinks(kind, remote) : undefined;
+  previewLinks = links;
+  const api = previewApi(links);
+  const iids = [...new Set(Object.values(reviews.byCommit).flat())];
+  const [summaries, pipelines] = api
+    ? await Promise.all([api.mergeRequests(iids), api.latestPipelines()]).catch(() => [[], {}] as const)
+    : [[], {}];
   const defaultBranch = (
     await repository.git.run(['symbolic-ref', '-q', '--short', 'refs/remotes/origin/HEAD'], {
       allowExitCodes: [1, 128],
@@ -50,6 +90,9 @@ async function hostingMessage(repository: Repository): Promise<HostMessage> {
       defaultBranch: defaultBranch || undefined,
       merged: defaultBranch ? await repository.mergedBranches(defaultBranch) : [],
       autolinks: [...(links?.builtinAutolinks() ?? []), ...previewAutolinks],
+      api: api ? 'available' : 'none',
+      mergeRequestInfo: Object.fromEntries(summaries.map((s) => [s.iid, s])),
+      pipelines,
     },
   };
 }
@@ -150,6 +193,22 @@ async function handle(repository: Repository, message: WebviewMessage): Promise<
           },
         },
       ];
+    }
+    case 'loadMergeRequestCard': {
+      const api = previewApi(previewLinks);
+      if (!api) return [{ type: 'mergeRequestCard', number: message.number, needsAuth: true }];
+      try {
+        const [details, approvals] = await Promise.all([
+          api.mergeRequest(message.number),
+          api.approvals(message.number),
+        ]);
+        const jobs = details.pipeline ? await api.jobs(details.pipeline.id) : [];
+        return [
+          { type: 'mergeRequestCard', number: message.number, card: buildCard(details, approvals, jobs) },
+        ];
+      } catch (error) {
+        return [{ type: 'mergeRequestCard', number: message.number, error: String(error) }];
+      }
     }
     default:
       console.log('ignored in preview:', message.type);
