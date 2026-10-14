@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { GitActions } from './actions/gitActions';
+import { AuthorLens } from './blame/authorLens';
 import { BlameAnnotations } from './blame/blameAnnotations';
 import { ChangeSetNavigator } from './changes/changeSetNavigator';
 import { RevisionContentProvider } from './content/revisionContentProvider';
@@ -32,6 +33,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<GroveA
     logs,
     history,
     blame,
+    new AuthorLens(repositories),
     vscode.workspace.registerTextDocumentContentProvider(
       REVISION_SCHEME,
       new RevisionContentProvider(repositories),

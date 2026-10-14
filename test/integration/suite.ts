@@ -11,10 +11,14 @@ type Test = [name: string, body: (api: GroveApi) => Promise<void>];
 const root = () => vscode.workspace.workspaceFolders![0].uri.fsPath;
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function waitFor<T>(probe: () => T | undefined, what: string, timeout = 5000): Promise<T> {
+async function waitFor<T>(
+  probe: () => T | undefined | Promise<T | undefined>,
+  what: string,
+  timeout = 5000,
+): Promise<T> {
   const started = Date.now();
   for (;;) {
-    const value = probe();
+    const value = await probe();
     if (value) return value;
     if (Date.now() - started > timeout) throw new Error(`Timed out waiting for ${what}`);
     await wait(50);
@@ -58,7 +62,7 @@ const tests: Test[] = [
       const changeSet = await headChangeSet(api);
       assert.deepEqual(
         changeSet.files.map((f) => `${f.status} ${f.path}`),
-        ['M a.txt', 'M b.txt', 'A c.txt'],
+        ['M a.txt', 'M b.txt', 'A c.txt', 'M greeter.ts'],
       );
       await api.navigator.open(changeSet, 0);
       const diff = await waitFor(activeDiff, 'diff editor');
@@ -153,6 +157,29 @@ const tests: Test[] = [
         const diff = activeDiff();
         return diff && path.basename(diff.modified.fsPath) === 'b.txt' ? diff : undefined;
       }, 'diff of b.txt from the blame link');
+    },
+  ],
+  [
+    'shows the main author and the number of other authors above declarations',
+    async () => {
+      const uri = vscode.Uri.file(path.join(root(), 'greeter.ts'));
+      await vscode.window.showTextDocument(uri);
+      const titles = await waitFor(
+        async () => {
+          const lenses = await vscode.commands.executeCommand<vscode.CodeLens[]>(
+            'vscode.executeCodeLensProvider',
+            uri,
+            10,
+          );
+          const own = lenses
+            .filter((l) => l.command?.command === 'grove.blame.toggle')
+            .map((l) => l.command!.title);
+          return own.length >= 2 ? own : undefined;
+        },
+        'author lenses',
+        20000,
+      );
+      assert.deepEqual(titles, ['$(person) Grove Test +1', '$(person) Grove Test +1']);
     },
   ],
   [

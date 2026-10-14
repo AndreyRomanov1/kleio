@@ -44,13 +44,16 @@ git('config', 'user.name', 'Grove Test');
 git('config', 'user.email', 'test@example.com');
 writeFileSync(path.join(repo, 'a.txt'), lines(30));
 writeFileSync(path.join(repo, 'b.txt'), lines(5));
+const source = (body) => `export class Greeter {\n  greet(name: string): string {\n    ${body}\n  }\n}\n`;
+writeFileSync(path.join(repo, 'greeter.ts'), source("return 'hi ' + name;"));
 git('add', '.');
 git('commit', '-q', '-m', 'initial');
 writeFileSync(path.join(repo, 'a.txt'), lines(30, { 5: 'changed 5', 25: 'changed 25' }));
 writeFileSync(path.join(repo, 'b.txt'), lines(5, { 2: 'changed 2' }));
 writeFileSync(path.join(repo, 'c.txt'), 'new file\n');
+writeFileSync(path.join(repo, 'greeter.ts'), source('return `hello ${name}`;'));
 git('add', '.');
-git('commit', '-q', '-m', 'second');
+git('-c', 'user.name=Other Dev', '-c', 'user.email=other@example.com', 'commit', '-q', '-m', 'second');
 
 const editorArgs = [
   repo,

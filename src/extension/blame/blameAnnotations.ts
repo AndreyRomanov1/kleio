@@ -50,6 +50,7 @@ export class BlameAnnotations implements vscode.Disposable {
       this.decoration,
       vscode.commands.registerCommand('grove.blame.show', (uri?: vscode.Uri) => this.show(uri)),
       vscode.commands.registerCommand('grove.blame.hide', (uri?: vscode.Uri) => this.hide(uri)),
+      vscode.commands.registerCommand('grove.blame.toggle', (uri?: vscode.Uri) => this.toggle(uri)),
       vscode.commands.registerCommand('grove.blame.revealInLog', (hash: string) =>
         this.links.revealInLog(hash),
       ),
@@ -72,6 +73,13 @@ export class BlameAnnotations implements vscode.Disposable {
   /** Blame lines shown for the document, if it is annotated. */
   linesOf(uri: vscode.Uri): readonly BlameLine[] | undefined {
     return this.annotations.get(uri.toString())?.lines;
+  }
+
+  private async toggle(uri?: vscode.Uri): Promise<void> {
+    const document = await this.documentFor(uri);
+    if (!document) return;
+    if (this.annotations.has(document.uri.toString())) await this.hide(document.uri);
+    else await this.show(document.uri);
   }
 
   private async show(uri?: vscode.Uri): Promise<void> {
