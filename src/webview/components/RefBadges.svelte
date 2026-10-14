@@ -29,11 +29,18 @@
     const result: Badge[] = [];
     const refs = decorations?.refs ?? [];
     // A remote branch at the same commit as its local branch is folded into the local badge.
-    const folded = new Set(
+    // A remote branch at the same commit as its local branch is shown inside the local badge. Without a configured
+    // upstream (e.g. a branch made by `git worktree add`) the remote branch of the same name counts as one.
+    const counterpart = (local: Ref) =>
+      local.upstream ??
+      refs.find((o) => o.kind === 'remote' && o.name.slice(o.name.indexOf('/') + 1) === local.name)?.fullName;
+    const pairs = new Map(
       refs
-        .filter((r) => r.kind === 'head' && r.upstream && refs.some((o) => o.fullName === r.upstream))
-        .map((r) => r.upstream!),
+        .filter((r) => r.kind === 'head')
+        .map((r) => [r.fullName, counterpart(r)] as const)
+        .filter(([, remote]) => remote && refs.some((o) => o.fullName === remote)),
     );
+    const folded = new Set([...pairs.values()]);
     if (decorations?.isHead && !head?.branch) {
       result.push({
         label: 'HEAD',
@@ -47,14 +54,17 @@
     for (const ref of [...refs].sort((a, b) => order[a.kind] - order[b.kind])) {
       if (folded.has(ref.fullName)) continue;
       const current = ref.kind === 'head' && head?.branch === ref.name;
-      const synced = ref.kind === 'head' && !!ref.upstream && folded.has(ref.upstream);
+      const remote = pairs.get(ref.fullName);
+      const synced = ref.kind === 'head' && !!remote;
       const worktree =
         ref.kind === 'head'
           ? store.snapshot?.worktrees.find((w) => w.branch === ref.name && !w.isCurrent)
           : undefined;
       const notes = [
         current ? 'текущая ветка' : '',
-        synced ? `= ${ref.upstream?.replace('refs/remotes/', '')}` : '',
+        synced
+          ? `= ${remote!.replace('refs/remotes/', '')}${ref.upstream ? '' : ' (upstream не настроен)'}`
+          : '',
         worktree ? `открыта в worktree ${worktree.path}` : '',
       ].filter(Boolean);
       result.push({

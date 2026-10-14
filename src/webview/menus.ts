@@ -1,3 +1,4 @@
+import { linkify } from '../shared/linkify';
 import type { Commit, Ref, Worktree } from '../shared/model';
 import type { ChangeSetView } from '../shared/protocol';
 import type { MenuEntry } from './menu.svelte';
@@ -100,6 +101,18 @@ export function refMenu(ref: Ref, store: LogStore): MenuEntry[] {
   const defaultBranch = store.hosting?.defaultBranch;
   const isDefault =
     defaultBranch === ref.name || defaultBranch?.slice(defaultBranch.indexOf('/') + 1) === ref.name;
+  // Links found in the branch name by the autolink rules, e.g. the ticket of `PROJ-1234`.
+  const branchLinks = linkify(ref.name, store.hosting?.autolinks ?? []).filter((p) => p.url);
+  if (branchLinks.length) {
+    entries.push(
+      'separator',
+      ...branchLinks.map((link): MenuEntry => ({
+        label: `Открыть ${link.text}`,
+        icon: 'link-external',
+        run: () => post({ type: 'openUrl', url: link.url! }),
+      })),
+    );
+  }
   if (ref.kind !== 'tag') {
     entries.push(
       ...hostingEntries(store, [
@@ -118,7 +131,13 @@ export function refMenu(ref: Ref, store: LogStore): MenuEntry[] {
         {
           label: `Открыть в ${store.hosting?.name}`,
           icon: 'link-external',
-          disabled: ref.kind === 'head' && !ref.upstream,
+          // A local branch is on the server when it tracks one or a remote branch of the same name exists.
+          disabled:
+            ref.kind === 'head' &&
+            !ref.upstream &&
+            !store.snapshot?.refs.some(
+              (r) => r.kind === 'remote' && r.name.slice(r.name.indexOf('/') + 1) === ref.name,
+            ),
           run: run({ type: 'refAction', action: 'openInHosting', fullName }),
         },
       ]),
