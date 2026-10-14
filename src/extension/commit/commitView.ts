@@ -82,7 +82,7 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
         return;
       }
       case 'rollback':
-        return this.rollback(message.paths);
+        return this.rollback(message.paths, message.hunks ?? {});
       case 'commit':
         return this.commit(message);
       case 'requestAmendMessage':
@@ -160,28 +160,32 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
     await this.navigator.open(changeSet, index, 'first', line === undefined ? undefined : { line: line - 1 });
   }
 
-  private async rollback(paths: string[]): Promise<void> {
+  private async rollback(paths: string[], hunks: Record<string, string[]>): Promise<void> {
     const repository = this.repository;
-    if (!repository || paths.length === 0) return;
+    const parts = Object.entries(hunks).filter(([p, keys]) => keys.length && !paths.includes(p));
+    if (!repository || (paths.length === 0 && parts.length === 0)) return;
     const selected = this.files.filter((f) => paths.includes(f.path));
     const untracked = selected.filter((f) => f.kind === 'untracked');
     const tracked = selected.filter((f) => f.kind !== 'untracked');
+    const pieces = parts.reduce((sum, [, keys]) => sum + keys.length, 0);
     const detail = [
       tracked.length ? `Изменения в ${tracked.length} файл(ах) будут отменены.` : '',
+      parts.length
+        ? `Будут отменены ${pieces} кусок(ков) в ${parts.length} файл(ах), остальные правки останутся.`
+        : '',
       untracked.length ? `${untracked.length} неотслеживаемых файл(ов) уйдут в корзину.` : '',
     ]
       .filter(Boolean)
       .join('\n');
-    const names =
-      selected.length <= 5
-        ? selected.map((f) => path.basename(f.path)).join(', ')
-        : `${selected.length} файлов`;
+    const all = [...selected.map((f) => f.path), ...parts.map(([p]) => p)];
+    const names = all.length <= 5 ? all.map((p) => path.basename(p)).join(', ') : `${all.length} файлов`;
     const ok = await vscode.window.showWarningMessage(
-      `Откатить ${names}?`,
+      parts.length && !selected.length ? `Откатить ${pieces} кусок(ков) в ${names}?` : `Откатить ${names}?`,
       { modal: true, detail },
       'Откатить',
     );
     if (!ok) return;
+    for (const [filePath, keys] of parts) await repository.rollbackHunks(filePath, keys);
     await repository.rollback(tracked.flatMap((f) => (f.oldPath ? [f.path, f.oldPath] : [f.path])));
     for (const file of untracked) {
       await vscode.workspace.fs.delete(workingFileUri(repository.root, file.path), {

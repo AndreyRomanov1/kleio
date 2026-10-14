@@ -37,7 +37,8 @@ export type CommitWebviewMessage =
   | { type: 'openDiff'; path: string; line?: number }
   | { type: 'requestHunks'; path: string }
   | { type: 'openFile'; path: string }
-  | { type: 'rollback'; paths: string[] }
+  /** Whole files, and for files rolled back in part — the keys of their hunks. */
+  | { type: 'rollback'; paths: string[]; hunks?: Record<string, string[]> }
   | {
       type: 'commit';
       message: string;

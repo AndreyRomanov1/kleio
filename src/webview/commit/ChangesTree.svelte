@@ -62,6 +62,7 @@
   function fileMenu(event: MouseEvent, file: CommitFile): void {
     if (!store.selected.has(file.path)) store.select(file.path, false);
     const targets = store.targets;
+    const rollback = store.rollbackTargets();
     menu.show(event, [
       {
         label: 'Показать diff',
@@ -76,9 +77,31 @@
       },
       'separator',
       {
-        label: targets.length > 1 ? `Откатить (${targets.length})…` : 'Откатить…',
+        label:
+          targets.length > 1
+            ? `Откатить (${targets.length})…`
+            : rollback.paths.length
+              ? 'Откатить…'
+              : 'Откатить отмеченные куски…',
         icon: 'discard',
-        run: () => postCommit({ type: 'rollback', paths: targets }),
+        run: () => postCommit({ type: 'rollback', ...rollback }),
+      },
+    ]);
+  }
+
+  function hunkMenu(event: MouseEvent, file: CommitFile, key: string, line: number): void {
+    menu.show(event, [
+      {
+        label: 'Показать diff',
+        hint: 'двойной клик',
+        icon: 'diff',
+        run: () => postCommit({ type: 'openDiff', path: file.path, line }),
+      },
+      'separator',
+      {
+        label: 'Откатить этот кусок…',
+        icon: 'discard',
+        run: () => postCommit({ type: 'rollback', paths: [], hunks: { [file.path]: [key] } }),
       },
     ]);
   }
@@ -204,6 +227,7 @@
                 tabindex="-1"
                 title={hunk.preview.join('\n')}
                 ondblclick={() => postCommit({ type: 'openDiff', path: file.path, line: hunk.line })}
+                oncontextmenu={(e) => hunkMenu(e, file, hunk.key, hunk.line)}
                 onkeydown={(e) => {
                   if (e.key === 'Enter') postCommit({ type: 'openDiff', path: file.path, line: hunk.line });
                   if (e.key === ' ') {

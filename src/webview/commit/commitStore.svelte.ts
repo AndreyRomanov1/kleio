@@ -189,6 +189,24 @@ export class CommitStore {
     return selected.length ? selected : this.checkedFiles.map((f) => f.path);
   }
 
+  /**
+   * What "rollback" acts on: the selected files, or the checked ones when nothing is selected. A file checked
+   * in part loses only its checked hunks, as the checkboxes show.
+   */
+  rollbackTargets(): { paths: string[]; hunks: Record<string, string[]> } {
+    const paths: string[] = [];
+    const hunks: Record<string, string[]> = {};
+    for (const path of this.targets) {
+      const left = this.excluded.get(path);
+      if (left?.size && this.checked.has(path)) {
+        hunks[path] = (this.hunks.get(path) ?? []).map((h) => h.key).filter((k) => !left.has(k));
+      } else {
+        paths.push(path);
+      }
+    }
+    return { paths, hunks };
+  }
+
   commit(push: boolean): void {
     if (this.busy) return;
     const partial = this.checkedFiles.filter((f) => this.excluded.get(f.path)?.size);

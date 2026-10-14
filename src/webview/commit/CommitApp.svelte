@@ -79,7 +79,7 @@
       <button
         title="Откатить выделенные (или отмеченные) файлы"
         disabled={store.targets.length === 0}
-        onclick={() => postCommit({ type: 'rollback', paths: store.targets })}
+        onclick={() => postCommit({ type: 'rollback', ...store.rollbackTargets() })}
         ><i class="codicon codicon-discard"></i></button
       >
       <button

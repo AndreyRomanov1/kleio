@@ -32,6 +32,9 @@
   let base = $state<string | undefined>(undefined);
   let published = $state(0);
   let selected = $state(0);
+  /** Rows picked with Ctrl or Shift; actions apply to all of them. Always holds the cursor row too. */
+  let marked = $state<ReadonlySet<string>>(new Set());
+  let anchor = 0;
   let files = $state.raw<FileChange[]>([]);
   let filesOf = $state<string | undefined>(undefined);
   let error = $state<string | undefined>(undefined);
@@ -91,9 +94,26 @@
     }
   }
 
-  function select(index: number): void {
+  function select(index: number, event?: MouseEvent | KeyboardEvent): void {
     if (index < 0 || index >= rows.length) return;
+    const hash = rows[index].hash;
+    if (event?.shiftKey) {
+      const [from, to] = anchor < index ? [anchor, index] : [index, anchor];
+      marked = new Set(rows.slice(from, to + 1).map((r) => r.hash));
+    } else if (event && (event.ctrlKey || event.metaKey)) {
+      const next = new Set(marked);
+      if (next.has(hash) && next.size > 1) next.delete(hash);
+      else next.add(hash);
+      marked = next;
+    } else {
+      marked = new Set([hash]);
+    }
+    if (!event?.shiftKey) anchor = index;
     selected = index;
+    showFiles(index);
+  }
+
+  function showFiles(index: number): void {
     const hash = rows[index].hash;
     if (filesOf !== hash) {
       filesOf = hash;
@@ -117,7 +137,22 @@
     return undefined;
   }
 
-  /** A squashed commit adds its message to the commit it goes into; undoing the squash takes it away. */
+  /** The message a kept commit gets without edits: its own, plus those of the commits squashed into it. */
+  function defaultMessage(index: number): string {
+    const parts = [rows[index].original.trim()];
+    for (let i = index + 1; i < rows.length; i++) {
+      const action = rows[i].action;
+      if (action === 'drop') continue;
+      if (!isMeld(action)) break;
+      if (action === 'squash') parts.push(rows[i].original.trim());
+    }
+    return parts.join('\n\n');
+  }
+
+  /**
+   * A squashed commit adds its message to the commit it goes into; undoing the squash takes it away. Pick
+   * means "as is": an edited message goes back to the original.
+   */
   function setAction(index: number, action: RebaseAction): void {
     const row = rows[index];
     if (!row || row.action === action) return;
@@ -126,14 +161,40 @@
       head.message = head.message.replace(`\n\n${row.original.trim()}`, '');
     if (action === 'squash' && head) head.message = `${head.message.trimEnd()}\n\n${row.original.trim()}`;
     row.action = action;
+    if (action === 'pick') row.message = defaultMessage(index);
     if (action === 'reword') queueMicrotask(() => messageBox?.focus());
+  }
+
+  /**
+   * Applies an action to the marked rows. Squash or fixup of several rows, as in Rider, melds them into the
+   * topmost of them: the others are moved right under it.
+   */
+  function apply(action: RebaseAction): void {
+    const indexes = rows.map((r, i) => (marked.has(r.hash) ? i : -1)).filter((i) => i >= 0);
+    if (indexes.length < 2 || !isMeld(action)) {
+      for (const i of indexes.length ? indexes : [selected]) setAction(i, action);
+      return;
+    }
+    const [target, ...others] = indexes.map((i) => rows[i]);
+    const rest = rows.filter((r) => !marked.has(r.hash) || r === target);
+    const at = rest.indexOf(target);
+    rest.splice(at + 1, 0, ...others);
+    rows = rest;
+    const head = rows[at];
+    if (head.action === 'drop' || isMeld(head.action)) head.action = 'pick';
+    for (const row of others) row.action = action;
+    head.message = head.action === 'pick' ? defaultMessage(at) : head.message;
+    selected = anchor = at;
+    marked = new Set([head.hash]);
+    showFiles(at);
   }
 
   function move(from: number, to: number): void {
     if (from === to || to < 0 || to >= rows.length) return;
     const [row] = rows.splice(from, 1);
     rows.splice(to, 0, row);
-    selected = to;
+    selected = anchor = to;
+    marked = new Set([row.hash]);
   }
 
   function onListKey(event: KeyboardEvent): void {
@@ -144,18 +205,18 @@
     }
     if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
       event.preventDefault();
-      select(selected + (event.key === 'ArrowUp' ? -1 : 1));
+      select(selected + (event.key === 'ArrowUp' ? -1 : 1), event);
       return;
     }
     if (event.key === 'Delete') {
-      setAction(selected, 'drop');
+      apply('drop');
       return;
     }
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     const picked = actions.find((a) => a.key === event.key.toLowerCase());
     if (picked) {
       event.preventDefault();
-      setAction(selected, picked.action);
+      apply(picked.action);
     }
   }
 
@@ -223,7 +284,7 @@
           class="act {a.action}"
           class:on={current?.action === a.action}
           title="{a.title} ({a.key.toUpperCase()})"
-          onclick={() => setAction(selected, a.action)}>{a.label}</button
+          onclick={() => apply(a.action)}>{a.label}</button
         >
       {/each}
       <span class="gap"></span>
@@ -234,22 +295,25 @@
         ><i class="codicon codicon-arrow-down"></i></button
       >
       <span class="gap"></span>
-      <span class="hint">Сверху — старые коммиты, применяются по порядку. Строки можно перетаскивать.</span>
+      <span class="hint"
+        >Сверху — старые коммиты. Ctrl/Shift — выбрать несколько: Squash объединит их в верхний.</span
+      >
     </div>
 
     <div class="rows" role="listbox" tabindex="0" aria-label="Коммиты" bind:this={list} onkeydown={onListKey}>
       {#each rows as row, index (row.hash)}
         <div
           class="row {row.action}"
-          class:selected={index === selected}
+          class:selected={marked.has(row.hash)}
+          class:cursor={index === selected}
           class:drop-before={dropAt === index && dragFrom !== undefined && dragFrom > index}
           class:drop-after={dropAt === index && dragFrom !== undefined && dragFrom < index}
           data-index={index}
           role="option"
           tabindex="-1"
-          aria-selected={index === selected}
+          aria-selected={marked.has(row.hash)}
           draggable="true"
-          onclick={() => select(index)}
+          onclick={(e) => select(index, e)}
           onkeydown={() => {}}
           ondragstart={(e) => {
             dragFrom = index;
@@ -417,6 +481,13 @@
     white-space: nowrap;
     border-top: 2px solid transparent;
     border-bottom: 2px solid transparent;
+  }
+  .row:focus {
+    outline: none;
+  }
+  .rows:focus-within .row.cursor {
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: -1px;
   }
   .row.selected {
     background: var(--vscode-list-inactiveSelectionBackground);
