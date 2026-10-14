@@ -16,6 +16,8 @@ export interface RunOptions {
   env?: NodeJS.ProcessEnv;
   /** Resolve instead of throwing on these exit codes. */
   allowExitCodes?: number[];
+  /** Kills git after this time, e.g. for network commands that might wait for an SSH passphrase. */
+  timeoutMs?: number;
 }
 
 export class GitRunner {
@@ -24,7 +26,15 @@ export class GitRunner {
     private readonly gitPath = 'git',
   ) {}
 
-  run(args: readonly string[], options: RunOptions = {}): Promise<string> {
+  async run(args: readonly string[], options: RunOptions = {}): Promise<string> {
+    return (await this.runWithOutput(args, options)).stdout;
+  }
+
+  /** Like {@link run}, but also returns stderr, where git prints messages of the remote on push. */
+  runWithOutput(
+    args: readonly string[],
+    options: RunOptions = {},
+  ): Promise<{ stdout: string; stderr: string }> {
     return new Promise((resolve, reject) => {
       const child = spawn(this.gitPath, ['-c', 'core.quotepath=off', '-c', 'color.ui=false', ...args], {
         cwd: this.cwd,
@@ -36,13 +46,16 @@ export class GitRunner {
       const stderr: Buffer[] = [];
       child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
       child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk));
+      const timer = options.timeoutMs ? setTimeout(() => child.kill(), options.timeoutMs) : undefined;
       child.on('error', reject);
       child.on('close', (code) => {
+        clearTimeout(timer);
         const out = Buffer.concat(stdout).toString('utf8');
+        const err = Buffer.concat(stderr).toString('utf8');
         if (code === 0 || (code !== null && options.allowExitCodes?.includes(code))) {
-          resolve(out);
+          resolve({ stdout: out, stderr: err });
         } else {
-          reject(new GitError(args, code, Buffer.concat(stderr).toString('utf8')));
+          reject(new GitError(args, code, err || (code === null ? 'превышено время ожидания' : '')));
         }
       });
 

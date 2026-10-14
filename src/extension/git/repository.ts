@@ -290,6 +290,12 @@ export class Repository {
       .filter(Boolean);
   }
 
+  /** Local branches whose commits are all in `target`. */
+  async mergedBranches(target: string): Promise<string[]> {
+    const output = await this.git.run(['branch', '--merged', target, '--format=%(refname:short)']);
+    return output.split('\n').filter(Boolean);
+  }
+
   async refs(): Promise<Ref[]> {
     return parseRefs(await this.git.run(['for-each-ref', `--format=${REF_FORMAT}`]));
   }
