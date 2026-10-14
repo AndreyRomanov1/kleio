@@ -123,6 +123,20 @@ export class GitLabApiError extends Error {
 
 type Fetch = typeof fetch;
 
+/**
+ * The client for a project. Integration tests point it to a fake server with GROVE_TEST_GITLAB_ORIGIN (and give a
+ * token with GROVE_TEST_GITLAB_TOKEN); otherwise it is `https://<host>`.
+ */
+export function createGitLabApi(host: string, project: string, token: string): GitLabApi {
+  return new GitLabApi(
+    host,
+    project,
+    token,
+    fetch,
+    process.env.GROVE_TEST_GITLAB_ORIGIN ?? `https://${host}`,
+  );
+}
+
 export class GitLabApi {
   private readonly base: string;
 

@@ -1,6 +1,12 @@
 import * as vscode from 'vscode';
 import type { Repository } from '../git/repository';
-import { GitLabApi, GitLabApiError, type MergeRequestSummary, type PipelineStatus } from './gitlabApi';
+import {
+  createGitLabApi,
+  GitLabApiError,
+  type GitLabApi,
+  type MergeRequestSummary,
+  type PipelineStatus,
+} from './gitlabApi';
 import type { GitLabAuth } from './gitlabAuth';
 import { detectHosting, HostingLinks, parseRemoteUrl, parseReviewRefs, type Autolink } from './hosting';
 
@@ -55,7 +61,7 @@ export class HostingService implements vscode.Disposable {
     const links = hosting?.links;
     if (!links || links.kind !== 'gitlab') return undefined;
     const source = await this.auth.token(links.remote.host, interactive);
-    return source ? new GitLabApi(links.remote.host, links.remote.project, source.token) : undefined;
+    return source ? createGitLabApi(links.remote.host, links.remote.project, source.token) : undefined;
   }
 
   /** Fast answer from what is known; review refs are fetched over the network when stale or `refresh` is set. */
@@ -120,7 +126,7 @@ export class HostingService implements vscode.Disposable {
       hosting.api = 'needsAuth';
       return;
     }
-    const api = new GitLabApi(links.remote.host, links.remote.project, source.token);
+    const api = createGitLabApi(links.remote.host, links.remote.project, source.token);
     const iids = [...new Set(Object.values(hosting.mergeRequests).flat())];
     try {
       const [summaries, pipelines] = await Promise.all([api.mergeRequests(iids), api.latestPipelines()]);

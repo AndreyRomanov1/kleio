@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { GitLabApi, GitLabApiError } from './gitlabApi';
+import { createGitLabApi, GitLabApiError } from './gitlabApi';
 
 /** Provider registered by the GitLab Workflow extension; it shares its accounts with scope `api`. */
 const WORKFLOW_PROVIDER = 'gitlab';
@@ -43,6 +43,8 @@ export class GitLabAuth implements vscode.Disposable {
    * Grove to use. `interactive` may show VS Code's consent dialog for the GitLab Workflow account.
    */
   async token(host: string, interactive = false): Promise<TokenSource | undefined> {
+    const forTests = process.env.GROVE_TEST_GITLAB_TOKEN;
+    if (forTests) return { token: forTests, origin: 'grove' };
     const own = await this.secrets.get(SECRET_PREFIX + host);
     if (own) return { token: own, origin: 'grove' };
     const session = await this.workflowSession(host, interactive);
@@ -100,7 +102,7 @@ export class GitLabAuth implements vscode.Disposable {
     });
     if (!token) return false;
     try {
-      const user = await new GitLabApi(host, '', token.trim()).currentUser();
+      const user = await createGitLabApi(host, '', token.trim()).currentUser();
       await this.secrets.store(SECRET_PREFIX + host, token.trim());
       this.changed.fire();
       void vscode.window.showInformationMessage(`Grove: подключено к ${host} как ${user.username}.`);
