@@ -16,7 +16,18 @@
 
   // Details move under the log when the log itself would get too narrow next to them.
   const showBranches = $derived(ui.showBranches && !store.history);
-  const narrow = $derived(width - (showBranches ? ui.branchWidth : 0) - ui.detailsWidth < 600);
+  // Details never squeeze the log below a readable width: a wide details panel shrinks instead of moving the
+  // details under the log; in "auto" they move down only when the view itself is narrow.
+  const sideSpace = $derived(width - (showBranches ? ui.branchWidth : 0));
+  const detailsSide = $derived(Math.max(220, Math.min(ui.detailsWidth, sideSpace - 600)));
+  const narrow = $derived(
+    ui.detailsPosition === 'bottom' || (ui.detailsPosition === 'auto' && sideSpace - 600 < 220),
+  );
+  const positions = {
+    auto: { next: 'right', icon: 'layout', title: 'Детали: по ширине окна' },
+    right: { next: 'bottom', icon: 'layout-sidebar-right', title: 'Детали: справа' },
+    bottom: { next: 'auto', icon: 'layout-panel', title: 'Детали: снизу' },
+  } as const;
   const collapsed = $derived(new Set(ui.collapsed));
 
   $effect(() => {
@@ -156,6 +167,13 @@
         ><i class="codicon codicon-cloud-download"></i> Fetch</button
       >
     {/if}
+    <button
+      class="tool icon"
+      title="{positions[ui.detailsPosition].title} — нажмите, чтобы сменить"
+      aria-label={positions[ui.detailsPosition].title}
+      onclick={() => (ui.detailsPosition = positions[ui.detailsPosition].next)}
+      ><i class="codicon codicon-{positions[ui.detailsPosition].icon}"></i></button
+    >
     <button class="tool icon" title="Обновить" aria-label="Обновить" onclick={() => post({ type: 'refresh' })}
       ><i class="codicon codicon-refresh"></i></button
     >
@@ -200,8 +218,15 @@
         {/if}
       </div>
       {#if !narrow}
-        <Splitter ondrag={(d) => (ui.detailsWidth = clamp(ui.detailsWidth - d, 220, width * 0.6))} />
-        <div class="details-side" style:width="{ui.detailsWidth}px">
+        <Splitter
+          ondrag={(d) => (ui.detailsWidth = clamp(detailsSide - d, 220, Math.max(220, sideSpace - 300)))}
+        />
+        <div
+          class="details-side"
+          style:width="{ui.detailsPosition === 'right'
+            ? Math.max(220, Math.min(ui.detailsWidth, sideSpace - 300))
+            : detailsSide}px"
+        >
           <Details
             {store}
             fileView={ui.fileView}

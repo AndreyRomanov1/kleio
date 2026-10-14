@@ -35,6 +35,8 @@ export interface UiState {
   authorWidth: number;
   dateWidth: number;
   detailsWidth: number;
+  /** Where commit details go: beside the log, under it, or chosen by the width of the view. */
+  detailsPosition: 'auto' | 'right' | 'bottom';
   detailsHeight: number;
   fileView: 'tree' | 'list';
   groupByDirectory: boolean;
@@ -51,6 +53,7 @@ const defaults: UiState = {
   dateWidth: 100,
   detailsWidth: 380,
   detailsHeight: 260,
+  detailsPosition: 'auto',
   fileView: 'tree',
   groupByDirectory: true,
   showBranches: true,
