@@ -293,4 +293,16 @@ describe('Repository', () => {
     expect(state.staged.size + state.unstaged.size).toBe(0);
     expect(git(dir, 'status', '--porcelain')).toBe('?? new.txt\n');
   });
+
+  it('cuts the log at a limit and says so', async () => {
+    const dir = path.join(work, 'limit');
+    git(work, 'init', '-q', '-b', 'main', dir);
+    for (const n of [1, 2, 3]) commitFile(dir, 'a.txt', `${n}\n`, `c${n}`);
+    const repository = (await Repository.open(dir))!;
+
+    const cut = await repository.snapshot({ limit: 2 });
+    expect(cut.commits.map((c) => c.subject)).toEqual(['c3', 'c2']);
+    expect(cut.truncated).toBe(true);
+    expect((await repository.snapshot({ limit: 3 })).truncated).toBe(false);
+  });
 });

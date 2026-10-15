@@ -46,6 +46,7 @@ export class LogStore {
   /** Merged merge requests the API found for older history, kept across reloads of the hosting details. */
   private merged?: Extract<HostMessage, { type: 'mergedMergeRequests' }>;
   private mergedPending = false;
+  private morePending = false;
 
   /** Bumped to ask the commit list to scroll to the first selected commit. */
   revealRequest = $state(0);
@@ -135,6 +136,7 @@ export class LogStore {
         this.noRepository = false;
         this.repositories = message.repositories;
         this.snapshot = message.snapshot;
+        this.morePending = false;
         this.focus = message.focus;
         this.favorites = message.favorites;
         this.history = message.history?.title;
@@ -255,6 +257,13 @@ export class LogStore {
    * Asks for merged merge requests down to the commit shown lowest on screen, unless they are loaded already;
    * the server's merge request refs only cover the last weeks.
    */
+  /** Asks for older commits once the end of a truncated log comes into view. */
+  wantMoreCommits(): void {
+    if (!this.snapshot?.truncated || this.morePending) return;
+    this.morePending = true;
+    post({ type: 'loadMoreCommits' });
+  }
+
   wantMergedBefore(date: number): void {
     if (this.history || this.hosting?.api !== 'available' || this.mergedPending) return;
     const merged = this.merged;

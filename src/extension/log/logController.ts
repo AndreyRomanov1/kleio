@@ -15,6 +15,8 @@ import type { MergeRequestCards } from '../hosting/mergeRequestCards';
 import type { ReviewController } from '../review/reviewController';
 
 const FOCUS_KEY = 'kleio.focus';
+/** Commits loaded at once; huge histories are loaded further as the log is scrolled down. */
+const LOG_PAGE = 10_000;
 const FAVORITES_KEY = 'kleio.favorites';
 
 export interface HistoryTarget {
@@ -53,6 +55,7 @@ export class LogController implements vscode.Disposable {
   private readonly changeSets = new Map<number, ChangeSet>();
   private nextChangeSetId = 1;
   private loadVersion = 0;
+  private logLimit = LOG_PAGE;
   private readonly disposables: vscode.Disposable[] = [];
 
   constructor(
@@ -80,8 +83,18 @@ export class LogController implements vscode.Disposable {
 
   /** Brings the given commit into view, e.g. when coming from blame; waits for the first load if needed. */
   revealCommit(hash: string): void {
-    if (this.snapshot) this.post({ type: 'revealCommit', hash });
+    if (this.snapshot) void this.revealLoaded(hash);
     else this.pendingReveal = hash;
+  }
+
+  /** A commit older than the loaded part of the log is reached by loading more of it. */
+  private async revealLoaded(hash: string): Promise<void> {
+    const has = () => this.snapshot?.commits.some((c) => c.hash === hash || c.hash.startsWith(hash));
+    while (this.snapshot?.truncated && !has()) {
+      this.logLimit = this.snapshot.commits.length * 2;
+      await this.load();
+    }
+    this.post({ type: 'revealCommit', hash });
   }
 
   private async handle(message: WebviewMessage): Promise<void> {
@@ -121,6 +134,10 @@ export class LogController implements vscode.Disposable {
         return this.loadCard(message.number);
       case 'loadMergedMergeRequests':
         return this.loadMerged(message.before);
+      case 'loadMoreCommits':
+        if (!this.snapshot?.truncated) return;
+        this.logLimit = this.snapshot.commits.length + LOG_PAGE;
+        return this.load();
       case 'connectHosting':
         if (this.repository && (await this.services.cards.connect(this.repository)) && message.number) {
           await this.loadCard(message.number);
@@ -250,7 +267,10 @@ export class LogController implements vscode.Disposable {
     try {
       const snapshot = this.history
         ? await this.historySnapshot(this.history)
-        : await this.repository.snapshot({ revisions: await this.existingRevisions(this.stored(FOCUS_KEY)) });
+        : await this.repository.snapshot({
+            revisions: await this.existingRevisions(this.stored(FOCUS_KEY)),
+            limit: this.logLimit,
+          });
       if (version !== this.loadVersion) return;
       this.snapshot = snapshot;
       this.postSnapshot();

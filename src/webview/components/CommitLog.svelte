@@ -45,6 +45,7 @@
     if (last === 0 || store.rowCount === 0) return;
     const lowest = store.commitAt(Math.min(last, store.rowCount) - 1);
     if (lowest) store.wantMergedBefore(lowest.authorDate);
+    if (last >= store.rowCount - OVERSCAN * 4) store.wantMoreCommits();
   });
 
   $effect(() => {

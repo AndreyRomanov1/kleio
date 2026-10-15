@@ -210,6 +210,8 @@ export type WebviewMessage =
   | { type: 'loadMergeRequestCard'; number: number }
   /** The log reached commits from this moment (unix seconds): merge requests merged since are wanted. */
   | { type: 'loadMergedMergeRequests'; before: number }
+  /** The log is scrolled to the end of a truncated history. */
+  | { type: 'loadMoreCommits' }
   | { type: 'connectHosting'; number?: number }
   | { type: 'openJobLog'; jobId: number; name: string; projectId?: number }
   | { type: 'retryPipeline'; pipelineId: number; number: number }

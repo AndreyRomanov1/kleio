@@ -99,4 +99,6 @@ export interface RepositorySnapshot {
   worktrees: Worktree[];
   stashes: Stash[];
   operation?: OperationState;
+  /** The log was cut at a limit; older commits are loaded on request. */
+  truncated?: boolean;
 }

@@ -57,6 +57,8 @@ const NO_EDITOR = { GIT_EDITOR: 'true', GIT_SEQUENCE_EDITOR: 'true' };
 export interface LogFilter {
   /** Revisions to show history of; all refs when empty. */
   revisions?: string[];
+  /** At most this many newest commits. */
+  limit?: number;
 }
 
 export class Repository {
@@ -97,17 +99,27 @@ export class Repository {
   async snapshot(filter: LogFilter = {}): Promise<RepositorySnapshot> {
     const revisions = filter.revisions?.length ? filter.revisions : ['--exclude=refs/stash', '--all'];
     const [log, refs, head, worktrees, stashes, operation] = await Promise.all([
-      this.git.run(['log', '--date-order', `--format=${LOG_FORMAT}`, ...revisions, '--']),
+      this.git.run([
+        'log',
+        '--date-order',
+        `--format=${LOG_FORMAT}`,
+        ...(filter.limit ? [`-n${filter.limit + 1}`] : []),
+        ...revisions,
+        '--',
+      ]),
       this.git.run(['for-each-ref', `--format=${REF_FORMAT}`]),
       this.head(),
       this.git.run(['worktree', 'list', '--porcelain']),
       this.git.run(['stash', 'list', `--format=${STASH_FORMAT}`]),
       this.operation(),
     ]);
+    const commits = parseLog(log);
+    const truncated = filter.limit !== undefined && commits.length > filter.limit;
     return {
       root: this.root,
       head,
-      commits: parseLog(log),
+      commits: truncated ? commits.slice(0, filter.limit) : commits,
+      truncated,
       refs: parseRefs(refs),
       worktrees: parseWorktrees(worktrees, this.root),
       stashes: parseStashes(stashes),
