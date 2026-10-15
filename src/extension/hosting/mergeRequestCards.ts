@@ -36,9 +36,7 @@ export class MergeRequestCards implements vscode.TextDocumentContentProvider, vs
 
   /** Asks for access to the repository's GitLab; true when it was given. */
   async connect(repository: Repository): Promise<boolean> {
-    const links = (await this.hosting.known(repository))?.links;
-    if (!links || links.kind !== 'gitlab') return false;
-    return this.hosting.auth.connect(links.remote.host);
+    return this.hosting.connect(repository);
   }
 
   async openJobLog(repository: Repository, jobId: number, name: string, projectId?: number): Promise<void> {

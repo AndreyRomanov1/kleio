@@ -165,7 +165,7 @@
         class="tool"
         title={t('Give Kleio access to {0}: merge request states, pipelines', store.hosting.name ?? 'GitLab')}
         onclick={() => post({ type: 'connectHosting' })}
-        ><i class="codicon codicon-plug"></i> {t('Connect GitLab')}</button
+        ><i class="codicon codicon-plug"></i> {t('Connect {0}', store.hosting.name ?? 'GitLab')}</button
       >
     {/if}
     {#if !store.history}

@@ -61,14 +61,17 @@ stays editable.
 
   ![Merge](docs/images/merge.png)
 
-**GitLab** (GitHub: links only, for now)
+**GitLab and GitHub**
 
 - Without a token: links to commits, branches and files, merge request numbers in the log, creating a
   merge request on push, links to your tracker from commit messages and branch names.
 - With the API: merge request status and pipelines in the log, merged merge requests down the whole
   history, a merge request card with jobs and child pipelines, job logs in the editor, retry and manual
   jobs, approve, merge, rebase on the server.
-- **Review in the diff viewer**: threads in the code, comments published at once or as drafts, resolve,
+- GitHub: pull request states and the checks of commits in the log, merged pull requests down the whole
+  history. Access comes from the editor's GitHub account or a personal access token. The card, review
+  and merge from the editor are GitLab's for now; a GitHub pull request opens in the browser.
+- **Review in the diff viewer** (GitLab): threads in the code, comments published at once or as drafts, resolve,
   next/previous comment. Every comment is written to a local journal before it is sent, so nothing typed
   is lost.
 

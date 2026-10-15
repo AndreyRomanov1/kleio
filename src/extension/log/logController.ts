@@ -310,6 +310,7 @@ export class LogController implements vscode.Disposable {
         type: 'hosting',
         hosting: {
           name: hosting?.links?.name,
+          kind: hosting?.links?.kind,
           mergeRequests: hosting?.mergeRequests ?? {},
           defaultBranch: hosting?.defaultBranch,
           merged,

@@ -142,6 +142,7 @@ export interface DiscussionsView {
 export interface HostingView {
   /** `GitLab` or `GitHub`; undefined when the remote is not a known hosting. */
   name?: string;
+  kind?: 'gitlab' | 'github';
   /** Commit → numbers of merge requests whose head it is; servers keep these refs for open and recently closed ones. */
   mergeRequests: Record<string, number[]>;
   /** Branch merge requests target, e.g. `origin/master`. */

@@ -16,6 +16,7 @@ import { RepositoryManager } from './git/repositoryManager';
 import { ReviewController } from './review/reviewController';
 import { ReviewJournal } from './review/reviewJournal';
 import { HistoryCommands } from './history/historyCommands';
+import { GitHubAuth } from './hosting/githubAuth';
 import { GitLabAuth } from './hosting/gitlabAuth';
 import { HostingActions } from './hosting/hostingActions';
 import { HostingService } from './hosting/hostingService';
@@ -47,7 +48,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<KleioA
   const conflicts = new ConflictsWindow(context, repositories, sync);
   sync.showConflicts = (repository) => conflicts.open(repository);
   const gitlabAuth = new GitLabAuth(context.secrets);
-  const hosting = new HostingService(gitlabAuth);
+  const githubAuth = new GitHubAuth(context.secrets);
+  const hosting = new HostingService(gitlabAuth, githubAuth);
   const hostingActions = new HostingActions(repositories, hosting);
   const cards = new MergeRequestCards(hosting);
   const review = new ReviewController(hosting, navigator, new ReviewJournal(context.globalStorageUri));
@@ -78,6 +80,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<KleioA
     blame,
     hostingActions,
     gitlabAuth,
+    githubAuth,
     hosting,
     cards,
     review,

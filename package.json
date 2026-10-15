@@ -193,6 +193,16 @@
         "category": "Kleio"
       },
       {
+        "command": "kleio.github.connect",
+        "title": "%command.github.connect%",
+        "category": "Kleio"
+      },
+      {
+        "command": "kleio.github.disconnect",
+        "title": "%command.github.disconnect%",
+        "category": "Kleio"
+      },
+      {
         "command": "kleio.review.publish",
         "title": "%command.review.publish%",
         "category": "Kleio"

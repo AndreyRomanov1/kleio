@@ -587,5 +587,13 @@
   "Undo via Reflog…": "Отменить через reflog…",
   "Local branches": "Локальные ветки",
   "Remote branches": "Ветки на сервере",
-  "Check out a branch or run an action": "Переключиться на ветку или выполнить действие"
+  "Check out a branch or run an action": "Переключиться на ветку или выполнить действие",
+  "Merge request {0}": "MR {0}",
+  "Connect {0}": "Подключить {0}",
+  "Kleio uses a GitHub personal access token with read access to pull requests and commit statuses (the repo scope of a classic token).": "Kleio использует личный токен GitHub с доступом на чтение pull requests и статусов коммитов (scope repo у классического токена).",
+  "GitHub token for {0}": "Токен GitHub для {0}",
+  "Personal access token": "Личный токен",
+  "GitHub did not accept the token.": "GitHub не принял токен.",
+  "Remove the GitHub token from Kleio": "Удалить токен GitHub из Kleio",
+  "GitHub server address": "Адрес сервера GitHub"
 }

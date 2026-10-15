@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.16.0
+
+- GitHub API: pull request states and checks of commits in the log, merged pull requests down the whole
+  history; access from the editor's GitHub account or a token.
+- Undo via reflog: the latest states of HEAD, returned with `git reset --keep`.
+- Branch widget in the status bar with ↑↓ and the common actions.
+- Rename a branch, set its upstream; push and delete tags; cherry-pick several commits at once.
+
 ## 0.15.0
 
 - English interface; Russian is a translation. `kleio.language` picks the language without a language

@@ -112,11 +112,14 @@
 {/each}
 {#each store.hosting?.mergeRequests[hash] ?? [] as number (number)}
   {@const info = store.hosting?.mergeRequestInfo[number]}
+  {@const sign = store.hosting?.kind === 'github' ? '#' : '!'}
   <button
     class="badge mr {mergeRequestTone(info)}"
-    title={info ? `!${number} · ${mergeRequestStateLabel(info)} · ${info.title}` : `Merge request !${number}`}
+    title={info
+      ? `${sign}${number} · ${mergeRequestStateLabel(info)} · ${info.title}`
+      : t('Merge request {0}', `${sign}${number}`)}
     onmousedown={(e) => e.stopPropagation()}
-    onclick={() => store.openCard(number)}>!{number}</button
+    onclick={() => store.openCard(number)}>{sign}{number}</button
   >
 {/each}
 
