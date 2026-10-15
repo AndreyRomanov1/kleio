@@ -522,8 +522,35 @@ export class Repository {
    * Rebases the current branch — or `branch`, checking it out first — onto a revision, stashing uncommitted
    * changes for the time of it.
    */
-  rebase(onto: string, branch?: string): Promise<OperationOutcome> {
-    return this.runOperation(['rebase', '--autostash', onto, ...(branch ? [branch] : [])]);
+  async rebase(
+    onto: string,
+    branch?: string,
+    options: { updateRefs?: boolean } = {},
+  ): Promise<OperationOutcome> {
+    const updateRefs = options.updateRefs && (await this.git.atLeast(2, 38)) ? ['--update-refs'] : [];
+    return this.runOperation(['rebase', '--autostash', ...updateRefs, onto, ...(branch ? [branch] : [])]);
+  }
+
+  /**
+   * Local branches pointing at the given commits that a rebase of them would move along, as `--update-refs`
+   * of git does: a stack of branches each made on top of the previous one. A branch checked out in a worktree,
+   * the current one included, stays: moving it would leave that worktree with changes nobody made.
+   */
+  async stackedBranches(hashes: readonly string[]): Promise<Map<string, string[]>> {
+    const result = new Map<string, string[]>();
+    if (!(await this.git.atLeast(2, 38))) return result;
+    const wanted = new Set(hashes);
+    const output = await this.git.run([
+      'for-each-ref',
+      '--format=%(objectname)%00%(refname:short)%00%(worktreepath)',
+      'refs/heads',
+    ]);
+    for (const line of output.split('\n')) {
+      const [hash, name, worktree] = line.split('\0');
+      if (!name || worktree || !wanted.has(hash)) continue;
+      result.set(hash, [...(result.get(hash) ?? []), name]);
+    }
+    return result;
   }
 
   /**
@@ -531,13 +558,20 @@ export class Repository {
    * The todo list and the new messages are prepared up front, so git never opens an editor; they are kept in
    * the git directory, as the rebase may stop for conflicts or an edit and go on later.
    */
-  async interactiveRebase(base: string | undefined, entries: RebaseEntry[]): Promise<OperationOutcome> {
+  async interactiveRebase(
+    base: string | undefined,
+    entries: RebaseEntry[],
+    options: { updateRefs?: boolean } = {},
+  ): Promise<OperationOutcome> {
+    const branches = options.updateRefs
+      ? await this.stackedBranches(entries.map((e) => e.hash))
+      : new Map<string, string[]>();
     const originals = new Map<string, string>();
     for (const entry of entries) originals.set(entry.hash, (await this.commitDetails(entry.hash)).message);
     const dir = path.join(this.gitDir, 'kleio-rebase');
     await rm(dir, { recursive: true, force: true });
     await mkdir(dir, { recursive: true });
-    const { todo, messages } = buildRebaseTodo(entries, originals, (name) => path.join(dir, name));
+    const { todo, messages } = buildRebaseTodo(entries, originals, (name) => path.join(dir, name), branches);
     for (const [name, message] of messages) await writeFile(path.join(dir, name), message + '\n', 'utf8');
     const todoFile = path.join(dir, 'todo.txt');
     await writeFile(todoFile, todo, 'utf8');

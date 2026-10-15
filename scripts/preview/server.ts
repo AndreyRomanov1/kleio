@@ -193,6 +193,7 @@ async function handleRebase(
           })),
           initial: range.commits.map((c) => ({ hash: c.hash, action: 'pick', message: c.message })),
           published: await repository.publishedCount(base),
+          branches: Object.fromEntries(await repository.stackedBranches(range.commits.map((c) => c.hash))),
         },
       ];
     }

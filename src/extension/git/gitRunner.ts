@@ -28,6 +28,8 @@ export function setGitPath(gitPath: string): void {
   defaultGitPath = gitPath;
 }
 
+const versions = new Map<string, Promise<number[]>>();
+
 export class GitRunner {
   constructor(
     readonly cwd: string,
@@ -36,6 +38,20 @@ export class GitRunner {
 
   private get gitPath(): string {
     return this.explicitGitPath ?? defaultGitPath;
+  }
+
+  /** Whether git is at least of this version, for options that older versions reject. */
+  async atLeast(major: number, minor: number): Promise<boolean> {
+    let version = versions.get(this.gitPath);
+    if (!version) {
+      version = this.run(['version']).then(
+        (output) => (/(\d+)\.(\d+)/.exec(output) ?? []).slice(1).map(Number),
+        () => [],
+      );
+      versions.set(this.gitPath, version);
+    }
+    const [actualMajor = 0, actualMinor = 0] = await version;
+    return actualMajor > major || (actualMajor === major && actualMinor >= minor);
   }
 
   async run(args: readonly string[], options: RunOptions = {}): Promise<string> {

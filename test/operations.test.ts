@@ -292,6 +292,34 @@ describe('Repository operations', () => {
     expect(git(server, 'log', '-1', '--format=%s', 'feature').trim()).toBe('f amended');
   });
 
+  it('checks the lower branches of the stack along with the current one', async () => {
+    const server = path.join(work, 'stack-server.git');
+    git(work, 'init', '-q', '--bare', '-b', 'main', server);
+    const dir = init('stack-push');
+    commitFile(dir, 'a.txt', 'a\n', 'a');
+    git(dir, 'remote', 'add', 'origin', server);
+    git(dir, 'push', '-q', '-u', 'origin', 'main');
+    git(dir, 'checkout', '-q', '-b', 'lower');
+    commitFile(dir, 'l.txt', 'l\n', 'l');
+    git(dir, 'push', '-q', '-u', 'origin', 'lower');
+    git(dir, 'checkout', '-q', '-b', 'upper');
+    commitFile(dir, 'u.txt', 'u\n', 'u');
+    git(dir, 'push', '-q', '-u', 'origin', 'upper');
+    git(dir, 'checkout', '-q', '-b', 'aside', 'main');
+    commitFile(dir, 's.txt', 's\n', 's');
+    git(dir, 'push', '-q', '-u', 'origin', 'aside');
+    commitFile(dir, 's2.txt', 's\n', 's2');
+    git(dir, 'checkout', '-q', 'main');
+    commitFile(dir, 'm.txt', 'm\n', 'm');
+    git(dir, 'checkout', '-q', 'upper');
+    const repository = (await Repository.open(dir))!;
+    expect(await repository.rebase('main', undefined, { updateRefs: true })).toBe('done');
+
+    const state = await readPushState(repository, undefined, () => false);
+    const checked = Object.fromEntries(state.branches.map((b) => [b.branch, b.checked]));
+    expect(checked).toEqual({ upper: true, lower: true, main: false, aside: false });
+  });
+
   it('matches protected branches by name or pattern', () => {
     expect(matchesBranchPattern(['master', 'release/*'], 'master')).toBe(true);
     expect(matchesBranchPattern(['master', 'release/*'], 'release/1.2')).toBe(true);

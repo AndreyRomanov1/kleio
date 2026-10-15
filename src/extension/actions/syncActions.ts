@@ -39,7 +39,7 @@ export class SyncActions {
     const current = branch ?? snapshot.head.branch;
     if (!current) return this.detached();
     await this.operation(repository, t('Rebase {0} onto {1}', current, shorten(onto)), 'rebase', () =>
-      repository.rebase(onto, branch),
+      repository.rebase(onto, branch, { updateRefs: updateRefs() }),
     );
   }
 
@@ -50,7 +50,7 @@ export class SyncActions {
     branch: string,
   ): Promise<void> {
     await this.operation(repository, `Interactive rebase ${branch}`, 'rebase', () =>
-      repository.interactiveRebase(base, entries),
+      repository.interactiveRebase(base, entries, { updateRefs: updateRefs() }),
     );
   }
 
@@ -138,7 +138,9 @@ export class SyncActions {
     if (method === 'merge') {
       await this.operation(repository, title, 'merge', () => repository.merge(upstream));
     } else {
-      await this.operation(repository, title, 'rebase', () => repository.rebase(upstream));
+      await this.operation(repository, title, 'rebase', () =>
+        repository.rebase(upstream, undefined, { updateRefs: updateRefs() }),
+      );
     }
   }
 
@@ -444,4 +446,9 @@ function ago(seconds: number): string {
 
 function shorten(revision: string): string {
   return /^[0-9a-f]{40,64}$/.test(revision) ? revision.slice(0, 8) : revision;
+}
+
+/** Whether a rebase moves the branches stacked on the rebased commits along with them. */
+export function updateRefs(): boolean {
+  return vscode.workspace.getConfiguration('kleio').get<boolean>('rebase.updateRefs', true);
 }

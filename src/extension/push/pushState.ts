@@ -11,7 +11,8 @@ export interface PushState {
 
 /**
  * What the push dialog offers: the focused branch (the current one by default) and every other local branch
- * with commits its upstream lacks.
+ * with commits its upstream lacks. Branches of the focused one's stack that a rebase rewrote — the branches it
+ * was made on top of, diverged from the server — are checked along with it, as they go to the server together.
  */
 export async function readPushState(
   repository: Repository,
@@ -39,9 +40,10 @@ export async function readPushState(
       const { remote, target, upstream } = destination(ref, byFullName, remotes);
       const remoteRef = byFullName.get(`refs/remotes/${remote}/${target}`);
       leases.set(`${remote}/${target}`, remoteRef?.hash);
-      const [commits, counts] = await Promise.all([
+      const [commits, counts, stacked] = await Promise.all([
         repository.outgoing(ref.name, remoteRef?.fullName),
         remoteRef ? repository.aheadBehind(ref.name, remoteRef.fullName) : undefined,
+        focus && ref.name !== focus ? repository.isAncestor(ref.name, focus) : false,
       ]);
       return {
         branch: ref.name,
@@ -53,7 +55,7 @@ export async function readPushState(
         behind: counts?.behind ?? 0,
         protected: isProtected(target),
         commits,
-        checked: ref.name === focus,
+        checked: ref.name === focus || (stacked && (counts?.behind ?? 0) > 0 && !isProtected(target)),
       } satisfies PushBranchView;
     }),
   );

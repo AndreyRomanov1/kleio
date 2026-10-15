@@ -716,6 +716,11 @@
           },
           "markdownDescription": "%config.hosting.instances%"
         },
+        "kleio.rebase.updateRefs": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.rebase.updateRefs%"
+        },
         "kleio.update.method": {
           "type": "string",
           "enum": [

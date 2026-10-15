@@ -11,43 +11,59 @@ export interface RebaseTodo {
 /**
  * Turns the plan of the interactive rebase dialog into a git todo list that needs no editor: squash and fixup
  * become `fixup`, and every commit whose final message differs from its original one gets an `exec` that
- * amends the message from a prepared file, after the commit-msg hook. `messageFile` gives the path git should read the n-th file from.
+ * amends the message from a prepared file, after the commit-msg hook. `messageFile` gives the path git should
+ * read the n-th file from.
+ *
+ * `branches` (commit → local branches) are moved along with their commits by `update-ref` lines, as git's
+ * `--update-refs` does, which a todo list written in place of git's own would lose. A branch moves after the
+ * whole group of its commit, so that it gets the commit with the melded changes and the new message; a branch
+ * of a dropped commit moves to the commit before it.
  */
 export function buildRebaseTodo(
   entries: readonly RebaseEntry[],
   originals: ReadonlyMap<string, string>,
   messageFile: (name: string) => string,
+  branches: ReadonlyMap<string, readonly string[]> = new Map(),
 ): RebaseTodo {
   const lines: string[] = [];
   const messages = new Map<string, string>();
   let pending: string | undefined;
+  let refs: string[] = [];
 
   const flush = () => {
-    if (pending === undefined) return;
-    const name = `message-${messages.size + 1}.txt`;
-    messages.set(name, pending);
-    const file = quote(messageFile(name));
-    // As a reword in git itself: the commit-msg hook checks the message, pre-commit does not run again.
-    lines.push(
-      `exec git hook run --ignore-missing commit-msg -- ${file} && git commit --amend --allow-empty --no-verify --quiet --cleanup=strip -F ${file}`,
-    );
-    pending = undefined;
+    if (pending !== undefined) {
+      const name = `message-${messages.size + 1}.txt`;
+      messages.set(name, pending);
+      const file = quote(messageFile(name));
+      // As a reword in git itself: the commit-msg hook checks the message, pre-commit does not run again.
+      lines.push(
+        `exec git hook run --ignore-missing commit-msg -- ${file} && git commit --amend --allow-empty --no-verify --quiet --cleanup=strip -F ${file}`,
+      );
+      pending = undefined;
+    }
+    for (const ref of refs) lines.push(`update-ref refs/heads/${ref}`);
+    refs = [];
   };
 
   let started = false;
   for (const entry of entries) {
+    const moved = branches.get(entry.hash) ?? [];
     if (entry.action === 'drop') {
       lines.push(`drop ${entry.hash}`);
+      refs.push(...moved);
+      if (!started) flush();
       continue;
     }
     if (isMeld(entry.action)) {
       if (!started) throw new Error(t('The first commit cannot be melded into the previous one.'));
       lines.push(`fixup ${entry.hash}`);
+      refs.push(...moved);
       continue;
     }
     flush();
     started = true;
     lines.push(`${entry.action === 'edit' ? 'edit' : 'pick'} ${entry.hash}`);
+    refs.push(...moved);
     const message = entry.message?.trim();
     // A group with squashed commits always takes the message chosen in the dialog.
     const group = groupOf(entries, entry);

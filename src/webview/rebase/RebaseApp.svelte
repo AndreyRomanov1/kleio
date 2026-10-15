@@ -37,6 +37,8 @@
   let branch = $state('');
   let base = $state<string | undefined>(undefined);
   let published = $state(0);
+  let branches = $state.raw<Record<string, string[]>>({});
+  const stacked = $derived(Object.values(branches).flat());
   let selected = $state(0);
   /** Rows picked with Ctrl or Shift; actions apply to all of them. Always holds the cursor row too. */
   let marked = $state<ReadonlySet<string>>(new Set());
@@ -78,6 +80,7 @@
         branch = message.branch;
         base = message.base;
         published = message.published;
+        branches = message.branches;
         error = undefined;
         loaded = true;
         select(
@@ -360,6 +363,11 @@
           <span class="hash">{shortHash(row.hash)}</span>
           <span class="subject">
             {#if isMeld(row.action)}<i class="codicon codicon-arrow-small-up"></i>{/if}
+            {#each branches[row.hash] ?? [] as name (name)}
+              <span class="branch" title={t('This branch moves along with its commit')}
+                ><i class="codicon codicon-git-branch"></i>{name}</span
+              >
+            {/each}
             {row.message.split('\n')[0]}
             {#if row.action === 'reword' || (row.message.trim() !== row.original.trim() && !isMeld(row.action))}
               <span class="edited">{t('message edited')}</span>
@@ -421,6 +429,15 @@
           '{0} of {1} commits are already on the server: after the rebase the branch has to be pushed with force-with-lease.',
           published,
           rows.length,
+        )}</span
+      >
+    {/if}
+    {#if !invalid && stacked.length}
+      <span class="info" title={t('Turn off with the setting kleio.rebase.updateRefs')}
+        ><i class="codicon codicon-git-branch"></i>
+        {t(
+          'Branches of the stack move along with their commits: {0}. Push checks them together with the current branch.',
+          stacked.join(', '),
         )}</span
       >
     {/if}
@@ -667,5 +684,22 @@
   }
   .warn {
     color: var(--vscode-charts-orange);
+  }
+  .branch {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin-right: 6px;
+    padding: 0 6px 0 3px;
+    border-radius: 3px;
+    background: var(--vscode-badge-background);
+    color: var(--vscode-badge-foreground);
+    font-size: 0.9em;
+  }
+  .info {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    opacity: 0.85;
   }
 </style>

@@ -31,6 +31,8 @@ export type RebaseHostMessage =
       focus?: string;
       /** How many of the commits are already on a remote: rewriting them needs a force push. */
       published: number;
+      /** Commit → local branches stacked on it that move along with the rebase. */
+      branches: Record<string, string[]>;
     }
   | { type: 'files'; hash: string; files: FileChange[] }
   | { type: 'busy'; value: boolean }

@@ -148,4 +148,81 @@ describe('interactive rebase', () => {
     expect(await repository.publishedCount(hashes.two)).toBe(0);
     expect((await repository.rebaseRange(undefined)).commits).toHaveLength(5);
   });
+
+  it('moves stacked branches after the group of their commit, a dropped one to the commit before', () => {
+    const { todo } = buildRebaseTodo(
+      [
+        { hash: 'a', action: 'drop' },
+        { hash: 'b', action: 'pick', message: 'b new' },
+        { hash: 'c', action: 'fixup' },
+        { hash: 'd', action: 'drop' },
+        { hash: 'e', action: 'pick' },
+      ],
+      new Map([['b', 'b']]),
+      (name) => `/m/${name}`,
+      new Map([
+        ['a', ['first']],
+        ['c', ['second']],
+        ['d', ['third']],
+      ]),
+    );
+    expect(todo.split('\n').map((line) => line.replace(/^exec .*/, 'exec'))).toEqual([
+      'drop a',
+      'update-ref refs/heads/first',
+      'pick b',
+      'fixup c',
+      'drop d',
+      'exec',
+      'update-ref refs/heads/second',
+      'update-ref refs/heads/third',
+      'pick e',
+      '',
+    ]);
+  });
+
+  it('moves the branches of a stack along, leaving the ones checked out in worktrees', async () => {
+    const { dir, hashes } = repo('stack');
+    git(dir, 'branch', 'stack-one', hashes.one);
+    git(dir, 'branch', 'stack-three', hashes.three);
+    git(dir, 'worktree', 'add', '-q', path.join(work, 'stack-wt'), '-b', 'busy', hashes.two);
+    const repository = (await Repository.open(dir))!;
+    expect(await repository.stackedBranches([hashes.one, hashes.two, hashes.three, hashes.four])).toEqual(
+      new Map([
+        [hashes.one, ['stack-one']],
+        [hashes.three, ['stack-three']],
+      ]),
+    );
+
+    const outcome = await repository.interactiveRebase(
+      hashes.base,
+      [
+        { hash: hashes.one, action: 'reword', message: 'one renamed' },
+        { hash: hashes.two, action: 'pick', message: 'two\n\nbody of two' },
+        { hash: hashes.three, action: 'fixup' },
+        { hash: hashes.four, action: 'pick', message: 'four\n\nbody of four' },
+      ],
+      { updateRefs: true },
+    );
+    expect(outcome).toBe('done');
+    expect(git(dir, 'log', '-1', '--format=%s', 'stack-one').trim()).toBe('one renamed');
+    expect(git(dir, 'log', '-1', '--format=%s', 'stack-three').trim()).toBe('two');
+    expect(git(dir, 'show', 'stack-three:three.txt')).toBe('three\n');
+    expect(git(dir, 'rev-parse', 'stack-three').trim()).toBe(git(dir, 'rev-parse', 'main~1').trim());
+    expect(git(dir, 'rev-parse', 'busy').trim()).toBe(hashes.two);
+  });
+
+  it('moves the stack with a plain rebase onto another branch', async () => {
+    const { dir, hashes } = repo('plain-stack');
+    git(dir, 'checkout', '-q', '-b', 'upstream', hashes.base);
+    writeFileSync(path.join(dir, 'up.txt'), 'up\n');
+    git(dir, 'add', '.');
+    git(dir, 'commit', '-q', '-m', 'up');
+    git(dir, 'checkout', '-q', 'main');
+    git(dir, 'branch', 'lower', hashes.two);
+    const repository = (await Repository.open(dir))!;
+
+    expect(await repository.rebase('upstream', undefined, { updateRefs: true })).toBe('done');
+    expect(git(dir, 'log', '--format=%s', 'lower').trim().split('\n')).toEqual(['two', 'one', 'up', 'base']);
+    expect(await repository.isAncestor('lower', 'main')).toBe(true);
+  });
 });

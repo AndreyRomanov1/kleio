@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import type { RebaseEntry, RebaseHostMessage, RebaseWebviewMessage } from '../../shared/rebaseProtocol';
-import type { SyncActions } from '../actions/syncActions';
+import { updateRefs, type SyncActions } from '../actions/syncActions';
 import { commitChangeSet } from '../changes/changeSet';
 import type { ChangeSetNavigator } from '../changes/changeSetNavigator';
 import type { Repository } from '../git/repository';
@@ -169,6 +169,7 @@ export class RebaseDialog implements vscode.Disposable {
       initial,
       focus: request.kind === 'reword' ? request.hash : undefined,
       published: await repository.publishedCount(range.base),
+      branches: updateRefs() ? Object.fromEntries(await repository.stackedBranches(range.hashes)) : {},
     });
   }
 
