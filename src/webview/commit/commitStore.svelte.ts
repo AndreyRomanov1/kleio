@@ -1,4 +1,9 @@
-import type { CommitFile, CommitHostMessage, HunkView } from '../../shared/commitProtocol';
+import {
+  hunkSelection,
+  type CommitFile,
+  type CommitHostMessage,
+  type HunkView,
+} from '../../shared/commitProtocol';
 import type { Stash } from '../../shared/model';
 import { loadState, postCommit, saveState } from '../vscode';
 
@@ -28,6 +33,10 @@ export class CommitStore {
   hunks = $state.raw<ReadonlyMap<string, HunkView[]>>(new Map());
   /** Hunks left out of the commit, by file; a checked file without any is committed whole. */
   excluded = $state.raw<ReadonlyMap<string, ReadonlySet<string>>>(new Map());
+  /** Lines left out of hunks that are otherwise committed: file → hunk → indexes of the lines. */
+  excludedLines = $state.raw<ReadonlyMap<string, ReadonlyMap<string, ReadonlySet<number>>>>(new Map());
+  /** Hunks opened to choose single lines: `path\0key`. */
+  openHunks = $state.raw<ReadonlySet<string>>(new Set());
   expanded = $state.raw<ReadonlySet<string>>(new Set());
 
   message = $state('');
@@ -93,12 +102,23 @@ export class CommitStore {
           const keys = new Set(message.hunks.map((h) => h.key));
           this.setExcluded(message.path, new Set([...left].filter((k) => keys.has(k))));
         }
+        const lines = this.excludedLines.get(message.path);
+        if (lines) {
+          const kept = new Map(
+            message.hunks.flatMap((h) => {
+              const left = lines.get(h.key);
+              return left && h.lines ? [[h.key, left] as const] : [];
+            }),
+          );
+          this.setExcludedLines(message.path, kept);
+        }
         break;
       }
       case 'committed':
         this.message = '';
         this.amend = false;
         this.excluded = new Map();
+        this.excludedLines = new Map();
         this.persist();
         break;
     }
@@ -123,6 +143,7 @@ export class CommitStore {
     this.staging = value;
     this.hunks = new Map();
     this.excluded = new Map();
+    this.excludedLines = new Map();
     postCommit({ type: 'setStaging', value });
   }
 
@@ -144,7 +165,7 @@ export class CommitStore {
   fileState(path: string): 'all' | 'some' | 'none' {
     if (this.staging) return this.files.find((f) => f.path === path)?.staged ?? 'none';
     if (!this.checked.has(path)) return 'none';
-    return this.excluded.get(path)?.size ? 'some' : 'all';
+    return this.excluded.get(path)?.size || this.excludedLines.get(path)?.size ? 'some' : 'all';
   }
 
   hunkChecked(path: string, key: string): boolean {
@@ -152,11 +173,89 @@ export class CommitStore {
     return this.checked.has(path) && !this.excluded.get(path)?.has(key);
   }
 
+  hunkState(path: string, key: string): 'all' | 'some' | 'none' {
+    if (!this.hunkChecked(path, key)) return 'none';
+    return this.excludedLines.get(path)?.get(key)?.size ? 'some' : 'all';
+  }
+
+  /** In the staging area a line is staged with its hunk; it moves to the other side when toggled. */
+  lineChecked(path: string, key: string, index: number): boolean {
+    return this.hunkChecked(path, key) && !this.excludedLines.get(path)?.get(key)?.has(index);
+  }
+
+  /** Checking a line of an unchecked hunk takes only that line; leaving out every line unchecks the hunk. */
+  setLine(path: string, key: string, index: number, value: boolean): void {
+    if (this.staging) {
+      postCommit({ type: 'stageHunk', path, key: hunkSelection(key, [index]), value });
+      return;
+    }
+    const lines = (this.hunks.get(path)?.find((h) => h.key === key)?.lines ?? []).map((l) => l.index);
+    let left: Set<number>;
+    if (!this.hunkChecked(path, key)) {
+      if (!value) return;
+      this.setHunk(path, key, true);
+      left = new Set(lines.filter((i) => i !== index));
+    } else {
+      left = new Set(this.excludedLines.get(path)?.get(key));
+      if (value) left.delete(index);
+      else left.add(index);
+    }
+    if (lines.length && lines.every((i) => left.has(i))) {
+      this.setHunk(path, key, false);
+      return;
+    }
+    const next = new Map(this.excludedLines.get(path));
+    if (left.size) next.set(key, left);
+    else next.delete(key);
+    this.setExcludedLines(path, next);
+  }
+
+  toggleHunkLines(path: string, key: string): void {
+    const id = `${path}\0${key}`;
+    const next = new Set(this.openHunks);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    this.openHunks = next;
+  }
+
+  /** The hunks of a file to commit or roll back, with the lines chosen in part. */
+  private selections(path: string): string[] {
+    const lines = this.excludedLines.get(path);
+    return (this.hunks.get(path) ?? [])
+      .filter((h) => !this.excluded.get(path)?.has(h.key))
+      .map((h) => {
+        const left = lines?.get(h.key);
+        if (!left?.size || !h.lines) return h.key;
+        return hunkSelection(
+          h.key,
+          h.lines.map((l) => l.index).filter((i) => !left.has(i)),
+        );
+      });
+  }
+
+  private partlyChecked(path: string): boolean {
+    return !!(this.excluded.get(path)?.size || this.excludedLines.get(path)?.size);
+  }
+
+  private setExcludedLines(path: string, lines: ReadonlyMap<string, ReadonlySet<number>>): void {
+    if (!lines.size && !this.excludedLines.has(path)) return;
+    const next = new Map(this.excludedLines);
+    if (lines.size) next.set(path, lines);
+    else next.delete(path);
+    this.excludedLines = next;
+  }
+
   /** Checking a hunk of an unchecked file takes only that hunk; leaving out every hunk unchecks the file. */
   setHunk(path: string, key: string, value: boolean): void {
     if (this.staging) {
       postCommit({ type: 'stageHunk', path, key, value });
       return;
+    }
+    const lines = this.excludedLines.get(path);
+    if (lines?.has(key)) {
+      const next = new Map(lines);
+      next.delete(key);
+      this.setExcludedLines(path, next);
     }
     const keys = (this.hunks.get(path) ?? []).map((h) => h.key);
     let left: Set<string>;
@@ -227,9 +326,8 @@ export class CommitStore {
         paths.push(path);
         continue;
       }
-      const left = this.excluded.get(path);
-      if (left?.size && this.checked.has(path)) {
-        hunks[path] = (this.hunks.get(path) ?? []).map((h) => h.key).filter((k) => !left.has(k));
+      if (this.partlyChecked(path) && this.checked.has(path)) {
+        hunks[path] = this.selections(path);
       } else {
         paths.push(path);
       }
@@ -239,17 +337,12 @@ export class CommitStore {
 
   commit(push: boolean): void {
     if (this.busy) return;
-    const partial = this.checkedFiles.filter((f) => this.excluded.get(f.path)?.size);
+    const partial = this.checkedFiles.filter((f) => this.partlyChecked(f.path));
     postCommit({
       type: 'commit',
       message: this.message,
       paths: this.checkedFiles.filter((f) => !partial.includes(f)).map((f) => f.path),
-      hunks: Object.fromEntries(
-        partial.map((f) => [
-          f.path,
-          (this.hunks.get(f.path) ?? []).map((h) => h.key).filter((k) => !this.excluded.get(f.path)?.has(k)),
-        ]),
-      ),
+      hunks: Object.fromEntries(partial.map((f) => [f.path, this.selections(f.path)])),
       amend: this.amend,
       push,
     });
@@ -261,7 +354,9 @@ export class CommitStore {
     this.selected = new Set();
     this.hunks = new Map();
     this.excluded = new Map();
+    this.excludedLines = new Map();
     this.expanded = new Set();
+    this.openHunks = new Set();
   }
 
   private applyFiles(files: CommitFile[]): void {
@@ -285,5 +380,6 @@ export class CommitStore {
     }
     this.expanded = new Set([...this.expanded].filter((p) => present.has(p)));
     this.excluded = new Map([...this.excluded].filter(([p]) => present.has(p)));
+    this.excludedLines = new Map([...this.excludedLines].filter(([p]) => present.has(p)));
   }
 }

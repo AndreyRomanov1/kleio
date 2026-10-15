@@ -15,7 +15,7 @@ import type {
 import type { ConflictFileView } from '../../shared/conflictsProtocol';
 import type { RebaseEntry } from '../../shared/rebaseProtocol';
 import { GitError, GitRunner } from './gitRunner';
-import { parseFilePatch, selectHunks, type FilePatch } from './patch';
+import { hasHunks, parseFilePatch, selectHunks, type FilePatch } from './patch';
 import { buildRebaseTodo } from './rebasePlan';
 import {
   FIELD,
@@ -342,10 +342,9 @@ export class Repository {
     const patches = await Promise.all(
       partial.map(async ([filePath, keys]) => {
         const patch = await this.workingPatch(filePath);
-        const known = new Set(patch.hunks.map((h) => h.key));
-        if (keys.some((k) => !known.has(k)))
+        if (!hasHunks(patch, keys))
           throw new Error(t('File {0} has changed: check the chosen hunks and commit again.', filePath));
-        return selectHunks(patch, new Set(keys));
+        return selectHunks(patch, keys);
       }),
     );
     const indexFile = path.join(this.gitDir, 'kleio-commit-index');
@@ -403,12 +402,11 @@ export class Repository {
   /** Stages hunks of {@link unstagedPatch}, or unstages hunks of {@link stagedPatch}. */
   async stageHunks(filePath: string, keys: string[], value: boolean): Promise<void> {
     const patch = value ? await this.unstagedPatch(filePath) : await this.stagedPatch(filePath);
-    const known = new Set(patch.hunks.map((h) => h.key));
-    if (keys.some((k) => !known.has(k)))
+    if (!hasHunks(patch, keys))
       throw new Error(t('File {0} has changed: refresh the list and try again.', filePath));
     const args = ['apply', '--cached', '--unidiff-zero', '--whitespace=nowarn'];
     if (!value) args.push('-R');
-    await this.git.run([...args, '-'], { input: selectHunks(patch, new Set(keys)) });
+    await this.git.run([...args, '-'], { input: selectHunks(patch, keys, !value) });
   }
 
   /** Commits what is staged, as plain `git commit` does. */
@@ -424,11 +422,10 @@ export class Repository {
    */
   async rollbackHunks(filePath: string, keys: string[], unstagedOnly = false): Promise<void> {
     const patch = unstagedOnly ? await this.unstagedPatch(filePath) : await this.workingPatch(filePath);
-    const known = new Set(patch.hunks.map((h) => h.key));
-    if (keys.some((k) => !known.has(k)))
+    if (!hasHunks(patch, keys))
       throw new Error(t('File {0} has changed: refresh the list and roll back again.', filePath));
     await this.git.run(['apply', '-R', '--unidiff-zero', '--whitespace=nowarn', '-'], {
-      input: selectHunks(patch, new Set(keys)),
+      input: selectHunks(patch, keys, true),
     });
   }
 

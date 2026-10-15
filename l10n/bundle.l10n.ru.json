@@ -640,5 +640,8 @@
   "Show only commits changing this file": "Только коммиты, меняющие этот файл",
   "This branch moves along with its commit": "Эта ветка переедет вместе со своим коммитом",
   "Turn off with the setting kleio.rebase.updateRefs": "Отключается настройкой kleio.rebase.updateRefs",
-  "Branches of the stack move along with their commits: {0}. Push checks them together with the current branch.": "Ветки стопки переедут вместе со своими коммитами: {0}. Push отметит их вместе с текущей веткой."
+  "Branches of the stack move along with their commits: {0}. Push checks them together with the current branch.": "Ветки стопки переедут вместе со своими коммитами: {0}. Push отметит их вместе с текущей веткой.",
+  "Hide lines": "Скрыть строки",
+  "Show lines": "Показать строки",
+  "Lines: commit a part of the hunk": "Строки: закоммитить часть куска"
 }

@@ -222,6 +222,7 @@
               </div>
             {/if}
             {#each hunks ?? [] as hunk (hunk.key)}
+              {@const linesOpen = store.openHunks.has(`${file.path}\0${hunk.key}`)}
               <div
                 class="row hunk"
                 style:padding-left="{52 + depth * 14}px"
@@ -239,8 +240,23 @@
                   }
                 }}
               >
+                {#if hunk.lines && hunk.lines.length > 1}
+                  <button
+                    class="chevron"
+                    aria-label={linesOpen ? t('Hide lines') : t('Show lines')}
+                    title={t('Lines: commit a part of the hunk')}
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      store.toggleHunkLines(file.path, hunk.key);
+                    }}
+                    ondblclick={(e) => e.stopPropagation()}
+                    ><i class="codicon codicon-chevron-{linesOpen ? 'down' : 'right'}"></i></button
+                  >
+                {:else}
+                  <span class="chevron-space"></span>
+                {/if}
                 <Check
-                  state={store.hunkChecked(file.path, hunk.key) ? 'all' : 'none'}
+                  state={store.hunkState(file.path, hunk.key)}
                   label={t('Line {0}', hunk.line)}
                   onchange={(v) => store.setHunk(file.path, hunk.key, v)}
                 />
@@ -251,6 +267,38 @@
                   >{(hunk.preview.find((l) => l.startsWith('+')) ?? hunk.preview[0])?.slice(1).trim()}</code
                 >
               </div>
+              {#if hunk.lines && linesOpen}
+                {#each hunk.lines as line (line.index)}
+                  <div
+                    class="row line"
+                    style:padding-left="{68 + depth * 14}px"
+                    role="treeitem"
+                    aria-selected="false"
+                    tabindex="-1"
+                    ondblclick={() => postCommit({ type: 'openDiff', path: file.path, line: hunk.line })}
+                    onkeydown={(e) => {
+                      if (e.key === ' ') {
+                        e.preventDefault();
+                        store.setLine(
+                          file.path,
+                          hunk.key,
+                          line.index,
+                          !store.lineChecked(file.path, hunk.key, line.index),
+                        );
+                      }
+                    }}
+                  >
+                    <Check
+                      state={store.lineChecked(file.path, hunk.key, line.index) ? 'all' : 'none'}
+                      label={line.text}
+                      onchange={(v) => store.setLine(file.path, hunk.key, line.index, v)}
+                    />
+                    <code class="code {line.text.startsWith('+') ? 'added' : 'removed'}"
+                      ><span class="sign">{line.text[0]}</span>{line.text.slice(1)}</code
+                    >
+                  </div>
+                {/each}
+              {/if}
             {/each}
           {/if}
         {/if}
@@ -348,6 +396,20 @@
   }
   .hunk.muted {
     opacity: 0.6;
+  }
+  .line {
+    font-size: 0.95em;
+  }
+  .code {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: pre;
+    font-family: var(--vscode-editor-font-family);
+  }
+  .sign {
+    display: inline-block;
+    width: 1.2em;
   }
   .where {
     opacity: 0.8;

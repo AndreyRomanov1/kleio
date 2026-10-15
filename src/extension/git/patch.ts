@@ -18,6 +18,9 @@ export interface FilePatch {
   hunks: PatchHunk[];
 }
 
+/** Longer hunks are chosen whole: a list of thousands of lines helps nobody. */
+const MAX_SELECTABLE_LINES = 500;
+
 const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
 
 /** Splits the diff of one file into its header and hunks; binary diffs have no hunks. */
@@ -56,10 +59,89 @@ export function parseFilePatch(output: string): FilePatch {
   return { header, hunks };
 }
 
-/** A patch of the file with only the chosen hunks, for `git apply --recount`. */
-export function selectHunks(patch: FilePatch, keys: ReadonlySet<string>): string {
-  const chosen = patch.hunks.filter((h) => keys.has(h.key));
-  return [...patch.header, ...chosen.flatMap((h) => h.text)].join('\n') + '\n';
+/** A selection made by {@link hunkSelection}. */
+function parseSelection(selection: string): { key: string; lines?: Set<number> } {
+  const at = selection.indexOf('@');
+  if (at < 0) return { key: selection };
+  return {
+    key: selection.slice(0, at),
+    lines: new Set(
+      selection
+        .slice(at + 1)
+        .split(',')
+        .map(Number),
+    ),
+  };
+}
+
+/** Whether every chosen hunk is still in the patch: the file may have changed since the list was shown. */
+export function hasHunks(patch: FilePatch, selections: readonly string[]): boolean {
+  const known = new Set(patch.hunks.map((h) => h.key));
+  return selections.every((s) => known.has(parseSelection(s).key));
+}
+
+/**
+ * A patch of the file with only the chosen hunks and lines, for `git apply --unidiff-zero`. See
+ * {@link partialHunk} for the lines left out.
+ */
+export function selectHunks(patch: FilePatch, selections: Iterable<string>, reverse = false): string {
+  const chosen = new Map<string, Set<number> | undefined>();
+  for (const selection of selections) {
+    const { key, lines } = parseSelection(selection);
+    chosen.set(key, lines);
+  }
+  const hunks: string[][] = [];
+  for (const hunk of patch.hunks) {
+    if (!chosen.has(hunk.key)) continue;
+    const lines = chosen.get(hunk.key);
+    const text = lines ? partialHunk(hunk, lines, reverse) : hunk.text;
+    if (text) hunks.push(text);
+  }
+  return [...patch.header, ...hunks.flat()].join('\n') + '\n';
+}
+
+/**
+ * A hunk without context (its removed lines, then its added ones) with only some of its lines. The n-th
+ * removed line and the n-th added one are taken as a line and what it became, so that a changed line taken
+ * alone lands where the old one was: of `-b -c +B +C`, `-b +B` gives `B c`, not `c B`.
+ *
+ * A line left out stays as it is in the file the patch goes to: a removed one is context when the patch is
+ * applied forward, an added one when it is applied in reverse (`-R`, rolling back or unstaging); the other
+ * kind is dropped.
+ */
+function partialHunk(hunk: PatchHunk, lines: ReadonlySet<number>, reverse: boolean): string[] | undefined {
+  const removed: { line: string; index: number }[] = [];
+  const added: { line: string; index: number }[] = [];
+  hunk.text.slice(1).forEach((line, index) => {
+    if (line.startsWith('-')) removed.push({ line, index });
+    else if (line.startsWith('+')) added.push({ line, index });
+  });
+  const body: string[] = [];
+  let changes = 0;
+  const take = (entry: { line: string; index: number } | undefined, keptAsContext: boolean) => {
+    if (!entry) return;
+    if (lines.has(entry.index)) {
+      body.push(entry.line);
+      changes++;
+    } else if (keptAsContext) {
+      body.push(' ' + entry.line.slice(1));
+    }
+  };
+  for (let i = 0; i < Math.max(removed.length, added.length); i++) {
+    take(removed[i], !reverse);
+    take(added[i], reverse);
+  }
+  if (!changes) return undefined;
+  const count = (sign: string) => body.filter((l) => l[0] === sign || l[0] === ' ').length;
+  // A side with no lines names the line before the change, a side with lines its first line.
+  const start = (from: number, before: number, after: number) =>
+    before === 0 && after > 0 ? from + 1 : before > 0 && after === 0 ? from - 1 : from;
+  const oldLines = count('-');
+  const newLines = count('+');
+  return [
+    `@@ -${start(hunk.oldStart, hunk.oldLines, oldLines)},${oldLines} +${start(hunk.newStart, hunk.newLines, newLines)},${newLines} @@`,
+    ...body,
+  ];
 }
 
 /** What the commit view shows of each hunk: where it starts in the working file and its first changed lines. */
@@ -75,6 +157,12 @@ export function hunkViews(patch: FilePatch): HunkView[] {
       added: body.filter((l) => l.startsWith('+')).length,
       removed: body.filter((l) => l.startsWith('-')).length,
       preview: changed.filter((l) => l.slice(1).trim()).slice(0, 3),
+      lines:
+        changed.length <= MAX_SELECTABLE_LINES
+          ? body.flatMap((text, index) =>
+              text.startsWith('+') || text.startsWith('-') ? [{ index, text }] : [],
+            )
+          : undefined,
     };
   });
 }

@@ -398,4 +398,64 @@ describe('Repository', () => {
     // Parents are rewritten to the shown commits, so the graph stays connected.
     expect(byPath[0].parents).toEqual([byPath[1].hash]);
   });
+
+  it('commits, stages, unstages and rolls back single lines of a hunk', async () => {
+    const dir = path.join(work, 'lines');
+    git(work, 'init', '-q', '-b', 'main', dir);
+    commitFile(dir, 'f.txt', 'a\nb\nc\nd\n', 'base');
+    const changed = 'a\nB\nC\nY\nd\n';
+    writeFileSync(path.join(dir, 'f.txt'), changed);
+    const repository = (await Repository.open(dir))!;
+    const read = () => readFileSync(path.join(dir, 'f.txt'), 'utf8');
+    const index = () => git(dir, 'show', ':f.txt');
+    // Body of the only hunk: -b -c +B +C +Y.
+    const key = (await repository.workingPatch('f.txt')).hunks[0].key;
+    expect((await repository.workingPatch('f.txt')).hunks[0].text.slice(1)).toEqual([
+      '-b',
+      '-c',
+      '+B',
+      '+C',
+      '+Y',
+    ]);
+
+    await repository.commitFiles({
+      message: 'b to B',
+      paths: [],
+      untracked: [],
+      amend: false,
+      hunks: { 'f.txt': [`${key}@0,2`] },
+    });
+    expect(git(dir, 'show', 'HEAD:f.txt')).toBe('a\nB\nc\nd\n');
+    expect(read()).toBe(changed);
+
+    // Now the hunk against HEAD is: -c +C +Y.
+    const rest = (await repository.unstagedPatch('f.txt')).hunks[0];
+    expect(rest.text.slice(1)).toEqual(['-c', '+C', '+Y']);
+    await repository.stageHunks('f.txt', [`${rest.key}@2`], true);
+    expect(index()).toBe('a\nB\nc\nY\nd\n');
+
+    await repository.stage(['f.txt'], true);
+    const staged = (await repository.stagedPatch('f.txt')).hunks[0];
+    expect(staged.text.slice(1)).toEqual(['-c', '+C', '+Y']);
+    await repository.stageHunks('f.txt', [`${staged.key}@0,1`], false);
+    expect(index()).toBe('a\nB\nc\nY\nd\n');
+
+    const working = (await repository.workingPatch('f.txt')).hunks[0];
+    await repository.rollbackHunks('f.txt', [`${working.key}@2`]);
+    expect(read()).toBe('a\nB\nC\nd\n');
+  });
+
+  it('stages single lines of a deletion and of an addition at the top of a file', async () => {
+    const dir = path.join(work, 'line-edges');
+    git(work, 'init', '-q', '-b', 'main', dir);
+    commitFile(dir, 'f.txt', '1\n2\n3\n4\n5\n', 'base');
+    writeFileSync(path.join(dir, 'f.txt'), 'X\nY\n1\n5\n');
+    const repository = (await Repository.open(dir))!;
+    const [top, deletion] = (await repository.unstagedPatch('f.txt')).hunks;
+    expect(top.text.slice(1)).toEqual(['+X', '+Y']);
+    expect(deletion.text.slice(1)).toEqual(['-2', '-3', '-4']);
+
+    await repository.stageHunks('f.txt', [`${top.key}@1`, `${deletion.key}@1`], true);
+    expect(git(dir, 'show', ':f.txt')).toBe('Y\n1\n2\n4\n5\n');
+  });
 });

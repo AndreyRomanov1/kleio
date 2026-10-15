@@ -22,6 +22,11 @@ export interface HunkView {
   preview: string[];
   /** Whether the hunk is staged; only when the view works with the staging area. */
   staged?: boolean;
+  /**
+   * Changed lines with `+` or `-`, to choose single ones; `index` is their place in the hunk body. Absent for
+   * a hunk too long to go through line by line.
+   */
+  lines?: { index: number; text: string }[];
 }
 
 export type CommitHostMessage =
@@ -74,3 +79,11 @@ export type CommitWebviewMessage =
   /** `paths` stashes only these files; all changes without it. */
   | { type: 'stashSave'; message: string; includeUntracked: boolean; paths?: string[] }
   | { type: 'stashAction'; action: 'show' | 'apply' | 'pop' | 'drop'; selector: string; hash: string };
+
+/**
+ * A chosen hunk as the host takes it: its key, or `key@3,4` for some of its changed lines, by their index in
+ * the hunk body.
+ */
+export function hunkSelection(key: string, lines?: readonly number[]): string {
+  return lines ? `${key}@${lines.join(',')}` : key;
+}
