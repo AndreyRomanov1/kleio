@@ -115,7 +115,7 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
           this.post({ type: 'recentMessages', messages: await this.repository.recentMessages() });
         return;
       case 'stashSave':
-        return this.stashSave(message.message, message.includeUntracked);
+        return this.stashSave(message.message, message.includeUntracked, message.paths);
       case 'stashAction':
         return this.stashAction(message.action, message.selector, message.hash);
     }
@@ -358,10 +358,16 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
     }
   }
 
-  private async stashSave(message: string, includeUntracked: boolean): Promise<void> {
+  private async stashSave(message: string, includeUntracked: boolean, paths?: string[]): Promise<void> {
     const repository = this.repository;
     if (!repository) return;
-    await repository.stashSave(message, includeUntracked);
+    const files = paths && this.files.filter((f) => paths.includes(f.path));
+    if (files && !files.length) return;
+    await repository.stashSave(
+      message,
+      includeUntracked,
+      files?.flatMap((f) => (f.oldPath ? [f.path, f.oldPath] : [f.path])),
+    );
     this.repositories.notifyChanged(repository);
     await this.refresh();
   }

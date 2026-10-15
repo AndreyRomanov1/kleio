@@ -67,5 +67,6 @@ export type CommitWebviewMessage =
   | { type: 'stageHunk'; path: string; key: string; value: boolean }
   | { type: 'requestAmendMessage' }
   | { type: 'requestRecentMessages' }
-  | { type: 'stashSave'; message: string; includeUntracked: boolean }
+  /** `paths` stashes only these files; all changes without it. */
+  | { type: 'stashSave'; message: string; includeUntracked: boolean; paths?: string[] }
   | { type: 'stashAction'; action: 'show' | 'apply' | 'pop' | 'drop'; selector: string; hash: string };

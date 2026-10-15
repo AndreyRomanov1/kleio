@@ -351,9 +351,12 @@ export class LogController implements vscode.Disposable {
   private async existingRevisions(revisions: string[]): Promise<string[]> {
     const repository = this.repository;
     if (!repository) return [];
-    const resolved = await Promise.all(
-      revisions.map(async (r) => ((await repository.revParse(r)) ? r : undefined)),
-    );
+    // A range such as `main..feature` is valid when both of its ends are.
+    const exists = async (revision: string) => {
+      const ends = revision.split(/\.\.\.?/).filter(Boolean);
+      return ends.length > 0 && (await Promise.all(ends.map((e) => repository.revParse(e)))).every(Boolean);
+    };
+    const resolved = await Promise.all(revisions.map(async (r) => ((await exists(r)) ? r : undefined)));
     return resolved.filter((r): r is string => r !== undefined);
   }
 

@@ -411,10 +411,11 @@ export class Repository {
       await this.git.run(['restore', '--source=HEAD', '--staged', '--worktree', '--', ...paths]);
   }
 
-  async stashSave(message: string, includeUntracked: boolean): Promise<void> {
+  async stashSave(message: string, includeUntracked: boolean, paths?: string[]): Promise<void> {
     const args = ['stash', 'push'];
     if (includeUntracked) args.push('--include-untracked');
     if (message.trim()) args.push('-m', message.trim());
+    if (paths?.length) args.push('--', ...paths);
     await this.git.run(args);
   }
 

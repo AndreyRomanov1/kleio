@@ -130,6 +130,7 @@ export function refMenu(ref: Ref, store: LogStore): MenuEntry[] {
   const run = (action: Parameters<typeof post>[0] & { type: 'refAction' }) => () => post(action);
   const fullName = ref.fullName;
   const isCurrent = ref.kind === 'head' && store.snapshot?.head.branch === ref.name;
+  const current = store.snapshot?.head.branch;
   const favorite = store.favorites.includes(fullName);
   const focused = store.focus.includes(ref.name);
   const worktree =
@@ -171,6 +172,18 @@ export function refMenu(ref: Ref, store: LogStore): MenuEntry[] {
       disabled: isCurrent,
       run: run({ type: 'refAction', action: 'showDiffWithCurrent', fullName }),
     },
+    ...(current && !isCurrent
+      ? [
+          {
+            label: t('Commits of {0} missing in {1}', ref.name, current),
+            run: () => post({ type: 'setFocus', revisions: [`${current}..${ref.name}`] }),
+          },
+          {
+            label: t('Commits of {0} missing in {1}', current, ref.name),
+            run: () => post({ type: 'setFocus', revisions: [`${ref.name}..${current}`] }),
+          },
+        ]
+      : []),
   );
   if (ref.kind === 'remote' || ref.upstream) {
     entries.push({

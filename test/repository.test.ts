@@ -332,4 +332,22 @@ describe('Repository', () => {
       'm.txt',
     ]);
   });
+
+  it('stashes only the given files', async () => {
+    const dir = path.join(work, 'partial-stash');
+    git(work, 'init', '-q', '-b', 'main', dir);
+    commitFile(dir, 'a.txt', 'a\n', 'init');
+    commitFile(dir, 'b.txt', 'b\n', 'more');
+    writeFileSync(path.join(dir, 'a.txt'), 'a changed\n');
+    writeFileSync(path.join(dir, 'b.txt'), 'b changed\n');
+    writeFileSync(path.join(dir, 'new.txt'), 'new\n');
+    const repository = (await Repository.open(dir))!;
+
+    await repository.stashSave('only a', true, ['a.txt', 'new.txt']);
+
+    expect(git(dir, 'status', '--porcelain')).toBe(' M b.txt\n');
+    expect(git(dir, 'stash', 'show', '--include-untracked', '--name-only').trim().split('\n').sort()).toEqual(
+      ['a.txt', 'new.txt'],
+    );
+  });
 });

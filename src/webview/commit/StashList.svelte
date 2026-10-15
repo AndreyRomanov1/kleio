@@ -12,13 +12,19 @@
   let { store }: Props = $props();
   let message = $state('');
   let includeUntracked = $state(true);
+  let onlyChecked = $state(false);
 
   type Action = 'show' | 'apply' | 'pop' | 'drop';
   const act = (action: Action, selector: string, hash: string) =>
     postCommit({ type: 'stashAction', action, selector, hash });
 
   function save(): void {
-    postCommit({ type: 'stashSave', message, includeUntracked });
+    postCommit({
+      type: 'stashSave',
+      message,
+      includeUntracked,
+      paths: onlyChecked ? store.checkedFiles.map((f) => f.path) : undefined,
+    });
     message = '';
   }
 </script>
@@ -32,7 +38,15 @@
       spellcheck="false"
     />
     <label><input type="checkbox" bind:checked={includeUntracked} /> {t('with untracked files')}</label>
-    <button class="primary" disabled={store.files.length === 0} onclick={save}>{t('Stash changes')}</button>
+    <label title={t('Stash only the files checked on the Commit tab')}
+      ><input type="checkbox" bind:checked={onlyChecked} />
+      {t('only checked files ({0})', store.checkedFiles.length)}</label
+    >
+    <button
+      class="primary"
+      disabled={store.files.length === 0 || (onlyChecked && store.checkedFiles.length === 0)}
+      onclick={save}>{t('Stash changes')}</button
+    >
   </div>
   <div class="list">
     {#each store.stashes as stash (stash.hash)}
