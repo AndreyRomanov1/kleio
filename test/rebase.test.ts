@@ -61,7 +61,7 @@ describe('interactive rebase', () => {
       'pick b',
       'fixup c',
       'drop d',
-      "exec git commit --amend --allow-empty --no-verify --quiet --cleanup=strip -F '/git dir/message-1.txt'",
+      "exec git hook run --ignore-missing commit-msg -- '/git dir/message-1.txt' && git commit --amend --allow-empty --no-verify --quiet --cleanup=strip -F '/git dir/message-1.txt'",
       '',
     ]);
     expect([...messages]).toEqual([['message-1.txt', 'B new']]);
@@ -99,6 +99,23 @@ describe('interactive rebase', () => {
     ]);
     expect(subjects(dir)).toEqual(['three', 'two', 'one', 'base']);
     expect(git(dir, 'log', '-1', '--format=%B').trim()).toBe('three\n\nbody of three\n\nfour');
+  });
+
+  it('runs the commit-msg hook on a new message, as a reword in git does', async () => {
+    const { dir, hashes } = repo('hook');
+    writeFileSync(
+      path.join(dir, '.git', 'hooks', 'commit-msg'),
+      '#!/bin/sh\necho "Checked-by: hook" >> "$1"\n',
+      {
+        mode: 0o755,
+      },
+    );
+    const repository = (await Repository.open(dir))!;
+
+    await repository.interactiveRebase(hashes.three, [
+      { hash: hashes.four, action: 'reword', message: 'four new' },
+    ]);
+    expect(git(dir, 'log', '-1', '--format=%B').trim()).toBe('four new\nChecked-by: hook');
   });
 
   it('stops at an edit and goes on with the remaining commits', async () => {

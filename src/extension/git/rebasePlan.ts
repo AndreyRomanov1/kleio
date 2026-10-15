@@ -10,7 +10,7 @@ export interface RebaseTodo {
 /**
  * Turns the plan of the interactive rebase dialog into a git todo list that needs no editor: squash and fixup
  * become `fixup`, and every commit whose final message differs from its original one gets an `exec` that
- * amends the message from a prepared file. `messageFile` gives the path git should read the n-th file from.
+ * amends the message from a prepared file, after the commit-msg hook. `messageFile` gives the path git should read the n-th file from.
  */
 export function buildRebaseTodo(
   entries: readonly RebaseEntry[],
@@ -25,8 +25,10 @@ export function buildRebaseTodo(
     if (pending === undefined) return;
     const name = `message-${messages.size + 1}.txt`;
     messages.set(name, pending);
+    const file = quote(messageFile(name));
+    // As a reword in git itself: the commit-msg hook checks the message, pre-commit does not run again.
     lines.push(
-      `exec git commit --amend --allow-empty --no-verify --quiet --cleanup=strip -F ${quote(messageFile(name))}`,
+      `exec git hook run --ignore-missing commit-msg -- ${file} && git commit --amend --allow-empty --no-verify --quiet --cleanup=strip -F ${file}`,
     );
     pending = undefined;
   };
