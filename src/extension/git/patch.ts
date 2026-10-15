@@ -74,7 +74,7 @@ export function hunkViews(patch: FilePatch): HunkView[] {
       line: hunk.newStart + before,
       added: body.filter((l) => l.startsWith('+')).length,
       removed: body.filter((l) => l.startsWith('-')).length,
-      preview: changed.slice(0, 3),
+      preview: changed.filter((l) => l.slice(1).trim()).slice(0, 3),
     };
   });
 }

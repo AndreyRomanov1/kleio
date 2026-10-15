@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Unit tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: git config --global user.name CI && git config --global user.email ci@example.com
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npx prettier --check .
+      - run: npm test
+      - run: npm run package
+      - uses: actions/upload-artifact@v4
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          name: vsix
+          path: '*.vsix'
+
+  integration:
+    name: Integration tests (VSCodium)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: git config --global user.name CI && git config --global user.email ci@example.com
+      - run: sudo apt-get update && sudo apt-get install -y xvfb
+      - name: Download VSCodium
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download --repo VSCodium/vscodium --pattern 'VSCodium-linux-x64-*.tar.gz' --dir "$RUNNER_TEMP"
+          mkdir "$RUNNER_TEMP/codium"
+          tar -xzf "$RUNNER_TEMP"/VSCodium-linux-x64-*.tar.gz -C "$RUNNER_TEMP/codium"
+          echo "GROVE_CODE=$RUNNER_TEMP/codium/codium" >> "$GITHUB_ENV"
+      - run: npm ci
+      - run: npm run test:integration

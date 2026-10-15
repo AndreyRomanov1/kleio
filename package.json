@@ -1,10 +1,18 @@
 {
   "name": "grove",
   "displayName": "Grove",
-  "description": "JetBrains-style Git log, diff and history for VS Code",
+  "description": "Git the JetBrains way: commit graph, one diff viewer for any changes, history, blame, interactive rebase, conflicts, GitLab merge requests and review",
   "version": "0.12.0",
   "publisher": "aroma",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AndreyRomanov1/grove.git"
+  },
+  "bugs": {
+    "url": "https://github.com/AndreyRomanov1/grove/issues"
+  },
+  "homepage": "https://github.com/AndreyRomanov1/grove#readme",
   "private": true,
   "type": "commonjs",
   "engines": {
@@ -12,7 +20,8 @@
   },
   "categories": [
     "SCM Providers",
-    "Visualization"
+    "Visualization",
+    "Other"
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
@@ -689,5 +698,26 @@
     "svelte-check": "^4.7.6",
     "typescript": "^6.0.3",
     "vitest": "^3.2.4"
+  },
+  "icon": "media/icon.png",
+  "keywords": [
+    "git",
+    "log",
+    "graph",
+    "diff",
+    "blame",
+    "history",
+    "rebase",
+    "interactive rebase",
+    "merge",
+    "gitlab",
+    "merge request",
+    "review",
+    "jetbrains",
+    "rider"
+  ],
+  "galleryBanner": {
+    "color": "#1d2b36",
+    "theme": "dark"
   }
 }

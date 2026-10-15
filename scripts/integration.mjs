@@ -77,6 +77,8 @@ const editorArgs = [
   '--disable-gpu',
 ];
 if (process.platform === 'linux') editorArgs.push('--ozone-platform=x11');
+// CI runners cannot set up Chromium's sandbox for an unpacked editor.
+if (process.env.CI) editorArgs.push('--no-sandbox');
 const headless = process.platform === 'linux' && process.env.GROVE_HEADLESS !== '0';
 const [command, args] = headless ? ['xvfb-run', ['-a', code, ...editorArgs]] : [code, editorArgs];
 
