@@ -31,16 +31,20 @@ stays editable.
 **Changing history**
 
 - **Commit view**: changes with checkboxes, **parts of a file by hunks**, amend, recent messages, rollback
-  of files or hunks, stashes. Parts are committed through a temporary index — what you staged yourself
-  stays as it is.
+  of files or hunks, stashes. By default it works as in Rider: checked files and hunks are committed as
+  they are on disk, through a temporary index, and what you staged yourself stays as it is. With
+  **Stage** checked, the checkboxes show and change the git index, and the commit takes what is staged,
+  as `git commit` does.
 
   ![Commit parts of a file](docs/images/commit.png)
 
 - **Branches**: checkout (smart checkout through a stash; replacing a local branch that diverged after a
   rebase on the server, with a check that nothing is lost), checkout into a new worktree, merge, rebase,
   cherry-pick, revert, reset. A stopped operation shows a bar with Continue / Skip / Abort.
-- **Update Project** fetches every remote and brings the current branch up to its upstream; another
-  branch without own commits is updated without checking it out.
+- **Update Project** fetches every remote and brings the current branch up to its upstream — merge or
+  rebase, asked the first time; another branch without own commits is updated without checking it out.
+  Uncommitted changes are stashed for the time of an operation; if they come back with conflicts, Kleio
+  says so and opens the conflicts.
 - **Push dialog**: outgoing commits of every branch with their diffs; a diverged branch goes only with
   force-with-lease against what the dialog showed, never into protected branches.
 
@@ -70,8 +74,10 @@ stays editable.
 
 ## Install
 
-Until the extension is published, build it from source (see below) and install the package:
-`codium --install-extension kleio.vsix` (or `code …`).
+Download `kleio-<version>.vsix` from [Releases](https://github.com/AndreyRomanov1/kleio/releases) and
+install it: `codium --install-extension kleio-<version>.vsix` (or `code …`), or Extensions → `…` →
+Install from VSIX. Kleio works in trusted local folders only: git runs the hooks and config of a
+repository.
 
 GitLab access is taken from the [GitLab Workflow](https://open-vsx.org/extension/GitLab/gitlab-workflow)
 extension when it is signed in, or from a personal access token (command «Подключить GitLab…», scope
@@ -79,16 +85,18 @@ extension when it is signed in, or from a personal access token (command «По�
 
 ## Settings
 
-| Setting                          | Default                               | What it does                                                                                 |
-| -------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `kleio.autolinks`                | `[]`                                  | Rules turning text into links: `{"pattern": "\\bPROJ-\\d+\\b", "url": "https://tracker/$0"}` |
-| `kleio.hosting.instances`        | `{}`                                  | Hosting type of your own servers, e.g. `{"git.example.com": "gitlab"}`                       |
-| `kleio.update.method`            | `rebase`                              | How Update Project brings a branch with own commits up to date: `rebase` or `merge`          |
-| `kleio.push.protectedBranches`   | `["master", "main"]`                  | Branches never force-pushed; `*` works, e.g. `release/*`                                     |
-| `kleio.worktree.path`            | `${repoParent}/${repoName}-${branch}` | Folder of a new worktree                                                                     |
-| `kleio.worktree.copyFiles`       | `[]`                                  | Untracked files copied into a new worktree, e.g. local settings with secrets                 |
-| `kleio.codeLens.authors`         | `true`                                | The main author and the number of others above classes and methods                           |
-| `kleio.history.showDiffOnSelect` | `true`                                | Show the diff of the selected commit in a history tab                                        |
+| Setting                           | Default                               | What it does                                                                                 |
+| --------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `kleio.autolinks`                 | `[]`                                  | Rules turning text into links: `{"pattern": "\\bPROJ-\\d+\\b", "url": "https://tracker/$0"}` |
+| `kleio.hosting.instances`         | `{}`                                  | Hosting type of your own servers, e.g. `{"git.example.com": "gitlab"}`                       |
+| `kleio.update.method`             | `ask`                                 | How Update Project brings a branch with own commits up to date: `merge` or `rebase`          |
+| `kleio.commit.stagingArea`        | `false`                               | The commit view works with the git index (the **Stage** checkbox)                            |
+| `kleio.hosting.backgroundRefresh` | `true`                                | Ask the server for merge request refs every few minutes; turn off if SSH asks for a password |
+| `kleio.push.protectedBranches`    | `["master", "main"]`                  | Branches never force-pushed; `*` works, e.g. `release/*`                                     |
+| `kleio.worktree.path`             | `${repoParent}/${repoName}-${branch}` | Folder of a new worktree                                                                     |
+| `kleio.worktree.copyFiles`        | `[]`                                  | Untracked files copied into a new worktree, e.g. local settings with secrets                 |
+| `kleio.codeLens.authors`          | `true`                                | The main author and the number of others above classes and methods                           |
+| `kleio.history.showDiffOnSelect`  | `true`                                | Show the diff of the selected commit in a history tab                                        |
 
 ## Key bindings
 

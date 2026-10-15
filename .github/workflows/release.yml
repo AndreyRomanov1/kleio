@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: GitHub release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: git config --global user.name CI && git config --global user.email ci@example.com && git config --global core.autocrlf false
+      - name: Check the tag against package.json
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match version $version in package.json"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run package
+      - name: Release notes from CHANGELOG.md
+        run: |
+          awk -v head="## $VERSION" '$0 == head { found = 1; next } /^## / { found = 0 } found' CHANGELOG.md > notes.md
+          if ! grep -q '[^[:space:]]' notes.md; then
+            echo "::error::No section '## $VERSION' in CHANGELOG.md"
+            exit 1
+          fi
+          cat >> notes.md <<EOF
+
+          **Install**: download \`kleio-$VERSION.vsix\` below, then \`codium --install-extension kleio-$VERSION.vsix\` (or \`code …\`), or Extensions → \`…\` → Install from VSIX.
+          EOF
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mv kleio.vsix "kleio-$VERSION.vsix"
+          gh release create "$GITHUB_REF_NAME" "kleio-$VERSION.vsix" --title "Kleio $VERSION" --notes-file notes.md

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.14.0
+
+- Uncommitted changes that come back from the autostash of a merge or rebase with conflicts are reported
+  and opened in the conflicts window; it was reported as done.
+- **Stage** in the commit view: the checkboxes show and change the git index, the commit takes what is
+  staged (`kleio.commit.stagingArea`).
+- Update Project asks once whether to merge or rebase a diverged branch (`kleio.update.method` is `ask`).
+- Reword in interactive rebase runs the `commit-msg` hook.
+- `git.path` is respected; Kleio declares that it does not run in untrusted or virtual workspaces; it
+  activates in a subfolder of a repository and finds repositories one level down.
+- `kleio.hosting.backgroundRefresh` turns off the periodic `git ls-remote`.
+- The log of a huge repository is loaded 10 000 commits at a time as it is scrolled.
+- Releases on GitHub with the `.vsix` attached.
+
 ## 0.13.0
 
 - The project is named Kleio (it was developed as Grove): commands and settings are `kleio.*` now.
