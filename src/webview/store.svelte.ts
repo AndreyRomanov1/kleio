@@ -88,6 +88,30 @@ export class LogStore {
     return map;
   });
 
+  /**
+   * Merge requests by commit as the log rows show them. A merged one is marked on its merge commit only: the
+   * head of its branch, which the server keeps a ref to, is a parent of that merge right below it. Branches
+   * still find their merge request by the head in {@link hosting}.
+   */
+  logMergeRequests: Readonly<Record<string, number[]>> = $derived.by(() => {
+    const byCommit = this.hosting?.mergeRequests ?? {};
+    const commits = this.snapshot?.commits ?? [];
+    const hidden = new Set<string>();
+    for (const [hash, numbers] of Object.entries(byCommit)) {
+      const index = this.indexByHash.get(hash);
+      const parents = index === undefined ? [] : commits[index].parents.slice(1);
+      for (const parent of parents)
+        for (const n of numbers) if (byCommit[parent]?.includes(n)) hidden.add(`${parent} ${n}`);
+    }
+    if (!hidden.size) return byCommit;
+    return Object.fromEntries(
+      Object.entries(byCommit).map(([hash, numbers]) => [
+        hash,
+        numbers.filter((n) => !hidden.has(`${hash} ${n}`)),
+      ]),
+    );
+  });
+
   /** Commits of the current branch: what interactive rebase can rewrite. */
   headAncestors: ReadonlySet<string> = $derived.by(() => {
     const result = new Set<string>();

@@ -110,7 +110,7 @@
       ></i>{/if}
   </span>
 {/each}
-{#each store.hosting?.mergeRequests[hash] ?? [] as number (number)}
+{#each store.logMergeRequests[hash] ?? [] as number (number)}
   {@const info = store.hosting?.mergeRequestInfo[number]}
   {@const sign = store.hosting?.kind === 'github' ? '#' : '!'}
   <button

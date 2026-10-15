@@ -173,7 +173,7 @@
                 store.history !== undefined ||
                 breaksGraph(store.query)}
             />
-            {#if decorations || store.hosting?.mergeRequests[commit.hash]}<RefBadges
+            {#if decorations || store.logMergeRequests[commit.hash]?.length}<RefBadges
                 hash={commit.hash}
                 {decorations}
                 {store}

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.18.1
+
+- A merged merge request is marked in the log on its merge commit only, not also on the head of its
+  branch right below it.
+
 ## 0.18.0
 
 - Log filters by authors, dates and paths, and by changed text (`git log -S`, `-G` with `.*`); "only
