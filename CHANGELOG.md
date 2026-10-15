@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.1
+
+- The package lacked the translations: command and view titles showed as `%…%`, and Kleio stayed in English
+  with `kleio.language` set. CI now checks that the package has them.
+
 ## 0.16.0
 
 - Review: only the changes since your last review, also after a rebase (interdiff through `git merge-tree`).

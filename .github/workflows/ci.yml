@@ -26,6 +26,9 @@ jobs:
       - run: npx prettier --check .
       - run: npm test
       - run: npm run package
+      - name: The package has the translations
+        if: matrix.os == 'ubuntu-latest'
+        run: unzip -l kleio.vsix | grep -q 'extension/package.nls.ru.json' && unzip -l kleio.vsix | grep -q 'extension/l10n/bundle.l10n.ru.json'
       - uses: actions/upload-artifact@v4
         if: matrix.os == 'ubuntu-latest'
         with:

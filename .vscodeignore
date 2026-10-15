@@ -8,3 +8,5 @@
 !README.md
 !LICENSE
 !CHANGELOG.md
+!package.nls*.json
+!l10n/**
