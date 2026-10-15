@@ -170,6 +170,14 @@ export type HostMessage =
   | { type: 'details'; requestId: number; commits: CommitDetails[]; changeSet: ChangeSetView }
   | { type: 'revealCommit'; hash: string }
   | { type: 'hosting'; hosting: HostingView }
+  /** Merged merge requests found through the API for older history; added to what `hosting` has. */
+  | {
+      type: 'mergedMergeRequests';
+      byCommit: Record<string, number[]>;
+      info: Record<number, MergeRequestInfoView>;
+      coveredUntil?: number;
+      done: boolean;
+    }
   | {
       type: 'mergeRequestCard';
       number: number;
@@ -200,6 +208,8 @@ export type WebviewMessage =
   | { type: 'openUrl'; url: string }
   | { type: 'openMergeRequest'; number: number }
   | { type: 'loadMergeRequestCard'; number: number }
+  /** The log reached commits from this moment (unix seconds): merge requests merged since are wanted. */
+  | { type: 'loadMergedMergeRequests'; before: number }
   | { type: 'connectHosting'; number?: number }
   | { type: 'openJobLog'; jobId: number; name: string; projectId?: number }
   | { type: 'retryPipeline'; pipelineId: number; number: number }

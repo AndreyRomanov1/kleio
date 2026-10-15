@@ -43,6 +43,10 @@ export class LogStore {
   filterText = $state('');
   selected = $state.raw<ReadonlySet<string>>(new Set());
   details = $state.raw<Details | undefined>(undefined);
+  /** Merged merge requests the API found for older history, kept across reloads of the hosting details. */
+  private merged?: Extract<HostMessage, { type: 'mergedMergeRequests' }>;
+  private mergedPending = false;
+
   /** Bumped to ask the commit list to scroll to the first selected commit. */
   revealRequest = $state(0);
 
@@ -150,7 +154,16 @@ export class LogStore {
         this.reveal(message.hash);
         break;
       case 'hosting':
-        this.hosting = message.hosting;
+        this.hosting = this.withMerged(message.hosting);
+        break;
+      case 'mergedMergeRequests':
+        this.merged = {
+          ...message,
+          byCommit: { ...this.merged?.byCommit, ...message.byCommit },
+          info: { ...this.merged?.info, ...message.info },
+        };
+        this.mergedPending = false;
+        if (this.hosting) this.hosting = this.withMerged(this.hosting);
         break;
       case 'mergeRequestCard':
         if (this.card?.number === message.number) {
@@ -236,6 +249,31 @@ export class LogStore {
     this.selected = new Set();
     this.details = undefined;
     post({ type: 'showStash', requestId: ++this.requestId, hash: stash.hash });
+  }
+
+  /**
+   * Asks for merged merge requests down to the commit shown lowest on screen, unless they are loaded already;
+   * the server's merge request refs only cover the last weeks.
+   */
+  wantMergedBefore(date: number): void {
+    if (this.history || this.hosting?.api !== 'available' || this.mergedPending) return;
+    const merged = this.merged;
+    if (merged?.done || (merged?.coveredUntil !== undefined && merged.coveredUntil < date)) return;
+    this.mergedPending = true;
+    post({ type: 'loadMergedMergeRequests', before: date });
+  }
+
+  private withMerged(hosting: HostingView): HostingView {
+    const merged = this.merged;
+    if (!merged) return hosting;
+    const byCommit = { ...merged.byCommit };
+    for (const [commit, numbers] of Object.entries(hosting.mergeRequests))
+      byCommit[commit] = [...new Set([...numbers, ...(byCommit[commit] ?? [])])];
+    return {
+      ...hosting,
+      mergeRequests: byCommit,
+      mergeRequestInfo: { ...merged.info, ...hosting.mergeRequestInfo },
+    };
   }
 
   commitAt(row: number): Commit {

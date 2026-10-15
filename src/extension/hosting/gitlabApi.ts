@@ -21,6 +21,13 @@ export interface MergeRequestSummary {
   webUrl: string;
 }
 
+export interface MergedMergeRequest extends MergeRequestSummary {
+  /** Commits the merge request shows up at in the history. */
+  commits: string[];
+  /** Unix time, seconds. */
+  updatedAt: number;
+}
+
 export interface Person {
   name: string;
   username: string;
@@ -170,6 +177,25 @@ export class GitLabApi {
       `${this.projectPath}/merge_requests?state=all&per_page=100&${query}`,
     );
     return raw.map(summary);
+  }
+
+  /**
+   * One page of merged merge requests, most recently updated first, with the commits they are known by: the
+   * head of the branch and the squash commit. A merge request is updated no earlier than it is merged, so the
+   * pages go back in time by merge date as well.
+   */
+  async mergedMergeRequests(page: number): Promise<{ items: MergedMergeRequest[]; last: boolean }> {
+    const raw = await this.get<RawMergeRequest[]>(
+      `${this.projectPath}/merge_requests?state=merged&order_by=updated_at&sort=desc&per_page=100&page=${page}`,
+    );
+    return {
+      items: raw.map((r) => ({
+        ...summary(r),
+        commits: [r.sha, r.squash_commit_sha].filter((c): c is string => !!c),
+        updatedAt: Math.floor(Date.parse(r.updated_at ?? '') / 1000) || 0,
+      })),
+      last: raw.length < 100,
+    };
   }
 
   async mergeRequest(iid: number): Promise<MergeRequestDetails> {
@@ -432,6 +458,9 @@ interface RawMergeRequest {
   user_notes_count?: number;
   head_pipeline?: { id: number; status: PipelineStatus; web_url: string } | null;
   diff_refs?: { base_sha: string; start_sha: string; head_sha: string } | null;
+  sha?: string;
+  squash_commit_sha?: string | null;
+  updated_at?: string;
 }
 
 interface RawPosition {

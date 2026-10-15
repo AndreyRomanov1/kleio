@@ -40,6 +40,13 @@
     return Math.min(width, MAX_LANES);
   });
 
+  // Merge requests merged long ago are loaded as the log is scrolled down to their commits.
+  $effect(() => {
+    if (last === 0 || store.rowCount === 0) return;
+    const lowest = store.commitAt(Math.min(last, store.rowCount) - 1);
+    if (lowest) store.wantMergedBefore(lowest.authorDate);
+  });
+
   $effect(() => {
     if (store.revealRequest === 0) return;
     const hash = [...store.selected][0];

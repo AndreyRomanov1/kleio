@@ -119,6 +119,8 @@ export class LogController implements vscode.Disposable {
         return;
       case 'loadMergeRequestCard':
         return this.loadCard(message.number);
+      case 'loadMergedMergeRequests':
+        return this.loadMerged(message.before);
       case 'connectHosting':
         if (this.repository && (await this.services.cards.connect(this.repository)) && message.number) {
           await this.loadCard(message.number);
@@ -293,6 +295,20 @@ export class LogController implements vscode.Disposable {
     } catch {
       // Hosting details are an extra; the log works without them.
     }
+  }
+
+  /** Always answers, so the log does not wait forever; without access or on an error it stops asking. */
+  private async loadMerged(before: number): Promise<void> {
+    const repository = this.repository;
+    if (!repository || this.history) return;
+    const merged = await this.services.hosting.mergedBefore(repository, before).catch(() => undefined);
+    this.post({
+      type: 'mergedMergeRequests',
+      byCommit: merged?.byCommit ?? {},
+      info: merged?.info ?? {},
+      coveredUntil: merged?.coveredUntil,
+      done: merged?.done ?? true,
+    });
   }
 
   private async loadCard(number: number): Promise<void> {

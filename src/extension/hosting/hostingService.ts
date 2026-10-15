@@ -31,6 +31,23 @@ export interface RepositoryHosting {
   pipelines: Record<string, PipelineStatus>;
 }
 
+/** Merged merge requests loaded so far, going back in time page by page as the log is scrolled down. */
+export interface MergedHistory {
+  byCommit: Record<string, number[]>;
+  info: Record<number, MergeRequestSummary>;
+  /** Everything merged after this moment (unix seconds) is loaded. */
+  coveredUntil?: number;
+  done: boolean;
+}
+
+interface MergedState extends MergedHistory {
+  nextPage: number;
+  loading?: Promise<void>;
+}
+
+/** Pages per request of the log: enough to cover a long scroll, bounded so a jump to the root stays cheap. */
+const MERGED_PAGES_PER_REQUEST = 5;
+
 interface Cached {
   hosting: RepositoryHosting;
   reviewsAt: number;
@@ -42,6 +59,7 @@ interface Cached {
  */
 export class HostingService implements vscode.Disposable {
   private readonly cache = new Map<string, Promise<Cached | undefined>>();
+  private readonly merged = new Map<string, MergedState>();
   private readonly changed = new vscode.EventEmitter<void>();
   private readonly subscription: vscode.Disposable;
 
@@ -51,6 +69,7 @@ export class HostingService implements vscode.Disposable {
   constructor(readonly auth: GitLabAuth) {
     this.subscription = auth.onDidChange(() => {
       this.cache.clear();
+      this.merged.clear();
       this.changed.fire();
     });
   }
@@ -77,6 +96,46 @@ export class HostingService implements vscode.Disposable {
   /** Without touching the network, e.g. to build links in menus. */
   async known(repository: Repository): Promise<RepositoryHosting | undefined> {
     return (await this.cache.get(repository.root))?.hosting ?? this.hosting(repository);
+  }
+
+  /**
+   * Loads merged merge requests until those merged after `before` (unix seconds) are all known, a few pages at
+   * a time; their refs on the server are gone some time after the merge, the API still has them.
+   */
+  async mergedBefore(repository: Repository, before: number): Promise<MergedHistory | undefined> {
+    const key = repository.root;
+    let state = this.merged.get(key);
+    if (!state) this.merged.set(key, (state = { byCommit: {}, info: {}, done: false, nextPage: 1 }));
+    const current = state;
+    while (current.loading) await current.loading;
+    if (current.done || (current.coveredUntil !== undefined && current.coveredUntil < before)) return current;
+    const api = await this.gitlab(repository);
+    if (!api) return undefined;
+    current.loading = (async () => {
+      for (let i = 0; i < MERGED_PAGES_PER_REQUEST; i++) {
+        const { items, last } = await api.mergedMergeRequests(current.nextPage);
+        current.nextPage++;
+        for (const item of items) {
+          current.info[item.iid] = {
+            iid: item.iid,
+            title: item.title,
+            state: item.state,
+            draft: item.draft,
+            webUrl: item.webUrl,
+          };
+          for (const commit of item.commits) {
+            const list = (current.byCommit[commit] ??= []);
+            if (!list.includes(item.iid)) list.push(item.iid);
+          }
+        }
+        const oldest = items[items.length - 1]?.updatedAt;
+        if (oldest !== undefined) current.coveredUntil = oldest;
+        if (last) current.done = true;
+        if (current.done || (current.coveredUntil !== undefined && current.coveredUntil < before)) break;
+      }
+    })().finally(() => (current.loading = undefined));
+    await current.loading;
+    return current;
   }
 
   autolinks(hosting: RepositoryHosting | undefined): Autolink[] {

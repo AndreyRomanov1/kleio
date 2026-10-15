@@ -60,6 +60,12 @@ function previewApi(links: HostingLinks | undefined): GitLabApi | undefined {
 }
 
 let previewLinks: HostingLinks | undefined;
+let mergedPage = 0;
+const mergedByCommit: Record<string, number[]> = {};
+const mergedInfo: Record<
+  number,
+  { title: string; state: 'opened' | 'closed' | 'locked' | 'merged'; draft: boolean }
+> = {};
 
 /** Extra autolink rules for the preview, as JSON in GROVE_PREVIEW_AUTOLINKS (the extension reads settings). */
 const previewAutolinks: Autolink[] = JSON.parse(process.env.GROVE_PREVIEW_AUTOLINKS ?? '[]') as Autolink[];
@@ -300,6 +306,26 @@ async function handle(repository: Repository, message: WebviewMessage): Promise<
             range: describeRange(changeSet),
             files: changeSet.files,
           },
+        },
+      ];
+    }
+    case 'loadMergedMergeRequests': {
+      const api = previewApi(previewLinks);
+      if (!api) return [{ type: 'mergedMergeRequests', byCommit: {}, info: {}, done: true }];
+      const started = Date.now();
+      const { items, last } = await api.mergedMergeRequests(++mergedPage);
+      for (const item of items) {
+        mergedInfo[item.iid] = { title: item.title, state: item.state, draft: item.draft };
+        for (const commit of item.commits) (mergedByCommit[commit] ??= []).push(item.iid);
+      }
+      console.log(`merged page ${mergedPage}: ${items.length} in ${Date.now() - started} ms`);
+      return [
+        {
+          type: 'mergedMergeRequests',
+          byCommit: mergedByCommit,
+          info: mergedInfo,
+          coveredUntil: items[items.length - 1]?.updatedAt,
+          done: last,
         },
       ];
     }

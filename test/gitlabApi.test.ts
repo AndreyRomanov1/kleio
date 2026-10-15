@@ -8,6 +8,27 @@ let server: Server;
 let origin: string;
 
 const routes: Record<string, unknown> = {
+  '/api/v4/projects/group%2Fproject/merge_requests?state=merged&order_by=updated_at&sort=desc&per_page=100&page=2':
+    [
+      {
+        iid: 5,
+        title: 'squashed',
+        state: 'merged',
+        web_url: 'u5',
+        sha: 'head5',
+        squash_commit_sha: 'squash5',
+        updated_at: '2026-01-02T00:00:00Z',
+      },
+      {
+        iid: 4,
+        title: 'merged',
+        state: 'merged',
+        web_url: 'u4',
+        sha: 'head4',
+        squash_commit_sha: null,
+        updated_at: '2026-01-01T00:00:00Z',
+      },
+    ],
   '/api/v4/user': { name: 'Ann Smith', username: 'ann' },
   '/api/v4/projects/group%2Fproject/merge_requests?state=all&per_page=100&iids[]=7&iids[]=9': [
     { iid: 9, title: 'Draft: b', state: 'opened', draft: true, web_url: 'u9' },
@@ -294,5 +315,14 @@ describe('GitLabApi', () => {
     });
     await api().playJob(77, 3146);
     expect(requests.at(-1)).toMatchObject({ method: 'POST', url: '/api/v4/projects/3146/jobs/77/play' });
+  });
+
+  it('pages through merged merge requests with the commits they are known by', async () => {
+    const page = await api().mergedMergeRequests(2);
+    expect(page.last).toBe(true);
+    expect(page.items.map((m) => [m.iid, m.commits, m.updatedAt])).toEqual([
+      [5, ['head5', 'squash5'], Date.parse('2026-01-02T00:00:00Z') / 1000],
+      [4, ['head4'], Date.parse('2026-01-01T00:00:00Z') / 1000],
+    ]);
   });
 });
