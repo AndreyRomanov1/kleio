@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { UNCOMMITTED, type BlameLine } from '../git/parse';
 import type { RepositoryManager } from '../git/repositoryManager';
 import { t } from '../../shared/l10n';
+import { ignoresFormatting } from './blameAnnotations';
 
 const SYMBOL_KINDS = new Set([
   vscode.SymbolKind.Class,
@@ -68,7 +69,10 @@ export class AuthorLens implements vscode.CodeLensProvider, vscode.Disposable {
     let lines: BlameLine[];
     try {
       lines = await this.blameOf(document, () =>
-        repository.blame(relativePath, { contents: document.isDirty ? document.getText() : undefined }),
+        repository.blame(relativePath, {
+          contents: document.isDirty ? document.getText() : undefined,
+          ignoreFormatting: ignoresFormatting(),
+        }),
       );
     } catch {
       return [];

@@ -172,6 +172,31 @@ describe('Repository operations', () => {
     expect(readFileSync(path.join(dir, 'a.txt'), 'utf8')).toBe('local\n');
   });
 
+  it('saves commits as a patch and applies it as commits or as changes only', async () => {
+    const source = init('patch-source');
+    commitFile(source, 'a.txt', 'a\n', 'a');
+    const base = git(source, 'rev-parse', 'HEAD').trim();
+    commitFile(source, 'b.txt', 'b\n', 'add b');
+    commitFile(source, 'a.txt', 'a2\n', 'change a');
+    const hashes = git(source, 'log', '--format=%H', '-2', '--reverse').trim().split('\n');
+    const patch = path.join(source, '..', 'two.patch');
+    writeFileSync(patch, await (await Repository.open(source))!.formatPatch(hashes));
+
+    const commits = init('patch-commits');
+    git(commits, 'fetch', '-q', source, base);
+    git(commits, 'reset', '-q', '--hard', base);
+    await (await Repository.open(commits))!.applyPatch(patch, true);
+    expect(git(commits, 'log', '--format=%s', '-3').trim().split('\n')).toEqual(['change a', 'add b', 'a']);
+
+    const changes = init('patch-changes');
+    git(changes, 'fetch', '-q', source, base);
+    git(changes, 'reset', '-q', '--hard', base);
+    await (await Repository.open(changes))!.applyPatch(patch, false);
+    expect(git(changes, 'log', '--format=%s').trim()).toBe('a');
+    expect(readFileSync(path.join(changes, 'a.txt'), 'utf8')).toBe('a2\n');
+    expect(readFileSync(path.join(changes, 'b.txt'), 'utf8')).toBe('b\n');
+  });
+
   it('cherry-picks several commits in the given order', async () => {
     const dir = init('pick-many');
     commitFile(dir, 'a.txt', 'a\n', 'a');

@@ -224,10 +224,11 @@ export class LogController implements vscode.Disposable {
         return this.commitAction(message.action, message.hash);
       case 'commitsAction':
         if (!this.repository) return;
-        if (message.action === 'cherryPick') {
+        if (message.action === 'cherryPick' || message.action === 'savePatch') {
           // Oldest first, as they were made; the log lists them newest first.
           const order = new Map(this.snapshot?.commits.map((c, i) => [c.hash, i]));
           const hashes = [...message.hashes].sort((a, b) => (order.get(b) ?? 0) - (order.get(a) ?? 0));
+          if (message.action === 'savePatch') return this.services.actions.savePatch(this.repository, hashes);
           return this.services.sync.cherryPick(this.repository, ...hashes);
         }
         if (message.action === 'squash')
@@ -513,6 +514,8 @@ export class LogController implements vscode.Disposable {
       case 'copyHash':
         await vscode.env.clipboard.writeText(hash);
         return;
+      case 'savePatch':
+        return this.services.actions.savePatch(repository, [hash]);
       case 'copySubject': {
         const details = await repository.commitDetails(hash);
         await vscode.env.clipboard.writeText(details.message.split('\n')[0]);

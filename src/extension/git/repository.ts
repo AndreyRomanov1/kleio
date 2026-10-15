@@ -227,9 +227,11 @@ export class Repository {
    */
   async blame(
     filePath: string,
-    options: { revision?: string; contents?: string } = {},
+    options: { revision?: string; contents?: string; ignoreFormatting?: boolean } = {},
   ): Promise<BlameLine[]> {
     const args = ['blame', '--porcelain'];
+    // Whitespace changes and lines moved within the file keep their original author.
+    if (options.ignoreFormatting) args.push('-w', '-M');
     if (options.revision) args.push(options.revision);
     else if (options.contents !== undefined) args.push('--contents', '-');
     args.push('--', filePath);
@@ -597,6 +599,30 @@ export class Repository {
     );
     const [tree, ...conflicts] = output.trim().split('\n');
     return conflicts.length ? undefined : tree;
+  }
+
+  /** Commits as an mbox patch, in the given order, to be applied elsewhere with `git am`. */
+  async formatPatch(hashes: string[]): Promise<string> {
+    const parts = [];
+    for (const hash of hashes) parts.push(await this.git.run(['format-patch', '-1', '--stdout', hash]));
+    return parts.join('');
+  }
+
+  /**
+   * Applies a patch file: `commits` replays the commits of an mbox patch with `git am`, otherwise the changes
+   * land in the working tree and the index, with conflict markers where they do not fit.
+   */
+  async applyPatch(file: string, commits: boolean): Promise<void> {
+    if (!commits) {
+      await this.git.run(['apply', '--3way', '--whitespace=nowarn', file]);
+      return;
+    }
+    try {
+      await this.git.run(['am', '--3way', '--quiet', file], { env: NO_EDITOR });
+    } catch (error) {
+      await this.git.run(['am', '--abort']).catch(() => undefined);
+      throw error;
+    }
   }
 
   /** Whether `ancestor` is reachable from `descendant`. */

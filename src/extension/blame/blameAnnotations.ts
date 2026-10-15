@@ -164,9 +164,12 @@ export class BlameAnnotations implements vscode.Disposable {
   }
 
   private async blame(target: Target, document: vscode.TextDocument): Promise<BlameLine[]> {
-    if (target.revision) return target.repository.blame(target.path, { revision: target.revision });
+    const ignoreFormatting = ignoresFormatting();
+    if (target.revision)
+      return target.repository.blame(target.path, { revision: target.revision, ignoreFormatting });
     return target.repository.blame(target.path, {
       contents: document.isDirty ? document.getText() : undefined,
+      ignoreFormatting,
     });
   }
 
@@ -309,6 +312,10 @@ function dateFormats(): { short: Intl.DateTimeFormat; full: Intl.DateTimeFormat 
     short: new Intl.DateTimeFormat(displayLanguage(), { day: '2-digit', month: '2-digit', year: '2-digit' }),
     full: new Intl.DateTimeFormat(displayLanguage(), { dateStyle: 'long', timeStyle: 'short' }),
   });
+}
+
+export function ignoresFormatting(): boolean {
+  return vscode.workspace.getConfiguration('kleio').get<boolean>('blame.ignoreWhitespaceAndMoves', false);
 }
 
 function shortDate(unixSeconds: number): string {

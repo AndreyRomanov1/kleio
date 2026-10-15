@@ -606,5 +606,16 @@
   "Commits of {0} missing in {1}": "Коммиты {0}, которых нет в {1}",
   "Stash only the files checked on the Commit tab": "Спрятать только файлы, отмеченные на вкладке «Коммит»",
   "only checked files ({0})": "только отмеченные ({0})",
-  "History: {0}/": "История: {0}/"
+  "History: {0}/": "История: {0}/",
+  "Save commit {0} as a patch": "Сохранить коммит {0} как патч",
+  "Save {0} commits as a patch": "Сохранить {0} коммитов как патч",
+  "Kleio: patch saved to {0}": "Kleio: патч сохранён в {0}",
+  "All files": "Все файлы",
+  "Apply a patch": "Применить патч",
+  "Apply as commits (git am)": "Применить как коммиты (git am)",
+  "Apply as changes only (git apply)": "Применить только изменения (git apply)",
+  "Kleio: {0} is applied": "Kleio: {0} применён",
+  "The patch is applied with conflicts: resolve them in the files marked as conflicted.": "Патч применён с конфликтами — разрешите их в файлах, отмеченных как конфликтные.",
+  "Save as patch…": "Сохранить как патч…",
+  "Save {0} commits as a patch…": "Сохранить {0} коммитов как патч…"
 }

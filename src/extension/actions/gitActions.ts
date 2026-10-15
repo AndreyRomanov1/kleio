@@ -463,6 +463,72 @@ export class GitActions {
     return true;
   }
 
+  /** Saves commits as one mbox patch file, oldest first. */
+  async savePatch(repository: Repository, hashes: string[]): Promise<void> {
+    if (!hashes.length) return;
+    const first = await repository.commitDetails(hashes[0]);
+    const slug = first.message
+      .split('\n')[0]
+      .replace(/[^\p{L}\p{N}]+/gu, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 50);
+    const name =
+      hashes.length === 1
+        ? `${hashes[0].slice(0, 8)}-${slug}.patch`
+        : `${slug}-and-${hashes.length - 1}-more.patch`;
+    const target = await vscode.window.showSaveDialog({
+      defaultUri: vscode.Uri.file(path.join(repository.root, name)),
+      filters: { Patch: ['patch', 'diff'] },
+      title:
+        hashes.length === 1
+          ? t('Save commit {0} as a patch', hashes[0].slice(0, 8))
+          : t('Save {0} commits as a patch', hashes.length),
+    });
+    if (!target) return;
+    try {
+      await vscode.workspace.fs.writeFile(
+        target,
+        new TextEncoder().encode(await repository.formatPatch(hashes)),
+      );
+      vscode.window.setStatusBarMessage(t('Kleio: patch saved to {0}', path.basename(target.fsPath)), 4000);
+    } catch (error) {
+      this.report(error);
+    }
+  }
+
+  /** Applies a patch file: its commits with `git am`, or only the changes into the working tree. */
+  async applyPatch(repository: Repository): Promise<void> {
+    const [file] =
+      (await vscode.window.showOpenDialog({
+        defaultUri: vscode.Uri.file(repository.root),
+        filters: { Patch: ['patch', 'diff', 'mbox', 'eml'], [t('All files')]: ['*'] },
+        title: t('Apply a patch'),
+      })) ?? [];
+    if (!file) return;
+    const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(file));
+    const hasCommits = /^From [0-9a-f]{40} /m.test(text) && /^Subject: /m.test(text);
+    const asCommits = t('Apply as commits (git am)');
+    const asChanges = t('Apply as changes only (git apply)');
+    const choice = hasCommits
+      ? await vscode.window.showQuickPick([asCommits, asChanges], { title: path.basename(file.fsPath) })
+      : asChanges;
+    if (!choice) return;
+    try {
+      await repository.applyPatch(file.fsPath, choice === asCommits);
+      vscode.window.setStatusBarMessage(t('Kleio: {0} is applied', path.basename(file.fsPath)), 4000);
+    } catch (error) {
+      if (choice === asChanges && (await repository.conflicts()).length) {
+        void vscode.window.showWarningMessage(
+          t('The patch is applied with conflicts: resolve them in the files marked as conflicted.'),
+        );
+      } else {
+        this.report(error);
+      }
+    } finally {
+      this.repositories.notifyChanged(repository);
+    }
+  }
+
   async renameBranch(repository: Repository, ref: Ref): Promise<void> {
     if (ref.kind !== 'head') return;
     const name = await vscode.window.showInputBox({

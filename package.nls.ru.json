@@ -57,5 +57,7 @@
   "command.github.connect": "Подключить GitHub…",
   "command.github.disconnect": "Удалить токен GitHub из Kleio…",
   "command.review.sinceLastReview": "Изменения с прошлого ревью",
-  "command.history.folder": "История папки"
+  "command.history.folder": "История папки",
+  "config.blame.ignoreWhitespaceAndMoves": "Blame и авторы над объявлениями не учитывают изменения пробелов и строки, перемещённые внутри файла (`git blame -w -M`): переформатирование не забирает авторство строки.",
+  "command.git.applyPatch": "Применить патч…"
 }

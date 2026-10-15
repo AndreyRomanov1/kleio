@@ -57,5 +57,7 @@
   "command.github.connect": "Connect GitHub…",
   "command.github.disconnect": "Remove the GitHub Token from Kleio…",
   "command.review.sinceLastReview": "Changes Since the Last Review",
-  "command.history.folder": "Folder History"
+  "command.history.folder": "Folder History",
+  "config.blame.ignoreWhitespaceAndMoves": "Blame and the authors above declarations ignore whitespace changes and lines moved within a file (`git blame -w -M`): reformatting does not take the authorship of a line.",
+  "command.git.applyPatch": "Apply Patch…"
 }

@@ -24,6 +24,7 @@ export function commitMenu(commit: Commit, store: LogStore): MenuEntry[] {
     ...(branchEntries.length ? (['separator'] as const) : []),
     { label: t('Copy hash'), run: action({ type: 'commitAction', action: 'copyHash', hash }) },
     { label: t('Copy subject'), run: action({ type: 'commitAction', action: 'copySubject', hash }) },
+    { label: t('Save as patch…'), run: action({ type: 'commitAction', action: 'savePatch', hash }) },
     'separator',
     {
       label: t('Checkout revision (no branch)'),
@@ -92,6 +93,10 @@ function rewriteEntries(commit: Commit, store: LogStore): MenuEntry[] {
         label: t('Cherry-pick {0} commits into the current branch', selection.length),
         disabled: !store.snapshot?.head.branch || !!store.snapshot?.operation,
         run: () => post({ type: 'commitsAction', action: 'cherryPick', hashes: selection }),
+      },
+      {
+        label: t('Save {0} commits as a patch…', selection.length),
+        run: () => post({ type: 'commitsAction', action: 'savePatch', hashes: selection }),
       },
     ];
   }

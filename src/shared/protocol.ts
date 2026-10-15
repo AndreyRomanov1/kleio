@@ -29,7 +29,8 @@ export type CommitAction =
   | 'reset'
   | 'interactiveRebase'
   | 'reword'
-  | 'fixupIntoParent';
+  | 'fixupIntoParent'
+  | 'savePatch';
 
 export type RefAction =
   | 'checkout'
@@ -207,7 +208,7 @@ export type WebviewMessage =
   | { type: 'fileAction'; action: FileAction; changeSetId: number; index: number }
   | { type: 'commitAction'; action: CommitAction; hash: string }
   /** Rewrites several commits of the current branch at once. */
-  | { type: 'commitsAction'; action: 'squash' | 'drop' | 'cherryPick'; hashes: string[] }
+  | { type: 'commitsAction'; action: 'squash' | 'drop' | 'cherryPick' | 'savePatch'; hashes: string[] }
   | { type: 'refAction'; action: RefAction; fullName: string }
   | { type: 'openWorktree'; path: string; newWindow: boolean }
   | { type: 'openUrl'; url: string }

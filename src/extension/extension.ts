@@ -108,6 +108,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<KleioA
       const repository = await pickRepository(repositories);
       if (repository) await sync.updateProject(repository);
     }),
+    vscode.commands.registerCommand('kleio.git.applyPatch', async () => {
+      const repository = await pickRepository(repositories);
+      if (repository) await actions.applyPatch(repository);
+    }),
     vscode.commands.registerCommand('kleio.git.undo', async () => {
       const repository = await pickRepository(repositories);
       if (repository) await sync.undo(repository);

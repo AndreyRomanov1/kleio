@@ -290,6 +290,11 @@
         "icon": "$(discard)"
       },
       {
+        "command": "kleio.git.applyPatch",
+        "title": "%command.git.applyPatch%",
+        "category": "Kleio"
+      },
+      {
         "command": "kleio.git.push",
         "title": "Push…",
         "category": "Kleio",
@@ -339,6 +344,16 @@
           "command": "kleio.git.undo",
           "when": "view == kleio.commit",
           "group": "overflow@1"
+        },
+        {
+          "command": "kleio.git.applyPatch",
+          "when": "view == kleio.log",
+          "group": "overflow@2"
+        },
+        {
+          "command": "kleio.git.applyPatch",
+          "when": "view == kleio.commit",
+          "group": "overflow@2"
         }
       ],
       "editor/title": [
@@ -759,6 +774,11 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "%config.statusBar.branch%"
+        },
+        "kleio.blame.ignoreWhitespaceAndMoves": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%config.blame.ignoreWhitespaceAndMoves%"
         }
       }
     }
