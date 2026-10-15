@@ -149,6 +149,9 @@ export class LogController implements vscode.Disposable {
         if (!this.snapshot?.truncated) return;
         this.logLimit = this.snapshot.commits.length + LOG_PAGE;
         return this.load();
+      case 'selectHostingRemote':
+        if (this.repository) await this.services.hostingActions.selectRemote(this.repository);
+        return;
       case 'connectHosting':
         if (this.repository && (await this.services.cards.connect(this.repository)) && message.number) {
           await this.loadCard(message.number);
@@ -337,6 +340,8 @@ export class LogController implements vscode.Disposable {
         hosting: {
           name: hosting?.links?.name,
           kind: hosting?.links?.kind,
+          remote: hosting?.remoteName,
+          remoteCount: hosting?.remoteCount ?? 0,
           mergeRequests: hosting?.mergeRequests ?? {},
           defaultBranch: hosting?.defaultBranch,
           merged,

@@ -180,6 +180,20 @@
     {/if}
     <span class="spacer"></span>
     {#if store.loading}<i class="loading codicon codicon-loading codicon-modifier-spin"></i>{/if}
+    {#if (store.hosting?.remoteCount ?? 0) > 1 && !store.history}
+      <button
+        class="tool"
+        title={t(
+          'Merge requests and pipelines come from remote {0}; click to choose another',
+          store.hosting?.remote ?? '',
+        )}
+        onclick={() => post({ type: 'selectHostingRemote' })}
+        ><i class="codicon codicon-remote"></i>
+        {store.hosting?.name
+          ? `${store.hosting.name} · ${store.hosting.remote}`
+          : store.hosting?.remote}</button
+      >
+    {/if}
     {#if store.hosting?.api === 'needsAuth' && !store.history}
       <button
         class="tool"

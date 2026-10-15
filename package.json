@@ -189,6 +189,11 @@
         "category": "Kleio"
       },
       {
+        "command": "kleio.hosting.selectRemote",
+        "title": "%command.hosting.selectRemote%",
+        "category": "Kleio"
+      },
+      {
         "command": "kleio.gitlab.connect",
         "title": "%command.gitlab.connect%",
         "category": "Kleio"

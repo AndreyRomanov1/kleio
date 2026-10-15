@@ -144,6 +144,9 @@ export interface HostingView {
   /** `GitLab` or `GitHub`; undefined when the remote is not a known hosting. */
   name?: string;
   kind?: 'gitlab' | 'github';
+  /** The remote the hosting comes from, and how many remotes there are to choose from. */
+  remote?: string;
+  remoteCount: number;
   /** Commit → numbers of merge requests whose head it is; servers keep these refs for open and recently closed ones. */
   mergeRequests: Record<string, number[]>;
   /** Branch merge requests target, e.g. `origin/master`. */
@@ -221,6 +224,7 @@ export type WebviewMessage =
   /** The log is scrolled to the end of a truncated history. */
   | { type: 'loadMoreCommits' }
   | { type: 'connectHosting'; number?: number }
+  | { type: 'selectHostingRemote' }
   | { type: 'openJobLog'; jobId: number; name: string; projectId?: number }
   | { type: 'retryPipeline'; pipelineId: number; number: number }
   | { type: 'startReview'; number: number; path?: string; line?: number }

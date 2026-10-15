@@ -71,14 +71,19 @@ const mergedInfo: Record<
 /** Extra autolink rules for the preview, as JSON in KLEIO_PREVIEW_AUTOLINKS (the extension reads settings). */
 const previewAutolinks: Autolink[] = JSON.parse(process.env.KLEIO_PREVIEW_AUTOLINKS ?? '[]') as Autolink[];
 
+/** The remote whose hosting the preview shows, as the `kleio.remote` choice of the extension. */
+const previewRemote = process.env.KLEIO_PREVIEW_REMOTE ?? 'origin';
+
 async function hostingMessage(repository: Repository): Promise<HostMessage> {
   const url = (
-    await repository.git.run(['remote', 'get-url', 'origin'], { allowExitCodes: [2, 128] })
+    await repository.git.run(['remote', 'get-url', previewRemote], { allowExitCodes: [2, 128] })
   ).trim();
   const remote = url ? parseRemoteUrl(url) : undefined;
   const refs = remote
     ? await repository.git
-        .run(['ls-remote', 'origin', 'refs/merge-requests/*/head', 'refs/pull/*/head'], { timeoutMs: 15000 })
+        .run(['ls-remote', previewRemote, 'refs/merge-requests/*/head', 'refs/pull/*/head'], {
+          timeoutMs: 15000,
+        })
         .catch(() => '')
     : '';
   const reviews = parseReviewRefs(refs);
@@ -91,7 +96,7 @@ async function hostingMessage(repository: Repository): Promise<HostMessage> {
     ? await Promise.all([api.mergeRequests(iids), api.latestPipelines()]).catch(() => [[], {}] as const)
     : [[], {}];
   const defaultBranch = (
-    await repository.git.run(['symbolic-ref', '-q', '--short', 'refs/remotes/origin/HEAD'], {
+    await repository.git.run(['symbolic-ref', '-q', '--short', `refs/remotes/${previewRemote}/HEAD`], {
       allowExitCodes: [1, 128],
     })
   ).trim();
@@ -99,6 +104,9 @@ async function hostingMessage(repository: Repository): Promise<HostMessage> {
     type: 'hosting',
     hosting: {
       name: links?.name,
+      kind: links?.kind,
+      remote: previewRemote,
+      remoteCount: (await repository.git.run(['remote'])).split('\n').filter(Boolean).length,
       mergeRequests: reviews.byCommit,
       defaultBranch: defaultBranch || undefined,
       merged: defaultBranch ? await repository.mergedBranches(defaultBranch) : [],

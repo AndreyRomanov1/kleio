@@ -17,10 +17,13 @@ import { detectHosting, HostingLinks, parseRemoteUrl, parseReviewRefs, type Auto
 export type ApiState = 'none' | 'available' | 'needsAuth';
 
 const REVIEW_REFS_TTL_MS = 3 * 60 * 1000;
+const REMOTE_KEY = 'kleio.remote';
 const NETWORK_TIMEOUT_MS = 15_000;
 
 export interface RepositoryHosting {
   remoteName: string;
+  /** How many remotes the repository has: with more than one, the hosting remote can be chosen. */
+  remoteCount: number;
   /** Undefined when the remote is not a known hosting: then only plain git features work. */
   links?: HostingLinks;
   /** Branch merge requests usually target, e.g. `origin/master`. */
@@ -208,6 +211,7 @@ export class HostingService implements vscode.Disposable {
     const links = remote && kind ? new HostingLinks(kind, remote) : undefined;
     const hosting: RepositoryHosting = {
       remoteName,
+      remoteCount: (await this.remotes(repository)).length,
       links,
       defaultBranch,
       mergeRequests: reviews.byCommit,
@@ -277,9 +281,29 @@ export class HostingService implements vscode.Disposable {
     this.changed.dispose();
   }
 
+  /** The remote chosen with {@link setRemote}, otherwise `origin`, otherwise the first one. */
   private async remoteName(repository: Repository): Promise<string | undefined> {
-    const remotes = (await repository.git.run(['remote'])).split('\n').filter(Boolean);
+    const remotes = await this.remotes(repository);
+    const chosen = (
+      await repository.git.run(['config', '--get', REMOTE_KEY], { allowExitCodes: [1] })
+    ).trim();
+    if (chosen && remotes.includes(chosen)) return chosen;
     return remotes.includes('origin') ? 'origin' : remotes[0];
+  }
+
+  async remotes(repository: Repository): Promise<string[]> {
+    return (await repository.git.run(['remote'])).split('\n').filter(Boolean);
+  }
+
+  /**
+   * Makes the hosting of another remote the one Kleio shows, e.g. GitHub for a repository whose `origin` is a
+   * GitLab mirror. Kept in the repository's own config, as `gh` keeps its choice of a remote.
+   */
+  async setRemote(repository: Repository, remote: string): Promise<void> {
+    await repository.git.run(['config', REMOTE_KEY, remote]);
+    this.cache.delete(repository.root);
+    this.merged.delete(repository.root);
+    this.changed.fire();
   }
 
   private async defaultBranch(repository: Repository, remote: string): Promise<string | undefined> {

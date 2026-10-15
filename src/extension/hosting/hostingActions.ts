@@ -23,7 +23,32 @@ export class HostingActions implements vscode.Disposable {
       vscode.commands.registerCommand('kleio.hosting.copyFileLink', (uri?: vscode.Uri) =>
         this.fileLink(uri, 'copy'),
       ),
+      vscode.commands.registerCommand('kleio.hosting.selectRemote', async () => {
+        const repository = this.repositories.current;
+        if (repository) await this.selectRemote(repository);
+      }),
     ];
+  }
+
+  /** Lets the user choose which remote's hosting (merge requests, pipelines) the log shows. */
+  async selectRemote(repository: Repository): Promise<void> {
+    const [remotes, current] = await Promise.all([
+      this.hosting.remotes(repository),
+      this.hosting.known(repository),
+    ]);
+    const items = await Promise.all(
+      remotes.map(async (name) => ({
+        label: name,
+        description: (await repository.git.run(['remote', 'get-url', name])).trim(),
+        picked: name === current?.remoteName,
+      })),
+    );
+    const picked = await vscode.window.showQuickPick(items, {
+      title: t('Hosting of {0}', repository.name),
+      placeHolder: t('Merge requests and pipelines of which remote to show'),
+    });
+    if (picked && picked.label !== current?.remoteName)
+      await this.hosting.setRemote(repository, picked.label);
   }
 
   async openUrl(url: string): Promise<void> {

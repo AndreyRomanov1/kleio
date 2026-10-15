@@ -60,5 +60,6 @@
   "command.history.folder": "История папки",
   "config.blame.ignoreWhitespaceAndMoves": "Blame и авторы над объявлениями не учитывают изменения пробелов и строки, перемещённые внутри файла (`git blame -w -M`): переформатирование не забирает авторство строки.",
   "command.git.applyPatch": "Применить патч…",
-  "config.rebase.updateRefs": "Rebase переносит вместе с коммитами и ветки стопки, стоящие на них, как `git rebase --update-refs`: ветка, сделанная поверх другой, остаётся поверх неё. Ветки, открытые в других worktree, остаются на месте. Нужен git 2.38 или новее."
+  "config.rebase.updateRefs": "Rebase переносит вместе с коммитами и ветки стопки, стоящие на них, как `git rebase --update-refs`: ветка, сделанная поверх другой, остаётся поверх неё. Ветки, открытые в других worktree, остаются на месте. Нужен git 2.38 или новее.",
+  "command.hosting.selectRemote": "Выбрать remote для merge requests и пайплайнов…"
 }

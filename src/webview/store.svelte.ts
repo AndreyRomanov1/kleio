@@ -168,6 +168,11 @@ export class LogStore {
         this.reveal(message.hash);
         break;
       case 'hosting':
+        // Merged merge requests of another remote's hosting are of no use.
+        if (this.hosting && message.hosting.remote !== this.hosting.remote) {
+          this.merged = undefined;
+          this.mergedPending = false;
+        }
         this.hosting = this.withMerged(message.hosting);
         break;
       case 'mergedMergeRequests':

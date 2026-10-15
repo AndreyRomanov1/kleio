@@ -60,5 +60,6 @@
   "command.history.folder": "Folder History",
   "config.blame.ignoreWhitespaceAndMoves": "Blame and the authors above declarations ignore whitespace changes and lines moved within a file (`git blame -w -M`): reformatting does not take the authorship of a line.",
   "command.git.applyPatch": "Apply Patch…",
-  "config.rebase.updateRefs": "Rebase moves the branches stacked on the rebased commits along with them, as `git rebase --update-refs` does: a branch made on top of another one stays on top of it. Branches checked out in other worktrees stay where they are. Needs git 2.38 or newer."
+  "config.rebase.updateRefs": "Rebase moves the branches stacked on the rebased commits along with them, as `git rebase --update-refs` does: a branch made on top of another one stays on top of it. Branches checked out in other worktrees stay where they are. Needs git 2.38 or newer.",
+  "command.hosting.selectRemote": "Choose the Remote of Merge Requests and Pipelines…"
 }
