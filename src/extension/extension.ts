@@ -7,6 +7,7 @@ import { ChangeSetNavigator } from './changes/changeSetNavigator';
 import { CommitView } from './commit/commitView';
 import { RevisionContentProvider } from './content/revisionContentProvider';
 import { REVISION_SCHEME } from './content/revisionUri';
+import { watchGitPath } from './git/gitPath';
 import type { Repository } from './git/repository';
 import { RepositoryManager } from './git/repositoryManager';
 import { ReviewController } from './review/reviewController';
@@ -33,6 +34,7 @@ export interface KleioApi {
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<KleioApi> {
+  context.subscriptions.push(watchGitPath());
   const repositories = new RepositoryManager();
   const navigator = new ChangeSetNavigator();
   const sync = new SyncActions(repositories);

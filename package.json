@@ -26,8 +26,18 @@
   "main": "./dist/extension.js",
   "activationEvents": [
     "workspaceContains:.git",
-    "onWebviewPanel:kleio.logPanel"
+    "onStartupFinished"
   ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "Kleio запускает git, а git выполняет хуки и настройки из репозитория."
+    },
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "Kleio работает с git в локальных папках."
+    }
+  },
   "contributes": {
     "viewsContainers": {
       "panel": [

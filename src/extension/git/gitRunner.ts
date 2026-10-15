@@ -20,11 +20,22 @@ export interface RunOptions {
   timeoutMs?: number;
 }
 
+let defaultGitPath = 'git';
+
+/** Sets the git executable for runners created without their own, e.g. from the `git.path` setting. */
+export function setGitPath(gitPath: string): void {
+  defaultGitPath = gitPath;
+}
+
 export class GitRunner {
   constructor(
     readonly cwd: string,
-    private readonly gitPath = 'git',
+    private readonly explicitGitPath?: string,
   ) {}
+
+  private get gitPath(): string {
+    return this.explicitGitPath ?? defaultGitPath;
+  }
 
   async run(args: readonly string[], options: RunOptions = {}): Promise<string> {
     return (await this.runWithOutput(args, options)).stdout;

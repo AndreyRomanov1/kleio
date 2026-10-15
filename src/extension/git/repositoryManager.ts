@@ -1,3 +1,4 @@
+import { readdir } from 'node:fs/promises';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { Repository } from './repository';
@@ -32,7 +33,7 @@ export class RepositoryManager implements vscode.Disposable {
 
   async scan(): Promise<void> {
     const folders = vscode.workspace.workspaceFolders ?? [];
-    const found = await Promise.all(folders.map((f) => Repository.open(f.uri.fsPath)));
+    const found = (await Promise.all(folders.map((f) => openFolder(f.uri.fsPath)))).flat();
     let changed = false;
     for (const repository of found) {
       if (repository && !this.repositories.has(repository.root)) {
@@ -102,4 +103,23 @@ export class RepositoryManager implements vscode.Disposable {
     for (const watcher of this.watchers.values()) watcher.dispose();
     for (const d of this.disposables) d.dispose();
   }
+}
+
+/** The repository of a folder, or, for a folder outside of git, the repositories right inside it. */
+async function openFolder(folder: string): Promise<(Repository | undefined)[]> {
+  const own = await Repository.open(folder);
+  if (own) return [own];
+  const entries = await readdir(folder, { withFileTypes: true }).catch(() => []);
+  const nested = entries.filter((e) => e.isDirectory() && !e.name.startsWith('.'));
+  const candidates = await Promise.all(
+    nested.map(async (e) => {
+      const dir = path.join(folder, e.name);
+      const hasGit = await readdir(dir).then(
+        (names) => names.includes('.git'),
+        () => false,
+      );
+      return hasGit ? Repository.open(dir) : undefined;
+    }),
+  );
+  return candidates;
 }
