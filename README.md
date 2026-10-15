@@ -25,13 +25,16 @@ stays editable.
 - **One diff viewer for any set of changes** on the native diff editor: `F7` / `Shift+F7` go through
   changes and on into the next file, `F4` opens the file for editing. When a revision matches the file on
   disk, the right side _is_ that file.
-- **History and blame**: history of a file or of selected lines with the diff beside it, blame annotations
-  linked to the log, the main author above declarations.
+- **History and blame**: history of a file, of a folder or of selected lines with the diff beside it,
+  blame annotations linked to the log, the main author above declarations.
+- **Compare branches** as lists of commits missing on either side, or as one diff.
+- **Branch widget** in the status bar: the current branch with ↑↓, a click for branches and the common
+  actions.
 
 **Changing history**
 
 - **Commit view**: changes with checkboxes, **parts of a file by hunks**, amend, recent messages, rollback
-  of files or hunks, stashes. By default it works as in Rider: checked files and hunks are committed as
+  of files or hunks, stashes (all changes or only the checked files). By default it works as in Rider: checked files and hunks are committed as
   they are on disk, through a temporary index, and what you staged yourself stays as it is. With
   **Stage** checked, the checkboxes show and change the git index, and the commit takes what is staged,
   as `git commit` does.
@@ -40,7 +43,11 @@ stays editable.
 
 - **Branches**: checkout (smart checkout through a stash; replacing a local branch that diverged after a
   rebase on the server, with a check that nothing is lost), checkout into a new worktree, merge, rebase,
-  cherry-pick, revert, reset. A stopped operation shows a bar with Continue / Skip / Abort.
+  cherry-pick (one commit or several), revert, reset, rename, upstream, tags. A stopped operation shows a
+  bar with Continue / Skip / Abort.
+- **Undo via reflog**: the latest states of the branch — before a rebase, a reset, an update — and back to
+  any of them with `git reset --keep`.
+- **Patches**: save commits as a patch, apply a patch as commits or as changes.
 - **Update Project** fetches every remote and brings the current branch up to its upstream — merge or
   rebase, asked the first time; another branch without own commits is updated without checking it out.
   Uncommitted changes are stashed for the time of an operation; if they come back with conflicts, Kleio
@@ -89,19 +96,21 @@ extension when it is signed in, or from a personal access token (command «По�
 
 ## Settings
 
-| Setting                           | Default                               | What it does                                                                                 |
-| --------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `kleio.autolinks`                 | `[]`                                  | Rules turning text into links: `{"pattern": "\\bPROJ-\\d+\\b", "url": "https://tracker/$0"}` |
-| `kleio.hosting.instances`         | `{}`                                  | Hosting type of your own servers, e.g. `{"git.example.com": "gitlab"}`                       |
-| `kleio.update.method`             | `ask`                                 | How Update Project brings a branch with own commits up to date: `merge` or `rebase`          |
-| `kleio.commit.stagingArea`        | `false`                               | The commit view works with the git index (the **Stage** checkbox)                            |
-| `kleio.hosting.backgroundRefresh` | `true`                                | Ask the server for merge request refs every few minutes; turn off if SSH asks for a password |
-| `kleio.push.protectedBranches`    | `["master", "main"]`                  | Branches never force-pushed; `*` works, e.g. `release/*`                                     |
-| `kleio.worktree.path`             | `${repoParent}/${repoName}-${branch}` | Folder of a new worktree                                                                     |
-| `kleio.worktree.copyFiles`        | `[]`                                  | Untracked files copied into a new worktree, e.g. local settings with secrets                 |
-| `kleio.codeLens.authors`          | `true`                                | The main author and the number of others above classes and methods                           |
-| `kleio.history.showDiffOnSelect`  | `true`                                | Show the diff of the selected commit in a history tab                                        |
-| `kleio.language`                  | `auto`                                | Language of Kleio: the editor's, or `en`, `ru` without a language pack                       |
+| Setting                                | Default                               | What it does                                                                                 |
+| -------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `kleio.autolinks`                      | `[]`                                  | Rules turning text into links: `{"pattern": "\\bPROJ-\\d+\\b", "url": "https://tracker/$0"}` |
+| `kleio.hosting.instances`              | `{}`                                  | Hosting type of your own servers, e.g. `{"git.example.com": "gitlab"}`                       |
+| `kleio.update.method`                  | `ask`                                 | How Update Project brings a branch with own commits up to date: `merge` or `rebase`          |
+| `kleio.commit.stagingArea`             | `false`                               | The commit view works with the git index (the **Stage** checkbox)                            |
+| `kleio.hosting.backgroundRefresh`      | `true`                                | Ask the server for merge request refs every few minutes; turn off if SSH asks for a password |
+| `kleio.push.protectedBranches`         | `["master", "main"]`                  | Branches never force-pushed; `*` works, e.g. `release/*`                                     |
+| `kleio.worktree.path`                  | `${repoParent}/${repoName}-${branch}` | Folder of a new worktree                                                                     |
+| `kleio.worktree.copyFiles`             | `[]`                                  | Untracked files copied into a new worktree, e.g. local settings with secrets                 |
+| `kleio.codeLens.authors`               | `true`                                | The main author and the number of others above classes and methods                           |
+| `kleio.history.showDiffOnSelect`       | `true`                                | Show the diff of the selected commit in a history tab                                        |
+| `kleio.language`                       | `auto`                                | Language of Kleio: the editor's, or `en`, `ru` without a language pack                       |
+| `kleio.statusBar.branch`               | `true`                                | The current branch with ↑↓ in the status bar                                                 |
+| `kleio.blame.ignoreWhitespaceAndMoves` | `false`                               | Blame ignores whitespace changes and moved lines                                             |
 
 ## Key bindings
 

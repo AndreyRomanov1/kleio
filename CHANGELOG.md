@@ -8,6 +8,11 @@
 - Undo via reflog: the latest states of HEAD, returned with `git reset --keep`.
 - Branch widget in the status bar with ↑↓ and the common actions.
 - Rename a branch, set its upstream; push and delete tags; cherry-pick several commits at once.
+- Compare branches as lists of commits missing on either side.
+- Folder history; save commits as a patch, apply a patch.
+- Stash only the checked files.
+- Review comments on several lines.
+- `kleio.blame.ignoreWhitespaceAndMoves`: blame ignores reformatting and moved lines.
 
 ## 0.15.0
 
