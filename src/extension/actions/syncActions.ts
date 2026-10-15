@@ -122,15 +122,16 @@ export class SyncActions {
       vscode.window.setStatusBarMessage(`Kleio: ${head.branch} актуальна`, 4000);
       return;
     }
-    const method = vscode.workspace
-      .getConfiguration('kleio')
-      .get<'rebase' | 'merge'>('update.method', 'rebase');
     const title = `Обновление ${head.branch} из ${upstream}: ${behind} новых`;
     if (ahead === 0) {
       await this.operation(repository, title, 'merge', () =>
         repository.merge(upstream, { fastForwardOnly: true }),
       );
-    } else if (method === 'merge') {
+      return;
+    }
+    const method = await this.updateMethod(head.branch, upstream, ahead, behind);
+    if (!method) return;
+    if (method === 'merge') {
       await this.operation(repository, title, 'merge', () => repository.merge(upstream));
     } else {
       await this.operation(repository, title, 'rebase', () => repository.rebase(upstream));
@@ -278,6 +279,40 @@ export class SyncActions {
       abort,
     );
     if (choice === abort && state) await this.abort(repository, state.kind);
+  }
+
+  /** The configured way to update a diverged branch; asked once and saved in the user settings. */
+  private async updateMethod(
+    branch: string,
+    upstream: string,
+    ahead: number,
+    behind: number,
+  ): Promise<'merge' | 'rebase' | undefined> {
+    const config = vscode.workspace.getConfiguration('kleio');
+    const method = config.get<'ask' | 'merge' | 'rebase'>('update.method', 'ask');
+    if (method !== 'ask') return method;
+    const picked = await vscode.window.showQuickPick(
+      [
+        {
+          label: 'Merge',
+          method: 'merge' as const,
+          detail: `Влить ${upstream} в ${branch} merge-коммитом — как git pull`,
+        },
+        {
+          label: 'Rebase',
+          method: 'rebase' as const,
+          detail: `Переставить свои коммиты поверх ${upstream} — как git pull --rebase; история линейная, но коммиты получат новые хеши`,
+        },
+      ],
+      {
+        title: `${branch}: ${ahead} своих коммитов, ${behind} новых в ${upstream}. Как обновлять ветки, разошедшиеся с upstream?`,
+        placeHolder: 'Выбор запомнится в настройке kleio.update.method',
+        ignoreFocusOut: true,
+      },
+    );
+    if (!picked) return undefined;
+    await config.update('update.method', picked.method, vscode.ConfigurationTarget.Global);
+    return picked.method;
   }
 
   private async upstream(repository: Repository, branch: string): Promise<string | undefined> {

@@ -83,11 +83,18 @@ export class HostingService implements vscode.Disposable {
     return source ? createGitLabApi(links.remote.host, links.remote.project, source.token) : undefined;
   }
 
-  /** Fast answer from what is known; review refs are fetched over the network when stale or `refresh` is set. */
+  /**
+   * Fast answer from what is known; review refs are fetched over the network when stale or `refresh` is set.
+   * With background refresh turned off, only the first load and an explicit refresh go to the network.
+   */
   async hosting(repository: Repository, refresh = false): Promise<RepositoryHosting | undefined> {
     const key = repository.root;
     const cached = await this.cache.get(key);
-    if (cached && !refresh && Date.now() - cached.reviewsAt < REVIEW_REFS_TTL_MS) return cached.hosting;
+    const background = vscode.workspace
+      .getConfiguration('kleio')
+      .get<boolean>('hosting.backgroundRefresh', true);
+    if (cached && !refresh && (!background || Date.now() - cached.reviewsAt < REVIEW_REFS_TTL_MS))
+      return cached.hosting;
     const next = this.load(repository).catch(() => cached);
     this.cache.set(key, next);
     return (await next)?.hosting;
