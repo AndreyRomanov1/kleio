@@ -7,9 +7,17 @@ import type { ChangeSetNavigator } from '../changes/changeSetNavigator';
 import { revisionUri, workingFileUri } from '../content/revisionUri';
 import type { Hunk } from '../git/parse';
 import type { Repository } from '../git/repository';
-import type { DiffPosition, DiffRefs, Discussion, DraftNote, GitLabApi, Note } from '../hosting/gitlabApi';
+import {
+  GitLabApiError,
+  type DiffPosition,
+  type DiffRefs,
+  type Discussion,
+  type DraftNote,
+  type GitLabApi,
+  type Note,
+} from '../hosting/gitlabApi';
 import type { HostingService } from '../hosting/hostingService';
-import { linePair, type Side } from './positions';
+import { lineCounters, linePair, type Side } from './positions';
 import type { ReviewJournal } from './reviewJournal';
 import { t } from '../../shared/l10n';
 import { displayLanguage } from '../language';
@@ -416,7 +424,9 @@ export class ReviewController implements vscode.Disposable {
     const onNew = position.newLine !== undefined;
     const uri = onNew ? file.right : file.left;
     const line = (onNew ? position.newLine : position.oldLine) ?? 1;
-    return uri ? { uri, range: new vscode.Range(line - 1, 0, line - 1, 0) } : undefined;
+    const start = position.lineRange?.start;
+    const first = (onNew ? start?.newLine : start?.oldLine) ?? line;
+    return uri ? { uri, range: new vscode.Range(Math.min(first, line) - 1, 0, line - 1, 0) } : undefined;
   }
 
   private decorate(thread: vscode.CommentThread, first: Note): void {
@@ -454,21 +464,38 @@ export class ReviewController implements vscode.Disposable {
       const placed = session.documents.get(thread.uri.toString());
       if (!placed || !thread.range) return;
       const line = thread.range.end.line + 1;
+      const first = thread.range.start.line + 1;
       const { file, side } = placed;
       file.hunks ??= session.repository.hunks(session.refs.baseSha, session.refs.headSha, file.change);
+      const hunks = await file.hunks;
+      const end = linePair(hunks, side, line);
       const position: DiffPosition = {
         baseSha: session.refs.baseSha,
         startSha: session.refs.startSha,
         headSha: session.refs.headSha,
         oldPath: file.change.oldPath ?? file.change.path,
         newPath: file.change.path,
-        ...linePair(await file.hunks, side, line),
+        ...end,
+        lineRange:
+          first < line
+            ? {
+                start: { ...linePair(hunks, side, first), counters: lineCounters(hunks, side, first) },
+                end: { ...end, counters: lineCounters(hunks, side, line) },
+              }
+            : undefined,
       };
-      target = `${side === 'new' ? file.change.path : position.oldPath}:${line}${side === 'old' ? t(' (old version)') : ''}`;
-      request = () =>
+      const lines = first < line ? `${first}–${line}` : `${line}`;
+      target = `${side === 'new' ? file.change.path : position.oldPath}:${lines}${side === 'old' ? t(' (old version)') : ''}`;
+      const create = (p: DiffPosition) =>
         kind === 'publish'
-          ? session.api.createDiscussion(session.iid, text, position)
-          : session.api.createDraftNote(session.iid, text, { position });
+          ? session.api.createDiscussion(session.iid, text, p)
+          : session.api.createDraftNote(session.iid, text, { position: p });
+      // A rejected range still leaves the comment on its last line rather than not at all.
+      request = () =>
+        create(position).catch((error: unknown) => {
+          if (!position.lineRange || !(error instanceof GitLabApiError) || error.unauthorized) throw error;
+          return create({ ...position, lineRange: undefined });
+        });
     }
 
     const sent = await this.deliver({ mergeRequest: session.label, kind, target, text }, request);

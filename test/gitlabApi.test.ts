@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -289,6 +290,31 @@ describe('GitLabApi', () => {
     expect(requests.at(-1)).toMatchObject({
       method: 'PUT',
       url: '/api/v4/projects/group%2Fproject/merge_requests/9/discussions/d1?resolved=true',
+    });
+  });
+
+  it('sends a comment on several lines with the line range GitLab expects', async () => {
+    await api().createDiscussion(9, 'range', {
+      baseSha: 'b',
+      startSha: 's',
+      headSha: 'h',
+      oldPath: 'a.cs',
+      newPath: 'a.cs',
+      newLine: 9,
+      lineRange: {
+        start: { oldLine: 5, newLine: 6, counters: { old: 5, new: 6 } },
+        end: { newLine: 9, counters: { old: 8, new: 9 } },
+      },
+    });
+    const hash = createHash('sha1').update('a.cs').digest('hex');
+    expect(requests.at(-1)?.body).toMatchObject({
+      position: {
+        new_line: 9,
+        line_range: {
+          start: { line_code: `${hash}_5_6`, type: 'old', old_line: 5, new_line: 6 },
+          end: { line_code: `${hash}_8_9`, type: 'new', old_line: null, new_line: 9 },
+        },
+      },
     });
   });
 

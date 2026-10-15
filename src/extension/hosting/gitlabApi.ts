@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 /** A small GitLab REST v4 client: only what Kleio shows, every call scoped to one project. */
 
 export type PipelineStatus =
@@ -79,6 +81,15 @@ export interface DiffPosition {
   oldLine?: number;
   /** 1-based; set for added and unchanged lines. */
   newLine?: number;
+  /** For a comment on several lines: its first and last line; `oldLine` and `newLine` are those of the last. */
+  lineRange?: { start: LineEnd; end: LineEnd };
+}
+
+/** An end of a multi-line comment: the line on its side and both counters GitLab keeps for it. */
+export interface LineEnd {
+  oldLine?: number;
+  newLine?: number;
+  counters: { old: number; new: number };
 }
 
 export interface Note {
@@ -472,6 +483,14 @@ interface RawPosition {
   old_line?: number | null;
   new_line?: number | null;
   position_type?: string;
+  line_range?: { start: RawLineEnd; end: RawLineEnd } | null;
+}
+
+interface RawLineEnd {
+  line_code?: string;
+  type?: 'new' | 'old' | null;
+  old_line?: number | null;
+  new_line?: number | null;
 }
 
 interface RawNote {
@@ -507,6 +526,26 @@ function position(raw: RawPosition): DiffPosition {
     newPath: raw.new_path,
     oldLine: raw.old_line ?? undefined,
     newLine: raw.new_line ?? undefined,
+    lineRange: raw.line_range
+      ? { start: lineEnd(raw.line_range.start), end: lineEnd(raw.line_range.end) }
+      : undefined,
+  };
+}
+
+function lineEnd(raw: RawLineEnd): LineEnd {
+  const oldLine = raw.old_line ?? undefined;
+  const newLine = raw.new_line ?? undefined;
+  return { oldLine, newLine, counters: { old: oldLine ?? 0, new: newLine ?? 0 } };
+}
+
+/** As GitLab names a diff line: the SHA-1 of the file path and both counters of the line. */
+function rawLineEnd(path: string, end: LineEnd): RawLineEnd {
+  const hash = createHash('sha1').update(path).digest('hex');
+  return {
+    line_code: `${hash}_${end.counters.old}_${end.counters.new}`,
+    type: end.oldLine === undefined ? 'new' : 'old',
+    old_line: end.oldLine ?? null,
+    new_line: end.newLine ?? null,
   };
 }
 
@@ -520,6 +559,14 @@ function rawPosition(p: DiffPosition): RawPosition {
     new_path: p.newPath,
     ...(p.oldLine !== undefined ? { old_line: p.oldLine } : {}),
     ...(p.newLine !== undefined ? { new_line: p.newLine } : {}),
+    ...(p.lineRange
+      ? {
+          line_range: {
+            start: rawLineEnd(p.newPath, p.lineRange.start),
+            end: rawLineEnd(p.newPath, p.lineRange.end),
+          },
+        }
+      : {}),
   };
 }
 

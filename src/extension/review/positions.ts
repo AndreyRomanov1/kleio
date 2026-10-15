@@ -27,3 +27,23 @@ export function linePair(hunks: readonly Hunk[], side: Side, line: number): Line
   }
   return side === 'new' ? { oldLine: line - shift, newLine: line } : { oldLine: line, newLine: line + shift };
 }
+
+/**
+ * Both line numbers GitLab keeps for a line of the diff, as its diff parser counts them: an added line also
+ * has the old number the old side has reached, a removed line the new one. They make up the `line_code` of
+ * the ends of a multi-line comment.
+ */
+export function lineCounters(hunks: readonly Hunk[], side: Side, line: number): { old: number; new: number } {
+  for (const hunk of hunks) {
+    const start = side === 'new' ? hunk.newStart : hunk.oldStart;
+    const count = side === 'new' ? hunk.newLines : hunk.oldLines;
+    if (count > 0 && line >= start && line < start + count) {
+      // Within a hunk the removed lines come first, then the added ones.
+      return side === 'new'
+        ? { old: hunk.oldLines ? hunk.oldStart + hunk.oldLines : hunk.oldStart + 1, new: line }
+        : { old: line, new: hunk.newLines ? hunk.newStart : hunk.newStart + 1 };
+    }
+  }
+  const pair = linePair(hunks, side, line);
+  return { old: pair.oldLine!, new: pair.newLine! };
+}
