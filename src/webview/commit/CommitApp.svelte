@@ -65,6 +65,18 @@
       >Stash{#if store.stashes.length}<span class="badge">{store.stashes.length}</span>{/if}</button
     >
     <span class="spacer"></span>
+    {#if store.repositories.length > 1}
+      <select
+        class="repository"
+        title={t('Repository')}
+        value={store.root}
+        onchange={(e) => postCommit({ type: 'selectRepository', root: e.currentTarget.value })}
+      >
+        {#each store.repositories as repository (repository.root)}
+          <option value={repository.root}>{repository.name}</option>
+        {/each}
+      </select>
+    {/if}
     {#if store.branch}<span class="branch" title={t('Current branch')}
         ><i class="codicon codicon-git-branch"></i>{store.branch}</span
       >{/if}
@@ -238,6 +250,11 @@
     background: var(--vscode-badge-background);
     color: var(--vscode-badge-foreground);
     font-size: 0.85em;
+  }
+  .repository {
+    min-width: 0;
+    max-width: 45%;
+    margin-right: 4px;
   }
   .branch {
     display: inline-flex;

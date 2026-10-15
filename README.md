@@ -30,6 +30,8 @@ stays editable.
 - **Compare branches** as lists of commits missing on either side, or as one diff.
 - **Branch widget** in the status bar: the current branch with ↑↓, a click for branches and the common
   actions.
+- **Several repositories** in one window: the log, the commit view and the status bar follow the
+  repository of the file in the editor; switch it by hand in any of them.
 
 **Changing history**
 

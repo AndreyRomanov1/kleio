@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.17.0
+
+- Several repositories in one window: one current repository for the log, the commit view, the status bar
+  and the commands. It follows the file in the editor and can be switched in the commit view, the log or
+  the branch widget.
+
 ## 0.16.1
 
 - The package lacked the translations: command and view titles showed as `%…%`, and Kleio stayed in English

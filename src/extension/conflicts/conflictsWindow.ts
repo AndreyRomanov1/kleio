@@ -46,7 +46,7 @@ export class ConflictsWindow implements vscode.Disposable {
         if (repository === this.repository && this.panel) void this.load();
       }),
       vscode.commands.registerCommand('kleio.conflicts.show', async () => {
-        const repository = this.repository ?? repositories.all[0];
+        const repository = this.repository ?? repositories.current;
         if (repository) await this.open(repository);
       }),
       vscode.commands.registerCommand('kleio.conflicts.markResolved', () => this.markActiveResolved()),

@@ -75,6 +75,12 @@ export class LogController implements vscode.Disposable {
       services.repositories.onDidChangeRepositories(() => {
         if (!this.repository) void this.load();
       }),
+      services.repositories.onDidChangeCurrent((repository) => {
+        if (this.history || repository === this.repository) return;
+        this.repository = repository;
+        this.logLimit = LOG_PAGE;
+        void this.load();
+      }),
       services.hosting.onDidChange(() => void this.loadHosting(true)),
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration('kleio.autolinks') || e.affectsConfiguration('kleio.hosting')) {
@@ -200,9 +206,14 @@ export class LogController implements vscode.Disposable {
           await this.loadCard(message.number);
         }
         return;
-      case 'selectRepository':
-        this.repository = await this.services.repositories.get(message.root);
+      case 'selectRepository': {
+        const repository = await this.services.repositories.get(message.root);
+        if (!repository) return;
+        this.repository = repository;
+        this.logLimit = LOG_PAGE;
+        this.services.repositories.setCurrent(repository);
         return this.load();
+      }
       case 'setFocus':
         await this.setStored(FOCUS_KEY, message.revisions);
         return this.load();
@@ -268,7 +279,7 @@ export class LogController implements vscode.Disposable {
 
   private async load(): Promise<void> {
     const version = ++this.loadVersion;
-    this.repository ??= this.services.repositories.all[0];
+    this.repository ??= this.services.repositories.current;
     if (!this.repository) {
       this.post({ type: 'noRepository' });
       return;

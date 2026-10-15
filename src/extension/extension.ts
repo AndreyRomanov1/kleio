@@ -7,7 +7,6 @@ import { ChangeSetNavigator } from './changes/changeSetNavigator';
 import { CommitView } from './commit/commitView';
 import { RevisionContentProvider } from './content/revisionContentProvider';
 import { REVISION_SCHEME } from './content/revisionUri';
-import { t } from '../shared/l10n';
 import { watchGitPath } from './git/gitPath';
 import { BranchStatus } from './statusBar/branchStatus';
 import { loadLanguage } from './language';
@@ -129,18 +128,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<KleioA
   return { repositories, navigator, logs, blame, review, rebase, conflicts, actions };
 }
 
-/** The repository of the active editor, or the only one, or the one the user picks. */
+/** Commands act on the current repository: the one of the active editor or chosen in the log or commit view. */
 async function pickRepository(repositories: RepositoryManager): Promise<Repository | undefined> {
-  const active = vscode.window.activeTextEditor?.document.uri;
-  const byEditor = active?.scheme === 'file' ? repositories.repositoryFor(active) : undefined;
-  if (byEditor) return byEditor;
-  const all = repositories.all;
-  if (all.length <= 1) return all[0];
-  const picked = await vscode.window.showQuickPick(
-    all.map((r) => ({ label: r.name, description: r.root, repository: r })),
-    { title: t('Repository') },
-  );
-  return picked?.repository;
+  return repositories.current;
 }
 
 export function deactivate(): void {}

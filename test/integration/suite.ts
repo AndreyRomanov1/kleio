@@ -364,6 +364,30 @@ const tests: Test[] = [
     },
   ],
   [
+    'makes the repository of the active editor the current one for the log, commit view and status bar',
+    async (api) => {
+      const fs = require('node:fs') as typeof import('node:fs');
+      const other = path.join(path.dirname(root()), `${path.basename(root())}-other`);
+      fs.mkdirSync(other, { recursive: true });
+      execFileSync('git', ['init', '-q', '-b', 'main', other]);
+      fs.writeFileSync(path.join(other, 'other.txt'), 'other\n');
+      const repository = await api.repositories.get(other);
+      assert.ok(repository);
+
+      await vscode.window.showTextDocument(vscode.Uri.file(path.join(other, 'other.txt')));
+      await waitFor(
+        () => (api.repositories.current?.root === repository.root ? true : undefined),
+        'other current',
+      );
+      await vscode.window.showTextDocument(vscode.Uri.file(path.join(root(), 'b.txt')));
+      await waitFor(
+        () => (api.repositories.current?.root === path.normalize(root()) ? true : undefined),
+        'back',
+      );
+      await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+    },
+  ],
+  [
     'checks a branch out into a new worktree next to the repository and copies listed files',
     async (api) => {
       const fs = require('node:fs') as typeof import('node:fs');

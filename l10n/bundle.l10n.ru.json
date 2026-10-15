@@ -617,5 +617,7 @@
   "Kleio: {0} is applied": "Kleio: {0} применён",
   "The patch is applied with conflicts: resolve them in the files marked as conflicted.": "Патч применён с конфликтами — разрешите их в файлах, отмеченных как конфликтные.",
   "Save as patch…": "Сохранить как патч…",
-  "Save {0} commits as a patch…": "Сохранить {0} коммитов как патч…"
+  "Save {0} commits as a patch…": "Сохранить {0} коммитов как патч…",
+  "Repositories": "Репозитории",
+  "switch to this repository": "переключиться на этот репозиторий"
 }

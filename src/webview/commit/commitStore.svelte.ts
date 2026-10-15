@@ -14,6 +14,8 @@ export class CommitStore {
   files = $state.raw<CommitFile[]>([]);
   stashes = $state.raw<Stash[]>([]);
   branch = $state<string | undefined>(undefined);
+  root = $state('');
+  repositories = $state.raw<{ root: string; name: string }[]>([]);
   noRepository = $state(false);
   busy = $state(false);
   loaded = $state(false);
@@ -60,6 +62,10 @@ export class CommitStore {
         this.noRepository = false;
         this.loaded = true;
         this.branch = message.branch;
+        this.repositories = message.repositories;
+        // Checkboxes and hunks belong to the files of one repository.
+        if (message.root !== this.root) this.forget();
+        this.root = message.root;
         this.stashes = message.stashes;
         this.staging = message.staging;
         this.applyFiles(message.files);
@@ -247,6 +253,15 @@ export class CommitStore {
       amend: this.amend,
       push,
     });
+  }
+
+  private forget(): void {
+    this.known = new Set();
+    this.checked = new Set();
+    this.selected = new Set();
+    this.hunks = new Map();
+    this.excluded = new Map();
+    this.expanded = new Set();
   }
 
   private applyFiles(files: CommitFile[]): void {

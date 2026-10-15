@@ -252,7 +252,17 @@ async function handleCommit(
         })),
         ...changes.untracked.map((p): CommitFile => ({ path: p, status: '?', kind: 'untracked' })),
       ];
-      return [{ type: 'state', branch: head.branch, files, stashes, staging: false }];
+      return [
+        {
+          type: 'state',
+          branch: head.branch,
+          files,
+          stashes,
+          staging: false,
+          root: repository.root,
+          repositories: [{ root: repository.root, name: path.basename(repository.root) }],
+        },
+      ];
     }
     case 'requestAmendMessage':
       return [{ type: 'amendMessage', message: await repository.lastCommitMessage() }];

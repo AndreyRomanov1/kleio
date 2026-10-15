@@ -13,18 +13,46 @@ export class RepositoryManager implements vscode.Disposable {
   private readonly watchers = new Map<string, vscode.Disposable>();
   private readonly changed = new vscode.EventEmitter<Repository>();
   private readonly listChanged = new vscode.EventEmitter<void>();
+  private readonly currentChanged = new vscode.EventEmitter<Repository>();
+  private currentRoot?: string;
   private readonly pending = new Map<string, NodeJS.Timeout>();
   private readonly disposables: vscode.Disposable[] = [];
 
   readonly onDidChangeRepository = this.changed.event;
   readonly onDidChangeRepositories = this.listChanged.event;
+  /** The repository the log, the commit view and the status bar show changed. */
+  readonly onDidChangeCurrent = this.currentChanged.event;
 
   constructor() {
     this.disposables.push(
       vscode.workspace.onDidChangeWorkspaceFolders(() => void this.scan()),
+      // As in Rider, a file of another repository opened in the editor makes that repository the current one.
+      vscode.window.onDidChangeActiveTextEditor((editor) => {
+        const uri = editor?.document.uri;
+        const repository = uri?.scheme === 'file' ? this.repositoryFor(uri) : undefined;
+        if (repository) this.setCurrent(repository);
+      }),
       this.changed,
       this.listChanged,
+      this.currentChanged,
     );
+  }
+
+  /** The repository being worked with: chosen by the user or of the active editor; the first one at start. */
+  get current(): Repository | undefined {
+    return (this.currentRoot && this.repositories.get(this.currentRoot)) || this.initial();
+  }
+
+  setCurrent(repository: Repository): void {
+    if (this.currentRoot === repository.root) return;
+    if (!this.repositories.has(repository.root)) this.add(repository);
+    this.currentRoot = repository.root;
+    this.currentChanged.fire(repository);
+  }
+
+  private initial(): Repository | undefined {
+    const uri = vscode.window.activeTextEditor?.document.uri;
+    return (uri?.scheme === 'file' ? this.repositoryFor(uri) : undefined) ?? this.all[0];
   }
 
   get all(): Repository[] {

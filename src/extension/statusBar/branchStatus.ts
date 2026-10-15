@@ -32,7 +32,7 @@ export class BranchStatus implements vscode.Disposable {
         if (repository === this.current()) void this.update();
       }),
       repositories.onDidChangeRepositories(() => void this.update()),
-      vscode.window.onDidChangeActiveTextEditor(() => void this.update()),
+      repositories.onDidChangeCurrent(() => void this.update()),
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration('kleio.statusBar.branch')) void this.update();
       }),
@@ -42,10 +42,7 @@ export class BranchStatus implements vscode.Disposable {
 
   /** The repository of the active editor, or the first one. */
   private current(): Repository | undefined {
-    const uri = vscode.window.activeTextEditor?.document.uri;
-    return (
-      (uri?.scheme === 'file' ? this.repositories.repositoryFor(uri) : undefined) ?? this.repositories.all[0]
-    );
+    return this.repositories.current;
   }
 
   private async update(): Promise<void> {
@@ -63,15 +60,16 @@ export class BranchStatus implements vscode.Disposable {
       ]);
       const branch = refs.find((r) => r.kind === 'head' && r.name === head.branch);
       const name = head.branch ?? head.hash?.slice(0, 8) ?? 'HEAD';
+      const prefix = this.repositories.all.length > 1 ? `${repository.name} / ` : '';
       const sync = [branch?.ahead ? `↑${branch.ahead}` : '', branch?.behind ? `↓${branch.behind}` : '']
         .filter(Boolean)
         .join(' ');
       if (operation) {
         const step = operation.step && operation.total ? ` ${operation.step}/${operation.total}` : '';
-        this.item.text = `$(git-branch) ${name} · ${operation.kind}${step}`;
+        this.item.text = `$(git-branch) ${prefix}${name} · ${operation.kind}${step}`;
         this.item.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
       } else {
-        this.item.text = `$(git-branch) ${name}${sync ? ` ${sync}` : ''}`;
+        this.item.text = `$(git-branch) ${prefix}${name}${sync ? ` ${sync}` : ''}`;
         this.item.backgroundColor = undefined;
       }
       this.item.tooltip = [
@@ -112,7 +110,22 @@ export class BranchStatus implements vscode.Disposable {
     });
     const local = snapshot.refs.filter((r) => r.kind === 'head' && r.name !== current);
     const remote = snapshot.refs.filter((r) => r.kind === 'remote' && !r.name.endsWith('/HEAD'));
+    const others = this.repositories.all.filter((r) => r !== repository);
     const items: Item[] = [
+      ...(others.length
+        ? [
+            { label: t('Repositories'), kind: vscode.QuickPickItemKind.Separator },
+            ...others.map((other): Item => ({
+              label: `$(repo) ${other.name}`,
+              description: t('switch to this repository'),
+              run: async () => {
+                this.repositories.setCurrent(other);
+                await this.pick();
+              },
+            })),
+            { label: repository.name, kind: vscode.QuickPickItemKind.Separator },
+          ]
+        : []),
       command(`$(repo-pull) ${t('Update Project')}`, 'kleio.git.updateProject'),
       command(`$(repo-push) ${t('Push…')}`, 'kleio.git.push'),
       command(`$(git-commit) ${t('Show Log')}`, 'kleio.log.focusView'),

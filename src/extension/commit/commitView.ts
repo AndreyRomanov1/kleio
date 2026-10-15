@@ -45,6 +45,7 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
       vscode.workspace.onDidSaveTextDocument(refresh),
       repositories.onDidChangeRepository(refresh),
       repositories.onDidChangeRepositories(refresh),
+      repositories.onDidChangeCurrent(() => void this.refresh()),
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration('kleio.commit.stagingArea')) void this.refresh();
       }),
@@ -93,6 +94,11 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
         return this.rollback(message.paths, message.hunks ?? {});
       case 'commit':
         return this.commit(message);
+      case 'selectRepository': {
+        const repository = await this.repositories.get(message.root);
+        if (repository) this.repositories.setCurrent(repository);
+        return;
+      }
       case 'setStaging':
         await vscode.workspace
           .getConfiguration('kleio')
@@ -129,8 +135,7 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
   }
 
   private async refresh(): Promise<void> {
-    this.repository ??= this.repositories.all[0];
-    const repository = this.repository;
+    const repository = (this.repository = this.repositories.current);
     if (!repository) {
       this.post({ type: 'noRepository' });
       return;
@@ -168,7 +173,15 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
         staged: index ? 'none' : undefined,
       })),
     ];
-    this.post({ type: 'state', branch: head.branch, files: this.files, stashes, staging });
+    this.post({
+      type: 'state',
+      branch: head.branch,
+      files: this.files,
+      stashes,
+      staging,
+      root: repository.root,
+      repositories: this.repositories.all.map((r) => ({ root: r.root, name: r.name })),
+    });
   }
 
   private async stage(paths: string[], value: boolean): Promise<void> {

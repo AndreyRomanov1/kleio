@@ -32,6 +32,9 @@ export type CommitHostMessage =
       stashes: Stash[];
       /** Checkboxes show the staging area and the commit takes what is staged, as plain git does. */
       staging: boolean;
+      root: string;
+      /** All repositories, to switch between them when there are several. */
+      repositories: { root: string; name: string }[];
     }
   | { type: 'noRepository' }
   | { type: 'busy'; value: boolean }
@@ -61,6 +64,7 @@ export type CommitWebviewMessage =
       push: boolean;
     }
   | { type: 'setStaging'; value: boolean }
+  | { type: 'selectRepository'; root: string }
   /** With the staging area: stages or unstages whole files. */
   | { type: 'stage'; paths: string[]; value: boolean }
   /** With the staging area: stages or unstages a hunk. */
