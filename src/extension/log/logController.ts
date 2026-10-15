@@ -207,7 +207,7 @@ export class LogController implements vscode.Disposable {
       }
       case 'retryPipeline':
         if (this.repository) {
-          await this.services.cards.retryPipeline(this.repository, message.pipelineId);
+          await this.services.cards.retryPipeline(this.repository, message.pipelineId, message.number);
           await this.loadCard(message.number);
         }
         return;

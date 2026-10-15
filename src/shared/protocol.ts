@@ -80,6 +80,10 @@ export interface PipelineJobView {
   allowFailure: boolean;
   /** Set for jobs of a child pipeline in another project. */
   projectId?: number;
+  /** A check without a log Kleio can open, e.g. of an outside service: its page instead. */
+  webUrl?: string;
+  /** The GitHub Actions workflow run of the job. */
+  runId?: number;
   /** Set for a trigger job; `child` once its child pipeline has started. */
   bridge?: boolean;
   child?: { id: number; status: PipelineStatusView; webUrl: string; stages: PipelineStageView[] };
@@ -91,6 +95,8 @@ export interface PipelineStageView {
 }
 
 export interface MergeRequestCardView {
+  /** GitLab when absent. */
+  kind?: 'gitlab' | 'github';
   iid: number;
   title: string;
   state: MergeRequestInfoView['state'];
@@ -100,7 +106,7 @@ export interface MergeRequestCardView {
   sourceBranch: string;
   targetBranch: string;
   hasConflicts: boolean;
-  /** GitLab's merge readiness, e.g. `mergeable`, `not_approved`. */
+  /** Merge readiness: GitLab's (`mergeable`, `not_approved`) or GitHub's merge state (`clean`, `behind`). */
   mergeStatus?: string;
   notes: number;
   reviewers: { name: string; approved: boolean }[];

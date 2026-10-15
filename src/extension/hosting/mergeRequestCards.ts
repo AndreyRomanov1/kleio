@@ -3,9 +3,11 @@ import type { MergeRequestCardView } from '../../shared/protocol';
 import type { Repository } from '../git/repository';
 import { GitLabApiError, type GitLabApi } from './gitlabApi';
 import { buildCard, buildDiscussions, type ChildJobs } from './mergeRequestCard';
+import { GitHubApiError, type GitHubApi, type MergeMethod } from './githubApi';
+import { buildGitHubCard } from './githubCard';
+import type { HostingService } from './hostingService';
 
 const MAX_CHILD_PIPELINES = 10;
-import type { HostingService } from './hostingService';
 import { cleanLog } from './jobLogText';
 import { t } from '../../shared/l10n';
 
@@ -24,6 +26,17 @@ export class MergeRequestCards implements vscode.TextDocumentContentProvider, vs
   }
 
   async card(repository: Repository, number: number): Promise<CardResult> {
+    if (await this.isGitHub(repository)) {
+      const github = await this.hosting.github(repository);
+      if (!github) return { needsAuth: true };
+      try {
+        const { card, viewer } = await github.pullRequestCard(number);
+        return { card: buildGitHubCard(card, viewer) };
+      } catch (error) {
+        if (error instanceof GitHubApiError && error.unauthorized) return { needsAuth: true };
+        return { error: error instanceof Error ? error.message : String(error) };
+      }
+    }
     const api = await this.hosting.gitlab(repository);
     if (!api) return { needsAuth: true };
     try {
@@ -40,11 +53,14 @@ export class MergeRequestCards implements vscode.TextDocumentContentProvider, vs
   }
 
   async openJobLog(repository: Repository, jobId: number, name: string, projectId?: number): Promise<void> {
-    const api = await this.hosting.gitlab(repository, true);
-    if (!api) return;
+    const github = (await this.isGitHub(repository))
+      ? await this.hosting.github(repository, true)
+      : undefined;
+    const api = github ? undefined : await this.hosting.gitlab(repository, true);
+    if (!github && !api) return;
     const text = await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Window, title: t('Kleio: log of job {0}', name) },
-      () => api.jobLog(jobId, projectId),
+      () => (github ? github.jobLog(jobId) : api!.jobLog(jobId, projectId)),
     );
     const uri = vscode.Uri.from({ scheme: LOG_SCHEME, path: `/${jobId}/${name.replace(/[/\\]/g, '_')}.log` });
     this.logs.set(uri.toString(), cleanLog(text));
@@ -57,6 +73,14 @@ export class MergeRequestCards implements vscode.TextDocumentContentProvider, vs
   }
 
   async approve(repository: Repository, iid: number, approve: boolean): Promise<void> {
+    const github = await this.githubFor(repository);
+    if (github) {
+      // GitHub has no taking back of an approval, only a dismissal by maintainers on the web.
+      if (!approve) return;
+      const { card } = await github.pullRequestCard(iid);
+      await this.report(() => github.approve(card.id), t('approved'), 'GitHub');
+      return;
+    }
     const api = await this.hosting.gitlab(repository, true);
     if (!api) return;
     await this.report(
@@ -67,6 +91,8 @@ export class MergeRequestCards implements vscode.TextDocumentContentProvider, vs
 
   /** Merges after a confirmation that says what will happen; offers auto-merge while a pipeline is running. */
   async merge(repository: Repository, iid: number): Promise<void> {
+    const github = await this.githubFor(repository);
+    if (github) return this.mergePullRequest(github, iid);
     const api = await this.hosting.gitlab(repository, true);
     if (!api) return;
     const details = await api.mergeRequest(iid);
@@ -97,6 +123,32 @@ export class MergeRequestCards implements vscode.TextDocumentContentProvider, vs
   }
 
   async rebase(repository: Repository, iid: number): Promise<void> {
+    const github = await this.githubFor(repository);
+    if (github) {
+      const { card } = await github.pullRequestCard(iid);
+      const merge = t('Merge {0} into it', card.baseRefName);
+      const rebase = t('Rebase onto {0}', card.baseRefName);
+      const choice = await vscode.window.showInformationMessage(
+        t('Update the branch of #{0} on GitHub?', iid),
+        {
+          modal: true,
+          detail: t(
+            'The branch {0} is behind {1}. A rebase rewrites the commits of the branch.',
+            card.headRefName,
+            card.baseRefName,
+          ),
+        },
+        merge,
+        rebase,
+      );
+      if (!choice) return;
+      await this.report(
+        () => github.updateBranch(card.id, choice === rebase ? 'REBASE' : 'MERGE'),
+        t('the branch is updated on the server'),
+        'GitHub',
+      );
+      return;
+    }
     const api = await this.hosting.gitlab(repository, true);
     if (!api) return;
     await this.report(() => api.rebase(iid), t('rebase started on the server'));
@@ -111,18 +163,86 @@ export class MergeRequestCards implements vscode.TextDocumentContentProvider, vs
     await this.report(() => api.playJob(jobId, projectId), t('"{0}" started', name));
   }
 
-  private async report(action: () => Promise<void>, done: string): Promise<void> {
+  private async report(action: () => Promise<void>, done: string, service = 'GitLab'): Promise<void> {
     try {
       await action();
       vscode.window.setStatusBarMessage(`Kleio: ${done}`, 4000);
     } catch (error) {
       void vscode.window.showErrorMessage(
-        `GitLab: ${error instanceof Error ? error.message : String(error)}`,
+        `${service}: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
 
-  async retryPipeline(repository: Repository, pipelineId: number): Promise<void> {
+  /**
+   * Merges a pull request with one of the methods the repository allows; while checks are still running,
+   * GitHub can merge it by itself once they pass (auto-merge, when the repository has it turned on).
+   */
+  private async mergePullRequest(github: GitHubApi, number: number): Promise<void> {
+    const { card, methods } = await github.pullRequestCard(number);
+    const view = buildGitHubCard(card, '');
+    const running = view.pipeline && ['pending', 'running'].includes(view.pipeline.status);
+    const labels: Record<MergeMethod, string> = {
+      MERGE: t('Create a merge commit'),
+      SQUASH: t('Squash and merge'),
+      REBASE: t('Rebase and merge'),
+    };
+    const items = methods.flatMap((method) => [
+      { label: labels[method], method, later: false },
+      ...(running
+        ? [{ label: labels[method], description: t('when the checks pass'), method, later: true }]
+        : []),
+    ]);
+    const picked = await vscode.window.showQuickPick(items, {
+      title: t('Merge #{0} "{1}" into {2}', number, card.title, card.baseRefName),
+      placeHolder:
+        [
+          view.hasConflicts ? t('conflicts') : '',
+          running ? t('The checks are still running.') : '',
+          card.mergeStateStatus === 'BLOCKED'
+            ? t('GitHub blocks the merge: reviews or checks are missing.')
+            : '',
+        ]
+          .filter(Boolean)
+          .join(' ') || t('How to merge'),
+    });
+    if (!picked) return;
+    await this.report(
+      () => github.merge(card.id, picked.method, picked.later),
+      picked.later ? t('will be merged when the checks pass') : t('the pull request is merged'),
+      'GitHub',
+    );
+  }
+
+  private async isGitHub(repository: Repository): Promise<boolean> {
+    return (await this.hosting.known(repository))?.links?.kind === 'github';
+  }
+
+  /** The GitHub API of a repository hosted there, asking for access if needed. */
+  private async githubFor(repository: Repository): Promise<GitHubApi | undefined> {
+    return (await this.isGitHub(repository)) ? this.hosting.github(repository, true) : undefined;
+  }
+
+  async retryPipeline(repository: Repository, pipelineId: number, number?: number): Promise<void> {
+    const github = await this.githubFor(repository);
+    if (github) {
+      if (number === undefined) return;
+      const { card } = await github.pullRequestCard(number);
+      const failed = new Set(
+        (buildGitHubCard(card, '').pipeline?.stages ?? [])
+          .flatMap((s) => s.jobs)
+          .filter((j) => j.runId && (j.status === 'failed' || j.status === 'canceled'))
+          .map((j) => j.runId!),
+      );
+      await this.report(
+        async () => {
+          for (const run of failed) await github.rerunFailedJobs(run);
+        },
+        t('failed jobs are retried'),
+        'GitHub',
+      );
+      return;
+    }
     const api = await this.hosting.gitlab(repository, true);
     if (!api) return;
     await api.retryPipeline(pipelineId);

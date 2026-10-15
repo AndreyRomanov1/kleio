@@ -10,8 +10,8 @@ interface Call {
 
 function fakeFetch(respond: (query: string) => { status?: number; body: unknown }) {
   const calls: Call[] = [];
-  const impl = async (url: string, init: { headers: Record<string, string>; body: string }) => {
-    const { query, variables } = JSON.parse(init.body) as {
+  const impl = async (url: string, init: { headers: Record<string, string>; body?: string }) => {
+    const { query, variables } = JSON.parse(init.body ?? '{}') as {
       query: string;
       variables: Record<string, unknown>;
     };

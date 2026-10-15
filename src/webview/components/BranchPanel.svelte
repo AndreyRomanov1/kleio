@@ -4,7 +4,7 @@
   import { menu } from '../menu.svelte';
   import { refMenu, toggleFocus, worktreeMenu } from '../menus';
   import type { LogStore } from '../store.svelte';
-  import { mergeRequestStateLabel, mergeRequestTone } from '../hostingView';
+  import { mergeRequestRef, mergeRequestStateLabel, mergeRequestTone } from '../hostingView';
   import { buildTree, flatten, type TreeNode } from '../tree';
   import { post } from '../vscode';
   import { t } from '../../shared/l10n';
@@ -225,12 +225,12 @@
                   <button
                     class="mr {mergeRequestTone(info)}"
                     title={info
-                      ? `!${mergeRequest} · ${mergeRequestStateLabel(info)} · ${info.title}`
-                      : `Merge request !${mergeRequest}`}
+                      ? `${mergeRequestRef(store.hosting, mergeRequest)} · ${mergeRequestStateLabel(info)} · ${info.title}`
+                      : mergeRequestRef(store.hosting, mergeRequest)}
                     onclick={(e) => {
                       e.stopPropagation();
                       store.openCard(mergeRequest);
-                    }}>!{mergeRequest}</button
+                    }}>{mergeRequestRef(store.hosting, mergeRequest)}</button
                   >{/if}
                 {#if ref.upstreamGone}<span class="info gone" title={t('The branch is deleted on the remote')}
                     >origin</span

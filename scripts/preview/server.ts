@@ -21,6 +21,8 @@ import { commitChangeSet, describeRange, rangeChangeSet } from '../../src/extens
 import { Repository } from '../../src/extension/git/repository';
 import { hunkViews } from '../../src/extension/git/patch';
 import { GitLabApi } from '../../src/extension/hosting/gitlabApi';
+import { GitHubApi } from '../../src/extension/hosting/githubApi';
+import { buildGitHubCard } from '../../src/extension/hosting/githubCard';
 import { buildCard, buildDiscussions } from '../../src/extension/hosting/mergeRequestCard';
 import {
   detectHosting,
@@ -53,6 +55,13 @@ function glabFetch(host: string): typeof fetch {
       );
     });
   }) as typeof fetch;
+}
+
+/** GitHub with the token in KLEIO_TEST_GITHUB_TOKEN, as the extension's tests take it. */
+function previewGitHub(links: HostingLinks | undefined): GitHubApi | undefined {
+  const token = process.env.KLEIO_TEST_GITHUB_TOKEN;
+  if (!token || links?.kind !== 'github') return undefined;
+  return new GitHubApi(links.remote.host, links.remote.project, token);
 }
 
 function previewApi(links: HostingLinks | undefined): GitLabApi | undefined {
@@ -92,9 +101,13 @@ async function hostingMessage(repository: Repository): Promise<HostMessage> {
   previewLinks = links;
   const api = previewApi(links);
   const iids = [...new Set(Object.values(reviews.byCommit).flat())];
+  const github = previewGitHub(links);
+  const heads = Object.keys(reviews.byCommit).slice(0, 200);
   const [summaries, pipelines] = api
     ? await Promise.all([api.mergeRequests(iids), api.latestPipelines()]).catch(() => [[], {}] as const)
-    : [[], {}];
+    : github
+      ? await Promise.all([github.pullRequests(iids), github.checks(heads)]).catch(() => [[], {}] as const)
+      : [[], {}];
   const defaultBranch = (
     await repository.git.run(['symbolic-ref', '-q', '--short', `refs/remotes/${previewRemote}/HEAD`], {
       allowExitCodes: [1, 128],
@@ -111,7 +124,7 @@ async function hostingMessage(repository: Repository): Promise<HostMessage> {
       defaultBranch: defaultBranch || undefined,
       merged: defaultBranch ? await repository.mergedBranches(defaultBranch) : [],
       autolinks: [...(links?.builtinAutolinks() ?? []), ...previewAutolinks],
-      api: api ? 'available' : 'none',
+      api: api || github ? 'available' : 'none',
       mergeRequestInfo: Object.fromEntries(summaries.map((s) => [s.iid, s])),
       pipelines,
     },
@@ -367,6 +380,11 @@ async function handle(repository: Repository, message: WebviewMessage): Promise<
       ];
     }
     case 'loadMergeRequestCard': {
+      const github = previewGitHub(previewLinks);
+      if (github) {
+        const { card, viewer } = await github.pullRequestCard(message.number);
+        return [{ type: 'mergeRequestCard', number: message.number, card: buildGitHubCard(card, viewer) }];
+      }
       const api = previewApi(previewLinks);
       if (!api) return [{ type: 'mergeRequestCard', number: message.number, needsAuth: true }];
       try {

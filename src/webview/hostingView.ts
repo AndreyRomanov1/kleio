@@ -64,7 +64,26 @@ const mergeStatuses: Record<string, string> = {
   checking: t('checking'),
   unchecked: t('checking'),
   not_open: t('not open'),
+  // GitHub
+  clean: t('can be merged'),
+  has_hooks: t('can be merged'),
+  unstable: t('can be merged, checks are failing'),
+  blocked: t('blocked: reviews or checks are missing'),
+  behind: t('behind the target branch'),
+  dirty: t('conflicts'),
+  draft: t('draft'),
+  unknown: t('checking'),
 };
+
+/** `#12` for a GitHub pull request, `!12` for a GitLab merge request. */
+export function mergeRequestRef(hosting: { kind?: string } | undefined, number: number): string {
+  return `${hosting?.kind === 'github' ? '#' : '!'}${number}`;
+}
+
+/** Whether the merge status says the merge request can be merged as it is. */
+export function mergeReady(status: string | undefined): boolean {
+  return ['mergeable', 'can_be_merged', 'clean', 'has_hooks'].includes(status ?? '');
+}
 
 export function mergeStatusLabel(status: string | undefined): string | undefined {
   return status ? (mergeStatuses[status] ?? status) : undefined;

@@ -253,8 +253,7 @@ export class LogStore {
 
   /** The merge request card, or the browser when the hosting has no API to show it with. */
   openCard(number: number): void {
-    // The card with pipelines, approvals and review is GitLab's; a GitHub pull request opens in the browser.
-    if (this.hosting?.api === 'none' || this.hosting?.kind !== 'gitlab') {
+    if (this.hosting?.api === 'none' || !this.hosting?.kind) {
       post({ type: 'openMergeRequest', number });
       return;
     }

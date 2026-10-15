@@ -1,4 +1,5 @@
 import type { MergedMergeRequest, MergeRequestSummary, PipelineStatus } from './gitlabApi';
+import type { RawPullRequestCard } from './githubCard';
 
 export class GitHubApiError extends Error {
   constructor(
@@ -15,7 +16,7 @@ export class GitHubApiError extends Error {
 
 type Fetch = (
   url: string,
-  init: { method: string; headers: Record<string, string>; body: string },
+  init: { method: string; headers: Record<string, string>; body?: string },
 ) => Promise<{
   ok: boolean;
   status: number;
@@ -51,8 +52,31 @@ const BATCH = 100;
  * What the log needs from GitHub, through GraphQL so that a hundred pull requests or commits cost one
  * request: pull request states, the combined status of checks of commits, merged pull requests by pages.
  */
+export type MergeMethod = 'MERGE' | 'SQUASH' | 'REBASE';
+
+const CHECK_FIELDS = `
+  __typename
+  ... on CheckRun {
+    databaseId name status conclusion detailsUrl startedAt completedAt
+    checkSuite { workflowRun { databaseId workflow { name } } }
+  }
+  ... on StatusContext { context state targetUrl }`;
+
+const CARD_FIELDS = `
+  id number title state isDraft url author { login } headRefName baseRefName headRefOid baseRefOid
+  mergeable mergeStateStatus reviewDecision
+  comments(last: 50) { totalCount nodes { author { login } body createdAt } }
+  reviewRequests(first: 30) { nodes { requestedReviewer { ... on User { login } ... on Team { name } } } }
+  latestReviews(first: 30) { nodes { author { login } state } }
+  reviewThreads(first: 100) {
+    totalCount
+    nodes { isResolved isOutdated path line originalLine comments(first: 1) { totalCount nodes { author { login } body } } }
+  }
+  commits(last: 1) { nodes { commit { statusCheckRollup { state contexts(first: 100) { nodes { ${CHECK_FIELDS} } } } } } }`;
+
 export class GitHubApi {
   private readonly endpoint: string;
+  private readonly restBase: string;
   private readonly owner: string;
   private readonly name: string;
 
@@ -63,6 +87,7 @@ export class GitHubApi {
     private readonly fetchImpl: Fetch = fetch as unknown as Fetch,
   ) {
     this.endpoint = host === 'github.com' ? 'https://api.github.com/graphql' : `https://${host}/api/graphql`;
+    this.restBase = host === 'github.com' ? 'https://api.github.com' : `https://${host}/api/v3`;
     const slash = project.lastIndexOf('/');
     this.owner = project.slice(0, slash);
     this.name = project.slice(slash + 1);
@@ -127,6 +152,97 @@ export class GitHubApi {
       })),
       next: page.pageInfo.hasNextPage ? (page.pageInfo.endCursor ?? undefined) : undefined,
     };
+  }
+
+  /** Everything the card of a pull request shows, with the merge methods the repository allows. */
+  async pullRequestCard(number: number): Promise<{
+    card: RawPullRequestCard;
+    viewer: string;
+    methods: MergeMethod[];
+  }> {
+    const data = await this.query<{
+      viewer: { login: string };
+      repository: {
+        pullRequest: RawPullRequestCard | null;
+        mergeCommitAllowed: boolean;
+        squashMergeAllowed: boolean;
+        rebaseMergeAllowed: boolean;
+      } | null;
+    }>(
+      `query($owner: String!, $name: String!) {
+        viewer { login }
+        repository(owner: $owner, name: $name) {
+          mergeCommitAllowed squashMergeAllowed rebaseMergeAllowed
+          pullRequest(number: ${number}) { ${CARD_FIELDS} }
+        }
+      }`,
+      { owner: this.owner, name: this.name },
+    );
+    const repository = data.repository;
+    if (!repository?.pullRequest) throw new GitHubApiError(`Pull request #${number} is not found`, 404);
+    const methods: MergeMethod[] = [];
+    if (repository.mergeCommitAllowed) methods.push('MERGE');
+    if (repository.squashMergeAllowed) methods.push('SQUASH');
+    if (repository.rebaseMergeAllowed) methods.push('REBASE');
+    return { card: repository.pullRequest, viewer: data.viewer.login, methods };
+  }
+
+  async comment(pullRequestId: string, body: string): Promise<void> {
+    await this.query(
+      'mutation($id: ID!, $body: String!) { addComment(input: { subjectId: $id, body: $body }) { clientMutationId } }',
+      {
+        id: pullRequestId,
+        body,
+      },
+    );
+  }
+
+  async approve(pullRequestId: string): Promise<void> {
+    await this.query(
+      'mutation($id: ID!) { addPullRequestReview(input: { pullRequestId: $id, event: APPROVE }) { clientMutationId } }',
+      { id: pullRequestId },
+    );
+  }
+
+  async merge(pullRequestId: string, method: MergeMethod, whenChecksPass: boolean): Promise<void> {
+    const mutation = whenChecksPass ? 'enablePullRequestAutoMerge' : 'mergePullRequest';
+    await this.query(
+      `mutation($id: ID!, $method: PullRequestMergeMethod!) { ${mutation}(input: { pullRequestId: $id, mergeMethod: $method }) { clientMutationId } }`,
+      { id: pullRequestId, method },
+    );
+  }
+
+  /** Brings the target branch into the pull request on the server, by a merge commit or a rebase. */
+  async updateBranch(pullRequestId: string, method: 'MERGE' | 'REBASE'): Promise<void> {
+    await this.query(
+      'mutation($id: ID!, $method: PullRequestBranchUpdateMethod!) { updatePullRequestBranch(input: { pullRequestId: $id, updateMethod: $method }) { clientMutationId } }',
+      { id: pullRequestId, method },
+    );
+  }
+
+  /** Log of a GitHub Actions job: the id of its check run. */
+  async jobLog(jobId: number): Promise<string> {
+    const response = await this.rest('GET', `/actions/jobs/${jobId}/logs`);
+    return response.text();
+  }
+
+  /** Runs the failed jobs of a GitHub Actions workflow run again. */
+  async rerunFailedJobs(runId: number): Promise<void> {
+    await this.rest('POST', `/actions/runs/${runId}/rerun-failed-jobs`);
+  }
+
+  private async rest(method: string, path: string) {
+    const response = await this.fetchImpl(`${this.restBase}/repos/${this.owner}/${this.name}${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${this.token}`,
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'kleio',
+      },
+    });
+    if (!response.ok)
+      throw new GitHubApiError(`GitHub: ${response.status} ${await response.text()}`, response.status);
+    return response;
   }
 
   private async repositoryQuery<T>(fields: string): Promise<T> {

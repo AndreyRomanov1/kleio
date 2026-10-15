@@ -142,6 +142,8 @@ export class ReviewController implements vscode.Disposable {
 
   /** Opens the merge request diff (what GitLab shows) and its discussions; `filePath` and `line` to jump to. */
   async start(repository: Repository, iid: number, filePath?: string, line?: number): Promise<void> {
+    if ((await this.hosting.known(repository))?.links?.kind === 'github')
+      return this.openPullRequest(repository, iid, filePath, line);
     let started = false;
     if (this.session?.iid !== iid || this.session.repository !== repository) {
       started = true;
@@ -167,6 +169,54 @@ export class ReviewController implements vscode.Disposable {
       line: line === undefined ? undefined : line - 1,
     });
     if (started && session.previous) this.offerSinceLastReview(session);
+  }
+
+  /**
+   * The changes of a GitHub pull request in the diff viewer, as GitHub shows them: from where the branch
+   * left its target. Comments in the code stay on GitHub for now.
+   */
+  private async openPullRequest(
+    repository: Repository,
+    number: number,
+    filePath?: string,
+    line?: number,
+  ): Promise<void> {
+    const github = await this.hosting.github(repository, true);
+    if (!github) {
+      void vscode.window.showWarningMessage(t('The review needs access to GitHub.'));
+      return;
+    }
+    const opened = await vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Notification, title: t('Kleio: pull request #{0}', number) },
+      async () => {
+        const { card } = await github.pullRequestCard(number);
+        const remote = (await this.hosting.known(repository))?.remoteName ?? 'origin';
+        const has = async () =>
+          !!(await repository.revParse(card.headRefOid)) && !!(await repository.revParse(card.baseRefOid));
+        if (!(await has()))
+          await repository.git
+            .run(['fetch', remote, `refs/pull/${number}/head`, card.baseRefName], { timeoutMs: 120_000 })
+            .catch(() => undefined);
+        if (!(await has())) return undefined;
+        const base = (await repository.git.run(['merge-base', card.baseRefOid, card.headRefOid])).trim();
+        return { base, head: card.headRefOid, files: await repository.changes(base, card.headRefOid) };
+      },
+    );
+    if (!opened) {
+      void vscode.window.showErrorMessage(t('Could not fetch the commits of #{0}.', number));
+      return;
+    }
+    if (!opened.files.length) {
+      void vscode.window.showInformationMessage(t('Pull request #{0} has no changes.', number));
+      return;
+    }
+    const index = filePath ? opened.files.findIndex((f) => f.path === filePath || f.oldPath === filePath) : 0;
+    await this.navigator.open(
+      { repository, title: `PR #${number}`, left: opened.base, right: opened.head, files: opened.files },
+      Math.max(0, index),
+      'first',
+      { line: line === undefined ? undefined : line - 1 },
+    );
   }
 
   /** Not awaited: the review is open already, the offer only narrows it down. */
@@ -257,6 +307,15 @@ export class ReviewController implements vscode.Disposable {
     text: string,
     kind: 'publish' | 'draft',
   ): Promise<boolean> {
+    if ((await this.hosting.known(repository))?.links?.kind === 'github') {
+      const github = await this.hosting.github(repository, true);
+      if (!github || !text.trim()) return false;
+      const label = await this.label(repository, iid);
+      return this.deliver({ mergeRequest: label, kind: 'publish', target: 'MR', text }, async () => {
+        const { card } = await github.pullRequestCard(iid);
+        await github.comment(card.id, text);
+      });
+    }
     const api = await this.hosting.gitlab(repository, true);
     if (!api || !text.trim()) return false;
     const label = await this.label(repository, iid);

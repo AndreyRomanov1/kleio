@@ -1,6 +1,12 @@
 <script lang="ts">
   import { locale } from '../format';
-  import { mergeRequestStateLabel, mergeRequestTone, mergeStatusLabel, pipelineIcons } from '../hostingView';
+  import {
+    mergeReady,
+    mergeRequestStateLabel,
+    mergeRequestTone,
+    mergeStatusLabel,
+    pipelineIcons,
+  } from '../hostingView';
   import type { LogStore } from '../store.svelte';
   import { post } from '../vscode';
   import PipelineStages from './PipelineStages.svelte';
@@ -32,6 +38,9 @@
 
   const current = $derived(store.card);
   const card = $derived(current?.card);
+  const github = $derived(store.hosting?.kind === 'github');
+  const sign = $derived(github ? '#' : '!');
+  const service = $derived(github ? 'GitHub' : 'GitLab');
 </script>
 
 <svelte:window
@@ -45,9 +54,9 @@
 />
 
 {#if current}
-  <div class="card" bind:this={element} role="dialog" aria-label="Merge request !{current.number}">
+  <div class="card" bind:this={element} role="dialog" aria-label="Merge request {sign}{current.number}">
     <div class="head">
-      <span class="number">!{current.number}</span>
+      <span class="number">{sign}{current.number}</span>
       {#if card}
         <span class="state {mergeRequestTone(card)}">{mergeRequestStateLabel(card)}</span>
       {/if}
@@ -63,15 +72,19 @@
     {#if current.loading && !card}
       <div class="muted"><i class="codicon codicon-loading codicon-modifier-spin"></i> {t('Loading…')}</div>
     {:else if current.needsAuth}
-      <p>{t('Kleio needs access to GitLab to show the merge request and its pipeline.')}</p>
-      <p class="muted">
-        {t(
-          'If the GitLab Workflow extension is signed in to this server, Kleio takes the access from there; otherwise it asks for a personal access token.',
-        )}
-      </p>
+      {#if github}
+        <p>{t('Kleio needs access to GitHub to show the pull request and its checks.')}</p>
+      {:else}
+        <p>{t('Kleio needs access to GitLab to show the merge request and its pipeline.')}</p>
+        <p class="muted">
+          {t(
+            'If the GitLab Workflow extension is signed in to this server, Kleio takes the access from there; otherwise it asks for a personal access token.',
+          )}
+        </p>
+      {/if}
       <div class="actions">
         <button class="primary" onclick={() => post({ type: 'connectHosting', number: current.number })}
-          >{t('Connect GitLab')}</button
+          >{t('Connect {0}', service)}</button
         >
         <button onclick={() => post({ type: 'openMergeRequest', number: current.number })}
           >{t('Open in the browser')}</button
@@ -88,7 +101,7 @@
 
       <div class="facts">
         {#if mergeStatusLabel(card.mergeStatus) && card.state === 'opened'}
-          <span class="fact" class:warn={card.mergeStatus !== 'mergeable'}
+          <span class="fact" class:warn={!mergeReady(card.mergeStatus)}
             ><i class="codicon codicon-git-merge"></i>{mergeStatusLabel(card.mergeStatus)}</span
           >
         {/if}
@@ -127,7 +140,7 @@
         <div class="section">
           <div class="label pipeline-head">
             <span class="status {icon.tone}"><i class="codicon codicon-{icon.icon}"></i></span>
-            <a href={pipeline.webUrl}>{t('Pipeline #{0}', pipeline.id)}</a>
+            <a href={pipeline.webUrl}>{github ? t('Checks') : t('Pipeline #{0}', pipeline.id)}</a>
             <span class="muted">{icon.label}</span>
             <span class="spacer"></span>
             {#if pipeline.status === 'failed' || pipeline.status === 'canceled'}
@@ -142,7 +155,7 @@
           <PipelineStages stages={pipeline.stages} number={card.iid} />
         </div>
       {:else}
-        <div class="section muted">{t('No pipeline')}</div>
+        <div class="section muted">{github ? t('No checks') : t('No pipeline')}</div>
       {/if}
 
       {#if card.discussions}
@@ -220,7 +233,9 @@
             </div>
           {/each}
           <textarea
-            placeholder={t('Comment on the whole merge request')}
+            placeholder={github
+              ? t('Comment on the whole pull request')
+              : t('Comment on the whole merge request')}
             bind:value={comment}
             onkeydown={(e) => {
               if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) send(false);
@@ -229,21 +244,28 @@
             <button class="small" disabled={!comment.trim()} onclick={() => send(false)}
               >{t('Publish')}</button
             >
-            <button
-              class="small"
-              disabled={!comment.trim()}
-              title={t('Save as a draft in GitLab')}
-              onclick={() => send(true)}>{t('Save draft')}</button
-            >
+            {#if !github}
+              <button
+                class="small"
+                disabled={!comment.trim()}
+                title={t('Save as a draft in GitLab')}
+                onclick={() => send(true)}>{t('Save draft')}</button
+              >
+            {/if}
           </div>
         </div>
       {/if}
 
       <div class="actions">
-        <button class="primary" onclick={() => post({ type: 'startReview', number: card.iid })}
+        <button
+          class="primary"
+          title={github
+            ? t('The changes of the pull request in the diff viewer; comments in the code stay on GitHub')
+            : ''}
+          onclick={() => post({ type: 'startReview', number: card.iid })}
           ><i class="codicon codicon-eye"></i> {card.reviewing ? t('Review is open') : t('Review')}</button
         >
-        {#if card.state === 'opened'}
+        {#if card.state === 'opened' && !(github && card.approvedByMe)}
           <button
             title={card.approvedByMe ? t('Remove your approval') : t('Approve')}
             onclick={() =>
@@ -251,11 +273,19 @@
             ><i class="codicon codicon-{card.approvedByMe ? 'circle-slash' : 'pass'}"></i>
             {card.approvedByMe ? t('Unapprove') : t('Approve')}</button
           >
+        {/if}
+        {#if card.state === 'opened'}
           {#if card.mergeStatus === 'need_rebase'}
             <button
               title={t('Rebase the branch on the GitLab server')}
               onclick={() => post({ type: 'rebaseMergeRequest', number: card.iid })}
               ><i class="codicon codicon-git-compare"></i> Rebase</button
+            >
+          {:else if card.mergeStatus === 'behind'}
+            <button
+              title={t('Bring the target branch into the pull request on GitHub')}
+              onclick={() => post({ type: 'rebaseMergeRequest', number: card.iid })}
+              ><i class="codicon codicon-git-compare"></i> {t('Update branch')}</button
             >
           {/if}
           <button
@@ -265,7 +295,7 @@
           >
         {/if}
         <a class="button" href={card.webUrl}
-          ><i class="codicon codicon-link-external"></i> {t('Open in GitLab')}</a
+          ><i class="codicon codicon-link-external"></i> {t('Open in {0}', service)}</a
         >
       </div>
     {/if}

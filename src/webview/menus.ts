@@ -227,12 +227,18 @@ export function refMenu(ref: Ref, store: LogStore): MenuEntry[] {
         ...(mergeRequest
           ? [
               {
-                label: t('Review merge request !{0}', mergeRequest),
+                label:
+                  store.hosting?.kind === 'github'
+                    ? t('Pull request #{0}: changes', mergeRequest)
+                    : t('Review merge request !{0}', mergeRequest),
                 icon: 'eye',
                 run: () => post({ type: 'startReview', number: mergeRequest }),
               },
               {
-                label: t('Open merge request !{0}', mergeRequest),
+                label:
+                  store.hosting?.kind === 'github'
+                    ? t('Open pull request #{0}', mergeRequest)
+                    : t('Open merge request !{0}', mergeRequest),
                 icon: 'git-pull-request',
                 run: () => post({ type: 'openMergeRequest', number: mergeRequest }),
               },

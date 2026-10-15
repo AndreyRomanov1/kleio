@@ -22,7 +22,8 @@
   }
 
   function click(job: PipelineJobView): void {
-    if (job.child) toggle(job.id);
+    if (job.webUrl) post({ type: 'openUrl', url: job.webUrl });
+    else if (job.child) toggle(job.id);
     else if (job.status === 'manual') {
       post({ type: 'playJob', jobId: job.id, name: job.name, projectId: job.projectId, number });
     } else if (!job.bridge) {
@@ -38,11 +39,13 @@
       ? expanded.has(job.id)
         ? t('collapse the child pipeline')
         : t('expand the child pipeline')
-      : job.status === 'manual'
-        ? t('run')
-        : job.bridge
-          ? t('not started yet')
-          : t('open the log');
+      : job.webUrl
+        ? t('open the page of the check')
+        : job.status === 'manual'
+          ? t('run')
+          : job.bridge
+            ? t('not started yet')
+            : t('open the log');
     return `${job.name}: ${state}${job.allowFailure ? t(' (allowed to fail)') : ''} — ${action}`;
   }
 </script>
@@ -51,7 +54,7 @@
   <div class="stage">
     <span class="stage-name" title={stage.name}>{stage.name}</span>
     <div class="jobs">
-      {#each stage.jobs as job (job.id)}
+      {#each stage.jobs as job (`${job.id}:${job.name}`)}
         {@const icon = pipelineIcons[job.status]}
         <button
           class="job {icon.tone}"
