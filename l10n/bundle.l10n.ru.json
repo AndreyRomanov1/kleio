@@ -573,5 +573,19 @@
   "Kleio: {0} returned to {1}": "Kleio: {0} возвращена на {1}",
   "{0} min ago": "{0} мин назад",
   "{0} h ago": "{0} ч назад",
-  "{0} d ago": "{0} дн назад"
+  "{0} d ago": "{0} дн назад",
+  "Kleio: current branch": "Kleio: текущая ветка",
+  "Tracks {0}": "Отслеживает {0}",
+  "No upstream": "Нет upstream",
+  "No branch (detached HEAD)": "Без ветки (detached HEAD)",
+  "Click for branches and actions": "Нажмите, чтобы открыть ветки и действия",
+  "gone on the remote": "удалена на сервере",
+  "Update Project": "Обновить проект",
+  "Push…": "Push…",
+  "Show Log": "Показать лог",
+  "New Branch…": "Новая ветка…",
+  "Undo via Reflog…": "Отменить через reflog…",
+  "Local branches": "Локальные ветки",
+  "Remote branches": "Ветки на сервере",
+  "Check out a branch or run an action": "Переключиться на ветку или выполнить действие"
 }

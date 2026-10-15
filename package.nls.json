@@ -52,5 +52,6 @@
   "config.update.method.merge": "Incoming commits are merged with a merge commit, as git pull does",
   "config.update.method.rebase": "Own commits are rebased on top of the incoming ones, as git pull --rebase does",
   "config.language": "Language of Kleio: `auto` follows the display language of the editor; `en`, `ru` or another language with a translation in `l10n/` works without a language pack. Commands and settings follow the editor. Takes effect after the window is reloaded.",
-  "command.git.undo": "Undo via Reflog…"
+  "command.git.undo": "Undo via Reflog…",
+  "config.statusBar.branch": "Show the current branch with ↑↓ in the status bar; a click opens the branches and the common actions, as the branch widget of Rider."
 }

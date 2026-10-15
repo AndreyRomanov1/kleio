@@ -714,6 +714,11 @@
           "type": "string",
           "default": "auto",
           "markdownDescription": "%config.language%"
+        },
+        "kleio.statusBar.branch": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.statusBar.branch%"
         }
       }
     }

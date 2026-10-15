@@ -9,6 +9,7 @@ import { RevisionContentProvider } from './content/revisionContentProvider';
 import { REVISION_SCHEME } from './content/revisionUri';
 import { t } from '../shared/l10n';
 import { watchGitPath } from './git/gitPath';
+import { BranchStatus } from './statusBar/branchStatus';
 import { loadLanguage } from './language';
 import type { Repository } from './git/repository';
 import { RepositoryManager } from './git/repositoryManager';
@@ -81,6 +82,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<KleioA
     cards,
     review,
     new AuthorLens(repositories),
+    new BranchStatus(repositories, actions),
     push,
     rebase,
     conflicts,
