@@ -45,8 +45,11 @@ export interface WorkingChanges {
   conflicted: string[];
 }
 
-/** How a merge, rebase or update ended. */
-export type OperationOutcome = 'done' | 'conflicts' | 'stopped';
+/**
+ * How a merge, rebase or update ended. `stash-conflicts`: the operation itself is done, but the uncommitted
+ * changes stashed for its time came back with conflicts, and their copy is left in the stash.
+ */
+export type OperationOutcome = 'done' | 'conflicts' | 'stopped' | 'stash-conflicts';
 
 /** Commands that would open an editor for a message take the prepared one instead. */
 const NO_EDITOR = { GIT_EDITOR: 'true', GIT_SEQUENCE_EDITOR: 'true' };
@@ -486,14 +489,19 @@ export class Repository {
     const remove = files.filter((f) => !f[side]).map((f) => f.path);
     if (take.length) {
       await this.git.run(['checkout', `--${side}`, '--', ...take]);
-      await this.git.run(['add', '--', ...take]);
+      await this.markResolved(take);
     }
     if (remove.length) await this.git.run(['rm', '--quiet', '--', ...remove]);
   }
 
-  /** Marks files as resolved with their current contents in the working tree. */
+  /**
+   * Marks files as resolved with their current contents in the working tree. Outside of an operation the
+   * conflicts come from bringing back stashed changes, which stay uncommitted, so the files are not staged.
+   */
   async markResolved(paths: string[]): Promise<void> {
-    if (paths.length) await this.git.run(['add', '--', ...paths]);
+    if (!paths.length) return;
+    if (await this.operation()) await this.git.run(['add', '--', ...paths]);
+    else await this.git.run(['reset', '-q', '--', ...paths]);
   }
 
   /** Whether `ancestor` is reachable from `descendant`. */
@@ -549,8 +557,17 @@ export class Repository {
       throw error;
     }
     const state = await this.operation();
-    if (!state) return 'done';
-    return state.conflicted.length ? 'conflicts' : 'stopped';
+    if (state) return state.conflicted.length ? 'conflicts' : 'stopped';
+    // git exits with 0 when the autostash does not apply cleanly.
+    return (await this.conflicts()).length ? 'stash-conflicts' : 'done';
+  }
+
+  /** Drops the newest stash left by `--autostash`, once its changes are back in the working tree. */
+  async dropAutostash(): Promise<boolean> {
+    const entry = (await this.stashes()).find((s) => s.message === 'autostash');
+    if (!entry) return false;
+    await this.stashDrop(entry.selector);
+    return true;
   }
 
   /**

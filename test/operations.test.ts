@@ -153,6 +153,27 @@ describe('Repository operations', () => {
     expect(readFileSync(path.join(dir, 'a.txt'), 'utf8')).toBe('a changed\n');
   });
 
+  it('reports uncommitted changes that come back from the autostash with conflicts', async () => {
+    const dir = init('autostash');
+    commitFile(dir, 'a.txt', 'a\n', 'a');
+    git(dir, 'checkout', '-q', '-b', 'feature');
+    commitFile(dir, 'a.txt', 'feature\n', 'feature a');
+    git(dir, 'checkout', '-q', 'main');
+    writeFileSync(path.join(dir, 'a.txt'), 'local\n');
+    const repository = (await Repository.open(dir))!;
+
+    expect(await repository.merge('feature')).toBe('stash-conflicts');
+    expect(await repository.operation()).toBeUndefined();
+    expect((await repository.conflicts()).map((f) => f.path)).toEqual(['a.txt']);
+
+    writeFileSync(path.join(dir, 'a.txt'), 'resolved\n');
+    await repository.markResolved(['a.txt']);
+    expect(await repository.conflicts()).toEqual([]);
+    expect(git(dir, 'status', '--porcelain')).toBe(' M a.txt\n');
+    expect(await repository.dropAutostash()).toBe(true);
+    expect(git(dir, 'stash', 'list')).toBe('');
+  });
+
   it('moves a branch only from the commit it was seen at, and lists commits not pushed yet', async () => {
     const dir = init('move');
     commitFile(dir, 'a.txt', 'a\n', 'a');

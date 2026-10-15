@@ -114,8 +114,7 @@ export class ConflictsWindow implements vscode.Disposable {
           } finally {
             this.post({ type: 'busy', value: false });
           }
-          this.repositories.notifyChanged(repository);
-          return await this.load();
+          return await this.afterResolved(repository, undefined);
         }
         case 'operation': {
           const state = await repository.operation();
@@ -142,7 +141,11 @@ export class ConflictsWindow implements vscode.Disposable {
     this.post({
       type: 'state',
       operation: state?.kind,
-      title: state ? await this.describeOperation(repository, state) : 'Нет идущей операции',
+      title: state
+        ? await this.describeOperation(repository, state)
+        : files.length
+          ? 'Возврат незакоммиченных изменений, спрятанных на время операции'
+          : 'Нет идущей операции',
       sides: this.sides,
       files,
     });
@@ -157,20 +160,12 @@ export class ConflictsWindow implements vscode.Disposable {
     const repository = this.repositories.repositoryFor(document.uri);
     if (!repository) return;
     const relative = path.relative(repository.root, document.uri.fsPath).split(path.sep).join('/');
-    const state = await repository.operation();
-    if (!state?.conflicted.includes(relative) || MARKERS.test(document.getText())) return;
+    const conflicted = (await repository.conflicts()).map((f) => f.path);
+    if (!conflicted.includes(relative) || MARKERS.test(document.getText())) return;
     await repository.markResolved([relative]);
-    this.repositories.notifyChanged(repository);
-    const left = state.conflicted.length - 1;
-    if (left > 0) {
-      vscode.window.setStatusBarMessage(`Kleio: ${relative} — конфликт разрешён, осталось ${left}`, 5000);
-    } else {
-      this.offerToContinue(repository, state.kind);
-    }
-    if (this.panel && repository === this.repository) await this.load();
+    await this.afterResolved(repository, relative);
   }
 
-  /** "Mark as resolved" in the title of the merge editor, for a result saved earlier or kept as is. */
   /**
    * "Complete merge" in the merge editor: its own command asks about unhandled conflicts, saves and closes;
    * then the file is marked resolved. In a plain editor the file is saved and marked, with a warning about
@@ -203,16 +198,41 @@ export class ConflictsWindow implements vscode.Disposable {
     }
     const relative = path.relative(repository.root, uri.fsPath).split(path.sep).join('/');
     await repository.markResolved([relative]);
-    this.repositories.notifyChanged(repository);
     if (!merging) await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+    await this.afterResolved(repository, relative);
+  }
+
+  private async afterResolved(repository: Repository, relative: string | undefined): Promise<void> {
+    this.repositories.notifyChanged(repository);
     const left = (await repository.conflicts()).length;
     const state = await repository.operation();
-    if (left === 0 && state) {
+    if (left > 0) {
+      if (relative)
+        vscode.window.setStatusBarMessage(`Kleio: ${relative} — конфликт разрешён, осталось ${left}`, 5000);
+    } else if (state) {
       this.offerToContinue(repository, state.kind);
     } else {
-      vscode.window.setStatusBarMessage(`Kleio: ${relative} — конфликт разрешён, осталось ${left}`, 5000);
+      this.offerToDropAutostash(repository);
     }
     if (this.panel && repository === this.repository) await this.load();
+  }
+
+  /** After the conflicts of stashed changes brought back by an operation, their copy in the stash is not needed. */
+  private offerToDropAutostash(repository: Repository): void {
+    void repository.stashes().then((stashes) => {
+      if (!stashes.some((s) => s.message === 'autostash')) return;
+      const drop = 'Удалить копию';
+      void vscode.window
+        .showInformationMessage(
+          'Конфликты незакоммиченных изменений разрешены. Их копия осталась в stash («autostash») — удалить её?',
+          drop,
+        )
+        .then(async (choice) => {
+          if (choice !== drop) return;
+          await repository.dropAutostash();
+          this.repositories.notifyChanged(repository);
+        });
+    });
   }
 
   /** Offers to go on once no conflicts are left; not awaited, so the command that resolved them returns. */
@@ -229,7 +249,7 @@ export class ConflictsWindow implements vscode.Disposable {
   ): Promise<ConflictSides> {
     const head = await repository.head();
     const current = head.branch ?? 'HEAD';
-    if (!state) return { ours: current, theirs: 'theirs' };
+    if (!state) return { ours: `${current} (после операции)`, theirs: 'Незакоммиченные изменения (stash)' };
     const onto = await this.name(repository, state.onto);
     switch (state.kind) {
       case 'merge':

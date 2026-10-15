@@ -245,6 +245,19 @@ export class SyncActions {
       vscode.window.setStatusBarMessage(`Kleio: ${title} — готово`, 4000);
       return;
     }
+    if (outcome === 'stash-conflicts') {
+      const resolve = 'Разрешить конфликты';
+      const choice = await vscode.window.showWarningMessage(
+        `${title}: выполнено, но незакоммиченные изменения вернулись с конфликтами.`,
+        {
+          detail:
+            'Изменения прятались в stash на время операции. Копия осталась в stash — её можно удалить после разрешения конфликтов.',
+        },
+        resolve,
+      );
+      if (choice === resolve) await this.showConflicts?.(repository);
+      return;
+    }
     const state = await repository.operation();
     const name = operationNames[state?.kind ?? kind];
     if (outcome === 'stopped') {
