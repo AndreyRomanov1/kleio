@@ -305,4 +305,31 @@ describe('Repository', () => {
     expect(cut.truncated).toBe(true);
     expect((await repository.snapshot({ limit: 3 })).truncated).toBe(false);
   });
+
+  it('moves an old version of a branch onto a new base to compare it with the rebased one', async () => {
+    const dir = path.join(work, 'interdiff');
+    git(work, 'init', '-q', '-b', 'main', dir);
+    commitFile(dir, 'a.txt', 'a\n', 'base');
+    const oldBase = git(dir, 'rev-parse', 'HEAD').trim();
+    git(dir, 'checkout', '-q', '-b', 'feature');
+    commitFile(dir, 'f.txt', 'one\n', 'feature');
+    const oldHead = git(dir, 'rev-parse', 'HEAD').trim();
+    git(dir, 'checkout', '-q', 'main');
+    commitFile(dir, 'm.txt', 'main\n', 'main moves on');
+    const newBase = git(dir, 'rev-parse', 'HEAD').trim();
+    git(dir, 'checkout', '-q', 'feature');
+    git(dir, 'rebase', '-q', 'main');
+    commitFile(dir, 'f.txt', 'one\ntwo\n', 'review fix');
+    const newHead = git(dir, 'rev-parse', 'HEAD').trim();
+    const repository = (await Repository.open(dir))!;
+
+    const tree = await repository.rebasedTree(oldBase, oldHead, newBase);
+    expect(tree).toBeDefined();
+    const changes = await repository.changes(tree, newHead);
+    expect(changes.map((c) => c.path)).toEqual(['f.txt']);
+    expect((await repository.changes(oldHead, newHead)).map((c) => c.path).sort()).toEqual([
+      'f.txt',
+      'm.txt',
+    ]);
+  });
 });

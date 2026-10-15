@@ -249,6 +249,12 @@
         "icon": "$(close-all)"
       },
       {
+        "command": "kleio.review.sinceLastReview",
+        "title": "%command.review.sinceLastReview%",
+        "category": "Kleio",
+        "icon": "$(diff-multiple)"
+      },
+      {
         "command": "kleio.review.openJournal",
         "title": "%command.review.openJournal%",
         "category": "Kleio"
@@ -376,6 +382,11 @@
           "group": "1_kleio_review@3"
         },
         {
+          "command": "kleio.review.sinceLastReview",
+          "when": "kleio.reviewActive && kleio.inChangeSet",
+          "group": "1_kleio_review@4"
+        },
+        {
           "command": "kleio.review.previousComment",
           "when": "kleio.reviewActive && kleio.inChangeSet",
           "group": "navigation@-5"
@@ -458,6 +469,10 @@
         },
         {
           "command": "kleio.review.end",
+          "when": "kleio.reviewActive"
+        },
+        {
+          "command": "kleio.review.sinceLastReview",
           "when": "kleio.reviewActive"
         },
         {

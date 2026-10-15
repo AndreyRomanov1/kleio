@@ -52,7 +52,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<KleioA
   const hosting = new HostingService(gitlabAuth, githubAuth);
   const hostingActions = new HostingActions(repositories, hosting);
   const cards = new MergeRequestCards(hosting);
-  const review = new ReviewController(hosting, navigator, new ReviewJournal(context.globalStorageUri));
+  const review = new ReviewController(
+    hosting,
+    navigator,
+    new ReviewJournal(context.globalStorageUri),
+    context.globalState,
+  );
   const logs = new LogWebviews({
     context,
     repositories,

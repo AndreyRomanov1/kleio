@@ -595,5 +595,12 @@
   "Personal access token": "Личный токен",
   "GitHub did not accept the token.": "GitHub не принял токен.",
   "Remove the GitHub token from Kleio": "Удалить токен GitHub из Kleio",
-  "GitHub server address": "Адрес сервера GitHub"
+  "GitHub server address": "Адрес сервера GitHub",
+  "Show only what changed": "Показать только новое",
+  "!{0} has changed since your last review ({1} → {2}).": "MR !{0} изменился с вашего прошлого ревью ({1} → {2}).",
+  "Kleio has not seen an earlier version of this merge request.": "Kleio не видел более раннюю версию этого MR.",
+  "The commits of the earlier version are not in the repository any more.": "Коммитов прошлой версии больше нет в репозитории.",
+  "The earlier version conflicts with the new base: the diff includes the changes of the rebase.": "Прошлая версия конфликтует с новой базой — в diff попадут и изменения rebase.",
+  "!{0}: nothing has changed since the last review.": "MR !{0}: с прошлого ревью ничего не изменилось.",
+  "!{0} since the last review": "MR !{0} с прошлого ревью"
 }

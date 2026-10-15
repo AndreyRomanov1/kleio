@@ -16,6 +16,9 @@ import { displayLanguage } from '../language';
 
 const CONTROLLER_ID = 'kleio.review';
 const CONTEXT_KEY = 'kleio.reviewActive';
+/** The version of each merge request reviewed last, to show what changed since then. */
+const SEEN_KEY = 'kleio.review.seen';
+const SEEN_LIMIT = 300;
 
 interface ReviewFile {
   change: FileChange;
@@ -38,6 +41,8 @@ interface Session {
   threads: vscode.CommentThread[];
   /** Thread → GitLab discussion. */
   discussions: WeakMap<vscode.CommentThread, string>;
+  /** The version reviewed last time, when the merge request has changed since then. */
+  previous?: { baseSha: string; headSha: string };
 }
 
 class ReviewComment implements vscode.Comment {
@@ -73,6 +78,7 @@ export class ReviewController implements vscode.Disposable {
     private readonly hosting: HostingService,
     private readonly navigator: ChangeSetNavigator,
     private readonly journal: ReviewJournal,
+    private readonly state: vscode.Memento,
   ) {
     this.comments = vscode.comments.createCommentController(CONTROLLER_ID, t('Merge request review'));
     this.comments.options = {
@@ -105,6 +111,7 @@ export class ReviewController implements vscode.Disposable {
       vscode.commands.registerCommand('kleio.review.publishDrafts', () => this.publishDrafts()),
       vscode.commands.registerCommand('kleio.review.refresh', () => this.reload()),
       vscode.commands.registerCommand('kleio.review.end', () => this.end()),
+      vscode.commands.registerCommand('kleio.review.sinceLastReview', () => this.sinceLastReview()),
       vscode.commands.registerCommand('kleio.review.openJournal', () => this.journal.open()),
       vscode.commands.registerCommand('kleio.review.nextComment', () => this.moveToComment(1)),
       vscode.commands.registerCommand('kleio.review.previousComment', () => this.moveToComment(-1)),
@@ -127,7 +134,9 @@ export class ReviewController implements vscode.Disposable {
 
   /** Opens the merge request diff (what GitLab shows) and its discussions; `filePath` and `line` to jump to. */
   async start(repository: Repository, iid: number, filePath?: string, line?: number): Promise<void> {
+    let started = false;
     if (this.session?.iid !== iid || this.session.repository !== repository) {
+      started = true;
       const session = await vscode.window.withProgress(
         { location: vscode.ProgressLocation.Notification, title: t('Kleio: review of !{0}', iid) },
         () => this.createSession(repository, iid),
@@ -149,6 +158,88 @@ export class ReviewController implements vscode.Disposable {
     await this.navigator.open(session.changeSet, Math.max(0, index), 'first', {
       line: line === undefined ? undefined : line - 1,
     });
+    if (started && session.previous) this.offerSinceLastReview(session);
+  }
+
+  /** Not awaited: the review is open already, the offer only narrows it down. */
+  private offerSinceLastReview(session: Session): void {
+    const only = t('Show only what changed');
+    void vscode.window
+      .showInformationMessage(
+        t(
+          '!{0} has changed since your last review ({1} → {2}).',
+          session.iid,
+          session.previous!.headSha.slice(0, 8),
+          session.refs.headSha.slice(0, 8),
+        ),
+        only,
+      )
+      .then((choice) => {
+        if (choice === only && this.session === session) return this.sinceLastReview();
+      });
+  }
+
+  /**
+   * The changes of the merge request since the version reviewed last time. After new commits it is the diff
+   * between the two heads; after a rebase the old changes are first moved onto the new base, so that what
+   * came from the target branch is not shown as the author's work.
+   */
+  private async sinceLastReview(): Promise<void> {
+    const session = this.session;
+    const previous = session?.previous;
+    if (!session || !previous) {
+      void vscode.window.showInformationMessage(
+        t('Kleio has not seen an earlier version of this merge request.'),
+      );
+      return;
+    }
+    const { repository, refs } = session;
+    if (!(await repository.revParse(previous.headSha)) || !(await repository.revParse(previous.baseSha))) {
+      void vscode.window.showWarningMessage(
+        t('The commits of the earlier version are not in the repository any more.'),
+      );
+      return;
+    }
+    let left = previous.headSha;
+    if (!(await repository.isAncestor(previous.headSha, refs.headSha))) {
+      const tree = await repository.rebasedTree(previous.baseSha, previous.headSha, refs.baseSha);
+      if (tree) left = tree;
+      else
+        void vscode.window.showWarningMessage(
+          t('The earlier version conflicts with the new base: the diff includes the changes of the rebase.'),
+        );
+    }
+    const files = await repository.changes(left, refs.headSha);
+    if (!files.length) {
+      void vscode.window.showInformationMessage(
+        t('!{0}: nothing has changed since the last review.', session.iid),
+      );
+      return;
+    }
+    await this.navigator.open(
+      {
+        repository,
+        title: t('!{0} since the last review', session.iid),
+        left,
+        right: refs.headSha,
+        files,
+        rightUris: session.changeSet.rightUris,
+      },
+      0,
+    );
+  }
+
+  /** Remembers the version under review and returns the one seen before, if it was different. */
+  private async remember(
+    label: string,
+    refs: DiffRefs,
+  ): Promise<{ baseSha: string; headSha: string } | undefined> {
+    const seen = this.state.get<Record<string, { baseSha: string; headSha: string }>>(SEEN_KEY, {});
+    const previous = seen[label];
+    const entries = Object.entries(seen).filter(([key]) => key !== label);
+    entries.push([label, { baseSha: refs.baseSha, headSha: refs.headSha }]);
+    await this.state.update(SEEN_KEY, Object.fromEntries(entries.slice(-SEEN_LIMIT)));
+    return previous && previous.headSha !== refs.headSha ? previous : undefined;
   }
 
   /** Publishes or saves a comment typed outside the code, e.g. a general comment from the merge request card. */
@@ -222,11 +313,13 @@ export class ReviewController implements vscode.Disposable {
       if (file.right) documents.set(file.right.toString(), { file, side: 'new' });
     }
     const rightUris = new Map(files.filter((f) => f.right).map((f) => [f.change.path, f.right!] as const));
+    const label = await this.label(repository, iid);
     return {
       repository,
       api,
       iid,
-      label: await this.label(repository, iid),
+      label,
+      previous: await this.remember(label, refs),
       refs,
       changeSet: {
         repository,

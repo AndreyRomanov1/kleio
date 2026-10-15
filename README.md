@@ -73,7 +73,8 @@ stays editable.
   and merge from the editor are GitLab's for now; a GitHub pull request opens in the browser.
 - **Review in the diff viewer** (GitLab): threads in the code, comments published at once or as drafts, resolve,
   next/previous comment. Every comment is written to a local journal before it is sent, so nothing typed
-  is lost.
+  is lost. When a merge request has changed since your last review, Kleio offers to show only what
+  changed — after a rebase too: the old changes are moved onto the new base first.
 
 ## Install
 

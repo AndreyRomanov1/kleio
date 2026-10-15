@@ -577,6 +577,21 @@ export class Repository {
     else await this.git.run(['reset', '-q', '--', ...paths]);
   }
 
+  /**
+   * The tree of an old version of a branch moved onto a new base, without touching the working tree: what
+   * the old changes look like on top of what they are now based on. Compared with the new head, it shows
+   * only what the author changed, not what came with the rebase. Undefined when the old changes conflict
+   * with the new base.
+   */
+  async rebasedTree(oldBase: string, oldHead: string, newBase: string): Promise<string | undefined> {
+    const output = await this.git.run(
+      ['merge-tree', '--write-tree', '--no-messages', `--merge-base=${oldBase}`, newBase, oldHead],
+      { allowExitCodes: [1] },
+    );
+    const [tree, ...conflicts] = output.trim().split('\n');
+    return conflicts.length ? undefined : tree;
+  }
+
   /** Whether `ancestor` is reachable from `descendant`. */
   async isAncestor(ancestor: string, descendant: string): Promise<boolean> {
     try {

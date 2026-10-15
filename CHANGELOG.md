@@ -2,6 +2,7 @@
 
 ## 0.16.0
 
+- Review: only the changes since your last review, also after a rebase (interdiff through `git merge-tree`).
 - GitHub API: pull request states and checks of commits in the log, merged pull requests down the whole
   history; access from the editor's GitHub account or a token.
 - Undo via reflog: the latest states of HEAD, returned with `git reset --keep`.
