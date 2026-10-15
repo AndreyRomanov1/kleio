@@ -54,10 +54,10 @@ export class SyncActions {
     );
   }
 
-  async cherryPick(repository: Repository, hash: string): Promise<void> {
-    await this.operation(repository, `Cherry-pick ${shorten(hash)}`, 'cherry-pick', () =>
-      repository.cherryPick(hash),
-    );
+  async cherryPick(repository: Repository, ...hashes: string[]): Promise<void> {
+    const title =
+      hashes.length === 1 ? `Cherry-pick ${shorten(hashes[0])}` : t('Cherry-pick {0} commits', hashes.length);
+    await this.operation(repository, title, 'cherry-pick', () => repository.cherryPick(...hashes));
   }
 
   async continueOperation(repository: Repository, kind: OperationKind): Promise<void> {

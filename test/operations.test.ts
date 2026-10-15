@@ -153,6 +153,20 @@ describe('Repository operations', () => {
     expect(readFileSync(path.join(dir, 'a.txt'), 'utf8')).toBe('a changed\n');
   });
 
+  it('cherry-picks several commits in the given order', async () => {
+    const dir = init('pick-many');
+    commitFile(dir, 'a.txt', 'a\n', 'a');
+    git(dir, 'checkout', '-q', '-b', 'feature');
+    commitFile(dir, 'b.txt', 'b\n', 'b');
+    commitFile(dir, 'c.txt', 'c\n', 'c');
+    const [c, b] = git(dir, 'log', '--format=%H', '-2').trim().split('\n');
+    git(dir, 'checkout', '-q', 'main');
+    const repository = (await Repository.open(dir))!;
+
+    expect(await repository.cherryPick(b, c)).toBe('done');
+    expect(git(dir, 'log', '--format=%s').trim().split('\n')).toEqual(['c', 'b', 'a']);
+  });
+
   it('reports uncommitted changes that come back from the autostash with conflicts', async () => {
     const dir = init('autostash');
     commitFile(dir, 'a.txt', 'a\n', 'a');

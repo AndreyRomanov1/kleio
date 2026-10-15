@@ -588,8 +588,9 @@ export class Repository {
     return Number(all.trim()) - Number(local.trim());
   }
 
-  cherryPick(hash: string): Promise<OperationOutcome> {
-    return this.runOperation(['cherry-pick', hash]);
+  /** Applies commits in the given order; a stop for conflicts leaves the rest to `--continue`. */
+  cherryPick(...hashes: string[]): Promise<OperationOutcome> {
+    return this.runOperation(['cherry-pick', ...hashes]);
   }
 
   /** Goes on with the stopped operation once its conflicts are resolved, keeping the prepared message. */

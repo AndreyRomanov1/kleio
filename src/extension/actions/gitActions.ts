@@ -463,6 +463,88 @@ export class GitActions {
     return true;
   }
 
+  async renameBranch(repository: Repository, ref: Ref): Promise<void> {
+    if (ref.kind !== 'head') return;
+    const name = await vscode.window.showInputBox({
+      title: t('Rename branch {0}', ref.name),
+      value: ref.name,
+      prompt: t('New name'),
+      validateInput: (value) =>
+        value === ref.name ? undefined : validateRefName(repository, 'branch', value),
+    });
+    if (!name || name === ref.name) return;
+    await this.run(repository, t('Rename {0} → {1}', ref.name, name), ['branch', '-m', ref.name, name]);
+  }
+
+  /** Sets the remote branch a local one pulls from and pushes to, or unsets it. */
+  async setUpstream(repository: Repository, snapshot: RepositorySnapshot, ref: Ref): Promise<void> {
+    if (ref.kind !== 'head') return;
+    const remotes = snapshot.refs
+      .filter((r) => r.kind === 'remote' && !r.name.endsWith('/HEAD'))
+      .sort(
+        (a, b) => Number(sameBranch(b, ref)) - Number(sameBranch(a, ref)) || a.name.localeCompare(b.name),
+      );
+    const items: (vscode.QuickPickItem & { upstream?: string })[] = remotes.map((r) => ({
+      label: r.name,
+      description: r.fullName === ref.upstream ? t('current upstream') : undefined,
+      upstream: r.name,
+    }));
+    if (ref.upstream) items.push({ label: t('$(close) Stop tracking'), upstream: undefined });
+    const picked = await vscode.window.showQuickPick(items, { title: t('Upstream of {0}', ref.name) });
+    if (!picked) return;
+    if (picked.upstream) {
+      await this.run(repository, t('{0} tracks {1}', ref.name, picked.upstream), [
+        'branch',
+        `--set-upstream-to=${picked.upstream}`,
+        ref.name,
+      ]);
+    } else {
+      await this.run(repository, t('{0} tracks nothing', ref.name), ['branch', '--unset-upstream', ref.name]);
+    }
+  }
+
+  async pushTag(repository: Repository, ref: Ref): Promise<void> {
+    if (ref.kind !== 'tag') return;
+    const remote = await this.remote(repository);
+    if (!remote) return;
+    await this.run(
+      repository,
+      t('Push tag {0} to {1}', ref.name, remote),
+      ['push', remote, `refs/tags/${ref.name}`],
+      true,
+    );
+  }
+
+  async deleteTag(repository: Repository, ref: Ref): Promise<void> {
+    if (ref.kind !== 'tag') return;
+    const remote = await this.remote(repository);
+    const local = t('Delete locally');
+    const everywhere = remote ? t('Delete locally and on {0}', remote) : undefined;
+    const choice = await vscode.window.showWarningMessage(
+      t('Delete tag {0}?', ref.name),
+      { modal: true },
+      local,
+      ...(everywhere ? [everywhere] : []),
+    );
+    if (!choice) return;
+    if (!(await this.run(repository, t('Delete tag {0}', ref.name), ['tag', '-d', ref.name]))) return;
+    if (choice === everywhere && remote)
+      await this.run(
+        repository,
+        t('Delete tag {0} on {1}', ref.name, remote),
+        ['push', remote, `:refs/tags/${ref.name}`],
+        true,
+      );
+  }
+
+  /** The remote to push tags to: origin, or the only one, or the one the user picks. */
+  private async remote(repository: Repository): Promise<string | undefined> {
+    const remotes = (await repository.git.run(['remote'])).split('\n').filter(Boolean);
+    if (remotes.includes('origin') || remotes.length <= 1)
+      return remotes.includes('origin') ? 'origin' : remotes[0];
+    return vscode.window.showQuickPick(remotes, { title: t('Remote repository') });
+  }
+
   /** Rider's "Checkout and Rebase onto Current": the branch is checked out and rebased onto the current one. */
   async checkoutAndRebase(repository: Repository, snapshot: RepositorySnapshot, ref: Ref): Promise<void> {
     const current = snapshot.head.branch;
@@ -476,6 +558,11 @@ export class GitActions {
     const message = error instanceof Error ? error.message : String(error);
     void vscode.window.showErrorMessage(`Git: ${message}`);
   }
+}
+
+/** Whether a remote branch has the name of a local one, e.g. origin/feature for feature. */
+function sameBranch(remote: Ref, local: Ref): boolean {
+  return remote.name.slice(remote.name.indexOf('/') + 1) === local.name;
 }
 
 function shorten(revision: string): string {

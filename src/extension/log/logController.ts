@@ -222,6 +222,12 @@ export class LogController implements vscode.Disposable {
         return this.commitAction(message.action, message.hash);
       case 'commitsAction':
         if (!this.repository) return;
+        if (message.action === 'cherryPick') {
+          // Oldest first, as they were made; the log lists them newest first.
+          const order = new Map(this.snapshot?.commits.map((c, i) => [c.hash, i]));
+          const hashes = [...message.hashes].sort((a, b) => (order.get(b) ?? 0) - (order.get(a) ?? 0));
+          return this.services.sync.cherryPick(this.repository, ...hashes);
+        }
         if (message.action === 'squash')
           return this.services.rebase.open(this.repository, { kind: 'squash', hashes: message.hashes });
         return this.services.rebase.drop(this.repository, message.hashes);
@@ -563,6 +569,14 @@ export class LogController implements vscode.Disposable {
         return this.services.hostingActions.branch(repository, ref);
       case 'createMergeRequest':
         return this.services.hostingActions.createMergeRequest(repository, ref);
+      case 'rename':
+        return actions.renameBranch(repository, ref);
+      case 'setUpstream':
+        return actions.setUpstream(repository, snapshot, ref);
+      case 'pushTag':
+        return actions.pushTag(repository, ref);
+      case 'deleteTag':
+        return actions.deleteTag(repository, ref);
     }
   }
 

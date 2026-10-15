@@ -87,6 +87,12 @@ function rewriteEntries(commit: Commit, store: LogStore): MenuEntry[] {
         disabled: !allOurs,
         run: () => post({ type: 'commitsAction', action: 'drop', hashes: selection }),
       },
+      'separator',
+      {
+        label: t('Cherry-pick {0} commits into the current branch', selection.length),
+        disabled: !store.snapshot?.head.branch || !!store.snapshot?.operation,
+        run: () => post({ type: 'commitsAction', action: 'cherryPick', hashes: selection }),
+      },
     ];
   }
   return [
@@ -242,11 +248,28 @@ export function refMenu(ref: Ref, store: LogStore): MenuEntry[] {
     { label: t('Copy name'), run: run({ type: 'refAction', action: 'copyName', fullName }) },
   );
   if (ref.kind === 'head') {
-    entries.push({
-      label: t('Delete branch…'),
-      disabled: isCurrent,
-      run: run({ type: 'refAction', action: 'deleteBranch', fullName }),
-    });
+    entries.push(
+      { label: t('Rename…'), run: run({ type: 'refAction', action: 'rename', fullName }) },
+      {
+        label: t('Track a remote branch…'),
+        run: run({ type: 'refAction', action: 'setUpstream', fullName }),
+      },
+      {
+        label: t('Delete branch…'),
+        disabled: isCurrent,
+        run: run({ type: 'refAction', action: 'deleteBranch', fullName }),
+      },
+    );
+  }
+  if (ref.kind === 'tag') {
+    entries.push(
+      {
+        label: t('Push tag'),
+        icon: 'repo-push',
+        run: run({ type: 'refAction', action: 'pushTag', fullName }),
+      },
+      { label: t('Delete tag…'), run: run({ type: 'refAction', action: 'deleteTag', fullName }) },
+    );
   }
   if (ref.kind === 'remote') {
     entries.push({
