@@ -26,6 +26,8 @@ export interface HistoryTarget {
   path: string;
   /** 1-based inclusive lines for the history of a fragment. */
   range?: { start: number; end: number };
+  /** The history of everything inside a folder. */
+  folder?: boolean;
   title: string;
 }
 
@@ -290,7 +292,11 @@ export class LogController implements vscode.Disposable {
   private async historySnapshot(target: HistoryTarget): Promise<RepositorySnapshot> {
     const { repository, path, range } = target;
     const [history, refs, head] = await Promise.all([
-      range ? repository.lineHistory(path, range.start, range.end) : repository.fileHistory(path),
+      range
+        ? repository.lineHistory(path, range.start, range.end)
+        : target.folder
+          ? repository.folderHistory(path)
+          : repository.fileHistory(path),
       repository.refs(),
       repository.head(),
     ]);
@@ -418,6 +424,13 @@ export class LogController implements vscode.Disposable {
 
   /** Index of the traced file in a commit of a history view; it may have had another name back then. */
   private historyFileIndex(changeSet: ChangeSet, hash: string): number | undefined {
+    if (this.history?.folder) {
+      const prefix = this.history.path ? `${this.history.path}/` : '';
+      const index = changeSet.files.findIndex(
+        (f) => f.path.startsWith(prefix) || f.oldPath?.startsWith(prefix),
+      );
+      return index < 0 ? undefined : index;
+    }
     const filePath = this.historyPaths[hash] ?? this.history?.path;
     const index = changeSet.files.findIndex((f) => f.path === filePath || f.oldPath === filePath);
     return index < 0 ? undefined : index;

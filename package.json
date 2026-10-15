@@ -157,6 +157,12 @@
         "icon": "$(history)"
       },
       {
+        "command": "kleio.history.folder",
+        "title": "%command.history.folder%",
+        "category": "Kleio",
+        "icon": "$(history)"
+      },
+      {
         "command": "kleio.history.selection",
         "title": "%command.history.selection%",
         "category": "Kleio"
@@ -486,6 +492,10 @@
         {
           "command": "kleio.conflicts.markResolved",
           "when": "isMergeEditor || editorTextFocus"
+        },
+        {
+          "command": "kleio.history.folder",
+          "when": "false"
         }
       ],
       "editor/lineNumber/context": [
@@ -551,6 +561,11 @@
         {
           "command": "kleio.history.file",
           "when": "!explorerResourceIsFolder",
+          "group": "7_kleio@1"
+        },
+        {
+          "command": "kleio.history.folder",
+          "when": "explorerResourceIsFolder",
           "group": "7_kleio@1"
         },
         {

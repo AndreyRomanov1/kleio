@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -349,5 +349,18 @@ describe('Repository', () => {
     expect(git(dir, 'stash', 'show', '--include-untracked', '--name-only').trim().split('\n').sort()).toEqual(
       ['a.txt', 'new.txt'],
     );
+  });
+
+  it('lists the commits that changed a folder', async () => {
+    const dir = path.join(work, 'folder-history');
+    git(work, 'init', '-q', '-b', 'main', dir);
+    mkdirSync(path.join(dir, 'src'));
+    commitFile(dir, 'src/a.txt', 'a\n', 'add src');
+    commitFile(dir, 'b.txt', 'b\n', 'outside');
+    commitFile(dir, 'src/a.txt', 'a2\n', 'change src');
+    const repository = (await Repository.open(dir))!;
+
+    const history = await repository.folderHistory('src');
+    expect(history.commits.map((c) => c.subject)).toEqual(['change src', 'add src']);
   });
 });

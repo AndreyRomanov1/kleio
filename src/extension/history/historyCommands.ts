@@ -24,6 +24,7 @@ export class HistoryCommands implements vscode.Disposable {
   ) {
     this.disposables = [
       vscode.commands.registerCommand('kleio.history.file', (uri?: vscode.Uri) => this.fileHistory(uri)),
+      vscode.commands.registerCommand('kleio.history.folder', (uri?: vscode.Uri) => this.folderHistory(uri)),
       vscode.commands.registerCommand('kleio.history.selection', () => this.selectionHistory()),
       vscode.commands.registerCommand('kleio.compare.withRevision', (uri?: vscode.Uri) =>
         this.compareWithRevision(uri),
@@ -43,6 +44,13 @@ export class HistoryCommands implements vscode.Disposable {
     const target = await this.targetFor(uri ?? vscode.window.activeTextEditor?.document.uri);
     if (!target) return;
     this.logs.openHistory({ ...target, title: t('History: {0}', path.basename(target.path)) });
+  }
+
+  private async folderHistory(uri?: vscode.Uri): Promise<void> {
+    const target = await this.targetFor(uri);
+    if (!target) return;
+    const name = target.path ? path.basename(target.path) : target.repository.name;
+    this.logs.openHistory({ ...target, folder: true, title: t('History: {0}/', name) });
   }
 
   private async selectionHistory(): Promise<void> {

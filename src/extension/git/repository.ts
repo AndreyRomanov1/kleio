@@ -249,6 +249,12 @@ export class Repository {
     return parseHistory(output);
   }
 
+  /** Commits that changed anything inside a folder. */
+  async folderHistory(folder: string): Promise<FileHistory> {
+    const output = await this.git.run(['log', `--format=${HISTORY_FORMAT}`, '--', folder || '.']);
+    return parseHistory(output);
+  }
+
   /** Commits that changed the given lines (1-based, inclusive) of the file. */
   async lineHistory(filePath: string, start: number, end: number): Promise<FileHistory> {
     const output = await this.git.run(['log', `-L${start},${end}:${filePath}`, `--format=${HISTORY_FORMAT}`]);

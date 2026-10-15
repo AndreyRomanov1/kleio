@@ -605,5 +605,6 @@
   "!{0} since the last review": "MR !{0} с прошлого ревью",
   "Commits of {0} missing in {1}": "Коммиты {0}, которых нет в {1}",
   "Stash only the files checked on the Commit tab": "Спрятать только файлы, отмеченные на вкладке «Коммит»",
-  "only checked files ({0})": "только отмеченные ({0})"
+  "only checked files ({0})": "только отмеченные ({0})",
+  "History: {0}/": "История: {0}/"
 }

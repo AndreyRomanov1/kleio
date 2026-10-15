@@ -56,5 +56,6 @@
   "config.statusBar.branch": "Показывать текущую ветку с ↑↓ в строке состояния; по клику — ветки и основные действия, как виджет веток в Rider.",
   "command.github.connect": "Подключить GitHub…",
   "command.github.disconnect": "Удалить токен GitHub из Kleio…",
-  "command.review.sinceLastReview": "Изменения с прошлого ревью"
+  "command.review.sinceLastReview": "Изменения с прошлого ревью",
+  "command.history.folder": "История папки"
 }

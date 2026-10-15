@@ -56,5 +56,6 @@
   "config.statusBar.branch": "Show the current branch with ↑↓ in the status bar; a click opens the branches and the common actions, as the branch widget of Rider.",
   "command.github.connect": "Connect GitHub…",
   "command.github.disconnect": "Remove the GitHub Token from Kleio…",
-  "command.review.sinceLastReview": "Changes Since the Last Review"
+  "command.review.sinceLastReview": "Changes Since the Last Review",
+  "command.history.folder": "Folder History"
 }
