@@ -19,7 +19,9 @@ stays editable.
 **Log and diffs**
 
 - **Commit graph** for every branch, remote and worktree, virtual scrolling for repositories with tens of
-  thousands of commits, filter by text, author or hash, speed search by typing.
+  thousands of commits, filter by text, author or hash, speed search by typing. **Filters** by authors,
+  dates and paths, and by changed text: the commits where a piece of code appeared or disappeared
+  (`git log -S`, or `-G` with a regular expression).
 - **Branch panel**: HEAD, favorites, local and remote branches as a tree, tags, stashes, ahead/behind
   counters; **focus** limits the log to chosen branches.
 - **One diff viewer for any set of changes** on the native diff editor: `F7` / `Shift+F7` go through
@@ -35,7 +37,7 @@ stays editable.
 
 **Changing history**
 
-- **Commit view**: changes with checkboxes, **parts of a file by hunks**, amend, recent messages, rollback
+- **Commit view**: changes with checkboxes, **parts of a file by hunks or single lines**, amend, recent messages, rollback
   of files or hunks, stashes (all changes or only the checked files). By default it works as in Rider: checked files and hunks are committed as
   they are on disk, through a temporary index, and what you staged yourself stays as it is. With
   **Stage** checked, the checkboxes show and change the git index, and the commit takes what is staged,
@@ -62,6 +64,9 @@ stays editable.
 - **Interactive rebase**: pick, reword, edit, squash, fixup, drop; select several commits and squash them
   into one; reorder by dragging or `Alt+↑/↓`; messages are edited right in the dialog. Git never opens an
   editor.
+- **Stacked branches**: a rebase moves the branches stacked on the rebased commits along with them
+  (`--update-refs`), the dialog shows which ones, and push checks the rewritten lower branches together
+  with the current one.
 
   ![Interactive rebase](docs/images/rebase.png)
 
@@ -78,8 +83,12 @@ stays editable.
   history, a merge request card with jobs and child pipelines, job logs in the editor, retry and manual
   jobs, approve, merge, rebase on the server.
 - GitHub: pull request states and the checks of commits in the log, merged pull requests down the whole
-  history. Access comes from the editor's GitHub account or a personal access token. The card, review
-  and merge from the editor are GitLab's for now; a GitHub pull request opens in the browser.
+  history, a pull request card with checks and their logs, reviewers, threads and comments; approve,
+  merge (merge commit, squash or rebase, auto-merge while checks run), update the branch on the server,
+  the changes of a pull request in the diff viewer. Comments in the code stay on GitHub for now. Access
+  comes from the editor's GitHub account or a personal access token.
+- A repository with several remotes, e.g. a GitLab mirror and GitHub, shows the hosting of the remote you
+  choose in the log.
 - **Review in the diff viewer** (GitLab): threads in the code, comments published at once or as drafts, resolve,
   next/previous comment. Every comment is written to a local journal before it is sent, so nothing typed
   is lost. When a merge request has changed since your last review, Kleio offers to show only what
@@ -113,6 +122,7 @@ extension when it is signed in, or from a personal access token (command «По�
 | `kleio.language`                       | `auto`                                | Language of Kleio: the editor's, or `en`, `ru` without a language pack                       |
 | `kleio.statusBar.branch`               | `true`                                | The current branch with ↑↓ in the status bar                                                 |
 | `kleio.blame.ignoreWhitespaceAndMoves` | `false`                               | Blame ignores whitespace changes and moved lines                                             |
+| `kleio.rebase.updateRefs`              | `true`                                | A rebase moves the stacked branches along (`--update-refs`, git 2.38+)                       |
 
 ## Key bindings
 

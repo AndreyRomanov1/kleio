@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.18.0
+
+- Log filters by authors, dates and paths, and by changed text (`git log -S`, `-G` with `.*`); "only
+  commits by this author" and "only commits changing this file" in the menus.
+- Commit, stage, unstage and roll back single lines of a hunk.
+- Stacked branches: rebase moves the branches stacked on the rebased commits along (`--update-refs`, also
+  in interactive rebase), except branches checked out in worktrees; push checks the rewritten lower branches
+  of the stack. `kleio.rebase.updateRefs`.
+- GitHub pull request card: checks with logs and retry, reviewers, threads and comments, approve, merge
+  with the methods the repository allows or auto-merge, update branch, the changes in the diff viewer.
+- The hosting of another remote: a choice in the log when the repository has several remotes.
+
 ## 0.17.0
 
 - Several repositories in one window: one current repository for the log, the commit view, the status bar
