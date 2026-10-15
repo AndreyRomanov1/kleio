@@ -7,6 +7,8 @@ export interface CommitFile {
   oldPath?: string;
   status: ChangeStatus | '?';
   kind: CommitFileKind;
+  /** How much of the file is staged; only when the view works with the staging area. */
+  staged?: 'all' | 'some' | 'none';
 }
 
 /** A part of the uncommitted changes of a file that can be committed on its own. */
@@ -18,10 +20,19 @@ export interface HunkView {
   removed: number;
   /** The first changed lines, with `+` or `-`. */
   preview: string[];
+  /** Whether the hunk is staged; only when the view works with the staging area. */
+  staged?: boolean;
 }
 
 export type CommitHostMessage =
-  | { type: 'state'; branch?: string; files: CommitFile[]; stashes: Stash[] }
+  | {
+      type: 'state';
+      branch?: string;
+      files: CommitFile[];
+      stashes: Stash[];
+      /** Checkboxes show the staging area and the commit takes what is staged, as plain git does. */
+      staging: boolean;
+    }
   | { type: 'noRepository' }
   | { type: 'busy'; value: boolean }
   | { type: 'amendMessage'; message: string }
@@ -49,6 +60,11 @@ export type CommitWebviewMessage =
       amend: boolean;
       push: boolean;
     }
+  | { type: 'setStaging'; value: boolean }
+  /** With the staging area: stages or unstages whole files. */
+  | { type: 'stage'; paths: string[]; value: boolean }
+  /** With the staging area: stages or unstages a hunk. */
+  | { type: 'stageHunk'; path: string; key: string; value: boolean }
   | { type: 'requestAmendMessage' }
   | { type: 'requestRecentMessages' }
   | { type: 'stashSave'; message: string; includeUntracked: boolean }

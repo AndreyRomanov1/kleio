@@ -17,6 +17,8 @@ export class CommitStore {
   noRepository = $state(false);
   busy = $state(false);
   loaded = $state(false);
+  /** Checkboxes show the staging area; set by the host from the settings. */
+  staging = $state(false);
   checked = $state.raw<ReadonlySet<string>>(new Set());
   selected = $state.raw<ReadonlySet<string>>(new Set());
   recent = $state.raw<string[] | undefined>(undefined);
@@ -59,6 +61,7 @@ export class CommitStore {
         this.loaded = true;
         this.branch = message.branch;
         this.stashes = message.stashes;
+        this.staging = message.staging;
         this.applyFiles(message.files);
         break;
       case 'noRepository':
@@ -110,7 +113,18 @@ export class CommitStore {
     this.persist();
   }
 
+  setStaging(value: boolean): void {
+    this.staging = value;
+    this.hunks = new Map();
+    this.excluded = new Map();
+    postCommit({ type: 'setStaging', value });
+  }
+
   setChecked(paths: string[], value: boolean): void {
+    if (this.staging) {
+      postCommit({ type: 'stage', paths, value });
+      return;
+    }
     const next = new Set(this.checked);
     for (const p of paths) {
       if (value) next.add(p);
@@ -122,16 +136,22 @@ export class CommitStore {
 
   /** Checkbox state of a file: some when part of its hunks is left out. */
   fileState(path: string): 'all' | 'some' | 'none' {
+    if (this.staging) return this.files.find((f) => f.path === path)?.staged ?? 'none';
     if (!this.checked.has(path)) return 'none';
     return this.excluded.get(path)?.size ? 'some' : 'all';
   }
 
   hunkChecked(path: string, key: string): boolean {
+    if (this.staging) return this.hunks.get(path)?.find((h) => h.key === key)?.staged ?? false;
     return this.checked.has(path) && !this.excluded.get(path)?.has(key);
   }
 
   /** Checking a hunk of an unchecked file takes only that hunk; leaving out every hunk unchecks the file. */
   setHunk(path: string, key: string, value: boolean): void {
+    if (this.staging) {
+      postCommit({ type: 'stageHunk', path, key, value });
+      return;
+    }
     const keys = (this.hunks.get(path) ?? []).map((h) => h.key);
     let left: Set<string>;
     if (!this.checked.has(path)) {
@@ -197,6 +217,10 @@ export class CommitStore {
     const paths: string[] = [];
     const hunks: Record<string, string[]> = {};
     for (const path of this.targets) {
+      if (this.staging) {
+        paths.push(path);
+        continue;
+      }
       const left = this.excluded.get(path);
       if (left?.size && this.checked.has(path)) {
         hunks[path] = (this.hunks.get(path) ?? []).map((h) => h.key).filter((k) => !left.has(k));
@@ -228,9 +252,13 @@ export class CommitStore {
   private applyFiles(files: CommitFile[]): void {
     const present = new Set(files.map((f) => f.path));
     const checked = new Set([...this.checked].filter((p) => present.has(p)));
+    if (this.staging) {
+      checked.clear();
+      for (const file of files) if (file.staged && file.staged !== 'none') checked.add(file.path);
+    }
     for (const file of files) {
       // As in Rider: changes of versioned files are included by default, unversioned files are not.
-      if (!this.known.has(file.path) && file.kind !== 'untracked') checked.add(file.path);
+      if (!this.staging && !this.known.has(file.path) && file.kind !== 'untracked') checked.add(file.path);
       this.known.add(file.path);
     }
     this.files = files;

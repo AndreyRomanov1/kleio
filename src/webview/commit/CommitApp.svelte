@@ -123,6 +123,16 @@
           />
           Amend
         </label>
+        <label
+          title="Галочки показывают индекс git: отметить — git add, снять — убрать из stage. Коммитится то, что в stage, как git commit. Без галки коммитятся отмеченные файлы как есть на диске, как в Rider."
+        >
+          <input
+            type="checkbox"
+            checked={store.staging}
+            onchange={(e) => store.setStaging(e.currentTarget.checked)}
+          />
+          Stage
+        </label>
         <span class="spacer"></span>
         <div class="recent">
           <button title="Недавние сообщения" onclick={openRecent}
@@ -167,7 +177,7 @@
           {store.amend ? 'Amend' : 'Commit'} and Push…
         </button>
         <span class="spacer"></span>
-        <span class="count">{checkedCount} из {store.files.length}</span>
+        <span class="count">{store.staging ? 'в stage ' : ''}{checkedCount} из {store.files.length}</span>
         {#if store.busy}<i class="codicon codicon-loading codicon-modifier-spin"></i>{/if}
       </div>
     </div>

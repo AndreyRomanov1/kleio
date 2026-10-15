@@ -321,9 +321,59 @@ export class Repository {
     await this.git.run(['reset', '-q', '--', ...committed]);
   }
 
-  /** Discards the given hunks of a file in the working tree, keeping its other changes. */
-  async rollbackHunks(filePath: string, keys: string[]): Promise<void> {
-    const patch = await this.workingPatch(filePath);
+  /** Staged changes of a file, split into hunks without context lines as {@link workingPatch} does. */
+  async stagedPatch(filePath: string): Promise<FilePatch> {
+    return parseFilePatch(
+      await this.git.run(['diff', '--cached', '--no-ext-diff', '--no-color', '-U0', '--', filePath]),
+    );
+  }
+
+  /** Changes of a file not staged yet: the working tree against the index. */
+  async unstagedPatch(filePath: string): Promise<FilePatch> {
+    return parseFilePatch(await this.git.run(['diff', '--no-ext-diff', '--no-color', '-U0', '--', filePath]));
+  }
+
+  /** Paths with staged changes and paths with changes not staged yet. */
+  async stagingState(): Promise<{ staged: Set<string>; unstaged: Set<string> }> {
+    const [staged, unstaged] = await Promise.all([
+      this.git.run(['diff', '--cached', '--name-only', '--no-renames', '-z']),
+      this.git.run(['diff', '--name-only', '--no-renames', '-z']),
+    ]);
+    const set = (output: string) => new Set(output.split('\0').filter(Boolean));
+    return { staged: set(staged), unstaged: set(unstaged) };
+  }
+
+  /** Stages files as they are on disk, including deletions and new files, or takes them out of the index. */
+  async stage(paths: string[], value: boolean): Promise<void> {
+    if (!paths.length) return;
+    if (value) await this.git.run(['add', '-A', '--', ...paths]);
+    else await this.git.run(['reset', '-q', '--', ...paths]);
+  }
+
+  /** Stages hunks of {@link unstagedPatch}, or unstages hunks of {@link stagedPatch}. */
+  async stageHunks(filePath: string, keys: string[], value: boolean): Promise<void> {
+    const patch = value ? await this.unstagedPatch(filePath) : await this.stagedPatch(filePath);
+    const known = new Set(patch.hunks.map((h) => h.key));
+    if (keys.some((k) => !known.has(k)))
+      throw new Error(`Файл ${filePath} изменился — обновите список и повторите.`);
+    const args = ['apply', '--cached', '--unidiff-zero', '--whitespace=nowarn'];
+    if (!value) args.push('-R');
+    await this.git.run([...args, '-'], { input: selectHunks(patch, new Set(keys)) });
+  }
+
+  /** Commits what is staged, as plain `git commit` does. */
+  async commitIndex(message: string, amend: boolean): Promise<void> {
+    const args = ['commit', '--cleanup=strip', '-F', '-'];
+    if (amend) args.push('--amend');
+    await this.git.run(args, { input: message });
+  }
+
+  /**
+   * Discards the given hunks of a file in the working tree, keeping its other changes. The hunks are those of
+   * {@link workingPatch}, or of {@link unstagedPatch} with `unstagedOnly`.
+   */
+  async rollbackHunks(filePath: string, keys: string[], unstagedOnly = false): Promise<void> {
+    const patch = unstagedOnly ? await this.unstagedPatch(filePath) : await this.workingPatch(filePath);
     const known = new Set(patch.hunks.map((h) => h.key));
     if (keys.some((k) => !known.has(k)))
       throw new Error(`Файл ${filePath} изменился — обновите список и повторите откат.`);

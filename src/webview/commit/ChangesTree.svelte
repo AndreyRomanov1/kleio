@@ -179,7 +179,7 @@
               if (e.key === 'Enter') postCommit({ type: 'openDiff', path: file.path });
               if (e.key === ' ') {
                 e.preventDefault();
-                store.setChecked([file.path], !store.checked.has(file.path));
+                store.setChecked([file.path], store.fileState(file.path) !== 'all');
               }
             }}
             oncontextmenu={(e) => fileMenu(e, file)}

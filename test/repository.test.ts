@@ -260,4 +260,37 @@ describe('Repository', () => {
     expected[7] = 'line 8 changed';
     expect(readFileSync(path.join(dir, 'a.txt'), 'utf8')).toBe(expected.join('\n') + '\n');
   });
+
+  it('stages and unstages hunks and commits only what is staged', async () => {
+    const dir = path.join(work, 'staging');
+    git(work, 'init', '-q', '-b', 'main', dir);
+    const lines = Array.from({ length: 20 }, (_, i) => `line ${i + 1}`);
+    commitFile(dir, 'a.txt', lines.join('\n') + '\n', 'init');
+    const changed = [...lines];
+    changed[1] = 'line 2 changed';
+    changed[17] = 'line 18 changed';
+    writeFileSync(path.join(dir, 'a.txt'), changed.join('\n') + '\n');
+    writeFileSync(path.join(dir, 'new.txt'), 'new\n');
+    const repository = (await Repository.open(dir))!;
+
+    const unstaged = await repository.unstagedPatch('a.txt');
+    expect(unstaged.hunks).toHaveLength(2);
+    await repository.stageHunks('a.txt', [unstaged.hunks[1].key], true);
+    await repository.stage(['new.txt'], true);
+    let state = await repository.stagingState();
+    expect([...state.staged].sort()).toEqual(['a.txt', 'new.txt']);
+    expect([...state.unstaged]).toEqual(['a.txt']);
+
+    await repository.stage(['new.txt'], false);
+    const staged = await repository.stagedPatch('a.txt');
+    expect(staged.hunks).toHaveLength(1);
+    await repository.rollbackHunks('a.txt', [(await repository.unstagedPatch('a.txt')).hunks[0].key], true);
+    await repository.commitIndex('line 18', false);
+
+    expect(git(dir, 'show', 'HEAD:a.txt').split('\n')[17]).toBe('line 18 changed');
+    expect(git(dir, 'show', 'HEAD:a.txt').split('\n')[1]).toBe('line 2');
+    state = await repository.stagingState();
+    expect(state.staged.size + state.unstaged.size).toBe(0);
+    expect(git(dir, 'status', '--porcelain')).toBe('?? new.txt\n');
+  });
 });

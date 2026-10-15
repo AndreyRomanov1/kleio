@@ -44,7 +44,14 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
       vscode.workspace.onDidSaveTextDocument(refresh),
       repositories.onDidChangeRepository(refresh),
       repositories.onDidChangeRepositories(refresh),
+      vscode.workspace.onDidChangeConfiguration((e) => {
+        if (e.affectsConfiguration('kleio.commit.stagingArea')) void this.refresh();
+      }),
     );
+  }
+
+  private get staging(): boolean {
+    return vscode.workspace.getConfiguration('kleio').get<boolean>('commit.stagingArea', false);
   }
 
   resolveWebviewView(view: vscode.WebviewView): void {
@@ -85,6 +92,19 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
         return this.rollback(message.paths, message.hunks ?? {});
       case 'commit':
         return this.commit(message);
+      case 'setStaging':
+        await vscode.workspace
+          .getConfiguration('kleio')
+          .update('commit.stagingArea', message.value, vscode.ConfigurationTarget.Global);
+        return;
+      case 'stage':
+        return this.stage(message.paths, message.value);
+      case 'stageHunk':
+        if (this.repository) {
+          await this.repository.stageHunks(message.path, [message.key.slice(2)], message.value);
+          await this.refresh();
+        }
+        return;
       case 'requestAmendMessage':
         if (this.repository)
           this.post({ type: 'amendMessage', message: await this.repository.lastCommitMessage() });
@@ -114,20 +134,52 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
       this.post({ type: 'noRepository' });
       return;
     }
-    const [changes, stashes, head] = await Promise.all([
+    const staging = this.staging;
+    const [changes, stashes, head, index] = await Promise.all([
       repository.workingChanges(),
       repository.stashes(),
       repository.head(),
+      staging ? repository.stagingState() : undefined,
     ]);
     const conflicted = new Set(changes.conflicted);
+    const staged = (c: { path: string; oldPath?: string }): CommitFile['staged'] => {
+      if (!index) return undefined;
+      const paths = c.oldPath ? [c.path, c.oldPath] : [c.path];
+      const inIndex = paths.some((p) => index.staged.has(p));
+      if (!inIndex) return 'none';
+      return paths.some((p) => index.unstaged.has(p)) ? 'some' : 'all';
+    };
     this.files = [
       ...changes.conflicted.map((p): CommitFile => ({ path: p, status: 'U', kind: 'conflict' })),
       ...changes.tracked
         .filter((c) => !conflicted.has(c.path))
-        .map((c): CommitFile => ({ path: c.path, oldPath: c.oldPath, status: c.status, kind: 'tracked' })),
-      ...changes.untracked.map((p): CommitFile => ({ path: p, status: '?', kind: 'untracked' })),
+        .map((c): CommitFile => ({
+          path: c.path,
+          oldPath: c.oldPath,
+          status: c.status,
+          kind: 'tracked',
+          staged: staged(c),
+        })),
+      ...changes.untracked.map((p): CommitFile => ({
+        path: p,
+        status: '?',
+        kind: 'untracked',
+        staged: index ? 'none' : undefined,
+      })),
     ];
-    this.post({ type: 'state', branch: head.branch, files: this.files, stashes });
+    this.post({ type: 'state', branch: head.branch, files: this.files, stashes, staging });
+  }
+
+  private async stage(paths: string[], value: boolean): Promise<void> {
+    const repository = this.repository;
+    if (!repository) return;
+    const files = this.files.filter((f) => paths.includes(f.path) && f.kind !== 'conflict');
+    await repository.stage(
+      files.flatMap((f) => (f.oldPath ? [f.path, f.oldPath] : [f.path])),
+      value,
+    );
+    this.repositories.notifyChanged(repository);
+    await this.refresh();
   }
 
   /** Every change of the working copy is one change set, so the diff arrows walk through all of them. */
@@ -185,7 +237,17 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
       'Откатить',
     );
     if (!ok) return;
-    for (const [filePath, keys] of parts) await repository.rollbackHunks(filePath, keys);
+    for (const [filePath, keys] of parts) {
+      if (keys.some((k) => k.startsWith('s:')))
+        throw new Error('Кусок уже в stage — сначала уберите его оттуда, потом откатывайте.');
+      if (keys.some((k) => k.startsWith('u:')))
+        await repository.rollbackHunks(
+          filePath,
+          keys.map((k) => k.slice(2)),
+          true,
+        );
+      else await repository.rollbackHunks(filePath, keys);
+    }
     await repository.rollback(tracked.flatMap((f) => (f.oldPath ? [f.path, f.oldPath] : [f.path])));
     for (const file of untracked) {
       await vscode.workspace.fs.delete(workingFileUri(repository.root, file.path), {
@@ -205,8 +267,20 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
       this.post({ type: 'hunks', path: filePath, hunks: [] });
       return;
     }
-    const patch = await repository.workingPatch(filePath);
-    this.post({ type: 'hunks', path: filePath, hunks: hunkViews(patch) });
+    if (!this.staging) {
+      const patch = await repository.workingPatch(filePath);
+      this.post({ type: 'hunks', path: filePath, hunks: hunkViews(patch) });
+      return;
+    }
+    const [staged, unstaged] = await Promise.all([
+      repository.stagedPatch(filePath),
+      repository.unstagedPatch(filePath),
+    ]);
+    const hunks = [
+      ...hunkViews(staged).map((h) => ({ ...h, key: `s:${h.key}`, staged: true })),
+      ...hunkViews(unstaged).map((h) => ({ ...h, key: `u:${h.key}`, staged: false })),
+    ].sort((a, b) => a.line - b.line);
+    this.post({ type: 'hunks', path: filePath, hunks });
   }
 
   private async commit(message: {
@@ -226,6 +300,7 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
       void vscode.window.showWarningMessage('Введите сообщение коммита.');
       return;
     }
+    if (this.staging) return this.commitIndex(repository, message);
     const selected = this.files.filter((f) => message.paths.includes(f.path));
     const partial = Object.keys(message.hunks).filter((p) => this.files.some((f) => f.path === p));
     if (selected.length === 0 && partial.length === 0 && !message.amend) {
@@ -247,6 +322,28 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
       this.repositories.notifyChanged(repository);
       const parts = partial.length ? `, частично ещё ${partial.length}` : '';
       vscode.window.setStatusBarMessage(`Kleio: закоммичено ${selected.length} файл(ов)${parts}`, 4000);
+      if (message.push) await this.dialogs.push(repository);
+    } finally {
+      this.post({ type: 'busy', value: false });
+      await this.refresh();
+    }
+  }
+
+  private async commitIndex(
+    repository: Repository,
+    message: { message: string; amend: boolean; push: boolean },
+  ): Promise<void> {
+    const staged = this.files.filter((f) => f.staged && f.staged !== 'none');
+    if (staged.length === 0 && !message.amend) {
+      void vscode.window.showWarningMessage('В stage ничего нет: отметьте файлы или куски для коммита.');
+      return;
+    }
+    this.post({ type: 'busy', value: true });
+    try {
+      await repository.commitIndex(message.message, message.amend);
+      this.post({ type: 'committed' });
+      this.repositories.notifyChanged(repository);
+      vscode.window.setStatusBarMessage(`Kleio: закоммичено ${staged.length} файл(ов) из stage`, 4000);
       if (message.push) await this.dialogs.push(repository);
     } finally {
       this.post({ type: 'busy', value: false });
