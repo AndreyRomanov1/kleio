@@ -262,6 +262,12 @@
         "icon": "$(repo-pull)"
       },
       {
+        "command": "kleio.git.undo",
+        "title": "%command.git.undo%",
+        "category": "Kleio",
+        "icon": "$(discard)"
+      },
+      {
         "command": "kleio.git.push",
         "title": "Push…",
         "category": "Kleio",
@@ -301,6 +307,16 @@
           "command": "kleio.git.push",
           "when": "view == kleio.commit",
           "group": "navigation@2"
+        },
+        {
+          "command": "kleio.git.undo",
+          "when": "view == kleio.log",
+          "group": "overflow@1"
+        },
+        {
+          "command": "kleio.git.undo",
+          "when": "view == kleio.commit",
+          "group": "overflow@1"
         }
       ],
       "editor/title": [

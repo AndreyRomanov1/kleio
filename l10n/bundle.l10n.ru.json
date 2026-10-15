@@ -561,5 +561,17 @@
   "Push tag": "Push тега",
   "Delete tag…": "Удалить тег…",
   "Cherry-pick {0} commits into the current branch": "Cherry-pick {0} коммитов в текущую ветку",
-  "Cherry-pick {0} commits": "Cherry-pick {0} коммитов"
+  "Cherry-pick {0} commits": "Cherry-pick {0} коммитов",
+  "Finish or abort the {0} first.": "Сначала завершите или прервите {0}.",
+  "The reflog has nothing to return to yet.": "В reflog пока не к чему возвращаться.",
+  "Before: {0}": "До: {0}",
+  "Return {0} to an earlier state": "Вернуть {0} в прежнее состояние",
+  "The latest actions first; the reflog keeps every state": "Сверху — последние действия; reflog хранит каждое состояние",
+  "Return {0} to {1}?": "Вернуть {0} на {1}?",
+  "Runs git reset --keep. Commits made after that stay in the reflog, so this can be undone the same way. Uncommitted changes are kept; if they are in the way, git refuses.": "Выполнится git reset --keep. Коммиты после этого состояния останутся в reflog, так что и это можно отменить тем же способом. Незакоммиченные изменения сохраняются; если они мешают, git откажет.",
+  "Return": "Вернуть",
+  "Kleio: {0} returned to {1}": "Kleio: {0} возвращена на {1}",
+  "{0} min ago": "{0} мин назад",
+  "{0} h ago": "{0} ч назад",
+  "{0} d ago": "{0} дн назад"
 }

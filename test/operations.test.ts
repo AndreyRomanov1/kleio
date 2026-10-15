@@ -153,6 +153,25 @@ describe('Repository operations', () => {
     expect(readFileSync(path.join(dir, 'a.txt'), 'utf8')).toBe('a changed\n');
   });
 
+  it('lists the reflog and returns the branch to an earlier state, keeping uncommitted changes', async () => {
+    const dir = init('reflog');
+    commitFile(dir, 'a.txt', 'a\n', 'a');
+    commitFile(dir, 'b.txt', 'b\n', 'b');
+    const before = git(dir, 'rev-parse', 'HEAD').trim();
+    git(dir, 'reset', '-q', '--hard', 'HEAD~1');
+    writeFileSync(path.join(dir, 'a.txt'), 'local\n');
+    const repository = (await Repository.open(dir))!;
+
+    const reflog = await repository.reflog();
+    expect(reflog[0].action).toMatch(/^reset: moving to HEAD~1/);
+    expect(reflog[1]).toMatchObject({ hash: before, subject: 'b' });
+    expect(reflog[1].date).toBeGreaterThan(0);
+
+    await repository.reset(reflog[1].hash, 'keep');
+    expect(git(dir, 'rev-parse', 'HEAD').trim()).toBe(before);
+    expect(readFileSync(path.join(dir, 'a.txt'), 'utf8')).toBe('local\n');
+  });
+
   it('cherry-picks several commits in the given order', async () => {
     const dir = init('pick-many');
     commitFile(dir, 'a.txt', 'a\n', 'a');

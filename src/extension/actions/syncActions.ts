@@ -247,6 +247,63 @@ export class SyncActions {
     }
   }
 
+  /**
+   * Undo through the reflog: the latest states of HEAD, and the branch is moved back to the chosen one with
+   * `reset --keep`, which keeps uncommitted changes and refuses when they are in the way.
+   */
+  async undo(repository: Repository): Promise<void> {
+    const [entries, head, state] = await Promise.all([
+      repository.reflog(),
+      repository.head(),
+      repository.operation(),
+    ]);
+    if (state) {
+      void vscode.window.showWarningMessage(t('Finish or abort the {0} first.', operationNames[state.kind]));
+      return;
+    }
+    if (entries.length < 2) {
+      void vscode.window.showInformationMessage(t('The reflog has nothing to return to yet.'));
+      return;
+    }
+    const now = Date.now() / 1000;
+    const items = entries.slice(1).map((entry, i) => ({
+      label: t('Before: {0}', entries[i].action),
+      description: `${shorten(entry.hash)} · ${ago(now - entry.date)}`,
+      detail: entry.subject,
+      entry,
+    }));
+    const branch = head.branch ?? 'HEAD';
+    const picked = await vscode.window.showQuickPick(items, {
+      title: t('Return {0} to an earlier state', branch),
+      placeHolder: t('The latest actions first; the reflog keeps every state'),
+      matchOnDescription: true,
+      matchOnDetail: true,
+    });
+    if (!picked) return;
+    const ok = await vscode.window.showWarningMessage(
+      t('Return {0} to {1}?', branch, shorten(picked.entry.hash)),
+      {
+        modal: true,
+        detail: t(
+          'Runs git reset --keep. Commits made after that stay in the reflog, so this can be undone the same way. Uncommitted changes are kept; if they are in the way, git refuses.',
+        ),
+      },
+      t('Return'),
+    );
+    if (!ok) return;
+    try {
+      await repository.reset(picked.entry.hash, 'keep');
+      vscode.window.setStatusBarMessage(
+        t('Kleio: {0} returned to {1}', branch, shorten(picked.entry.hash)),
+        4000,
+      );
+    } catch (error) {
+      report(error);
+    } finally {
+      this.repositories.notifyChanged(repository);
+    }
+  }
+
   private async operation(
     repository: Repository,
     title: string,
@@ -376,6 +433,13 @@ export class SyncActions {
 function report(error: unknown): void {
   const message = error instanceof Error ? error.message : String(error);
   void vscode.window.showErrorMessage(`Git: ${message}`);
+}
+
+/** A rough age: minutes, hours or days. */
+function ago(seconds: number): string {
+  if (seconds < 3600) return t('{0} min ago', Math.max(1, Math.round(seconds / 60)));
+  if (seconds < 86400) return t('{0} h ago', Math.round(seconds / 3600));
+  return t('{0} d ago', Math.round(seconds / 86400));
 }
 
 function shorten(revision: string): string {

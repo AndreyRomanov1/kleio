@@ -46,6 +46,16 @@ export interface WorkingChanges {
   conflicted: string[];
 }
 
+export interface ReflogEntry {
+  hash: string;
+  /** When HEAD moved there, unix seconds. */
+  date: number;
+  /** What moved it, e.g. `rebase (finish): returning to refs/heads/main`. */
+  action: string;
+  /** Subject of the commit HEAD pointed at. */
+  subject: string;
+}
+
 /**
  * How a merge, rebase or update ended. `stash-conflicts`: the operation itself is done, but the uncommitted
  * changes stashed for its time came back with conflicts, and their copy is left in the stash.
@@ -642,7 +652,24 @@ export class Repository {
     await this.git.run(['update-ref', '-m', `kleio: update ${branch}`, `refs/heads/${branch}`, to, from]);
   }
 
-  async reset(revision: string, mode: 'soft' | 'mixed' | 'hard'): Promise<void> {
+  /** The latest states of HEAD, newest first: where it pointed and what moved it there. */
+  async reflog(limit = 50): Promise<ReflogEntry[]> {
+    const output = await this.git.run(
+      ['log', '-g', `-n${limit}`, '--date=unix', '--format=%H%x1f%gd%x1f%gs%x1f%s%x1e', 'HEAD', '--'],
+      { allowExitCodes: [128] },
+    );
+    return output
+      .split(RECORD)
+      .map((record) => record.replace(/^\n/, ''))
+      .filter(Boolean)
+      .map((record) => {
+        const [hash, selector, action, subject] = record.split(FIELD);
+        const date = /\{(\d+)\}/.exec(selector)?.[1];
+        return { hash, date: date ? Number(date) : 0, action, subject: subject ?? '' };
+      });
+  }
+
+  async reset(revision: string, mode: 'soft' | 'mixed' | 'hard' | 'keep'): Promise<void> {
     await this.git.run(['reset', `--${mode}`, revision]);
   }
 
