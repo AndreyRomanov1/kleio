@@ -13,9 +13,11 @@
     changeSet: ChangeSetView;
     view: 'tree' | 'list';
     groupByDirectory: boolean;
+    /** Narrows the log to the commits changing a file; absent where there is no log to narrow. */
+    onfilterpath?: (path: string) => void;
   }
 
-  let { changeSet, view, groupByDirectory }: Props = $props();
+  let { changeSet, view, groupByDirectory, onfilterpath }: Props = $props();
   let collapsed = $state(new Set<string>());
   // The list is recreated for every change set, so only the initial focus matters.
   let selected = $state<number | undefined>(untrack(() => changeSet.focusIndex));
@@ -119,7 +121,7 @@
         ondblclick={() => open(index)}
         oncontextmenu={(e) => {
           selected = index;
-          menu.show(e, fileMenu(changeSet, index));
+          menu.show(e, fileMenu(changeSet, index, onfilterpath));
         }}
       >
         <span class="status s{change.status}" title={statusTitle[change.status]}>{change.status}</span>

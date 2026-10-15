@@ -5,6 +5,7 @@ import * as path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { UNCOMMITTED } from '../src/extension/git/parse';
 import { Repository, WORKTREE } from '../src/extension/git/repository';
+import type { LogQuery } from '../src/shared/model';
 
 let work: string;
 
@@ -362,5 +363,39 @@ describe('Repository', () => {
 
     const history = await repository.folderHistory('src');
     expect(history.commits.map((c) => c.subject)).toEqual(['change src', 'add src']);
+  });
+
+  it('filters the log by author, paths and changed text the way git does', async () => {
+    const dir = path.join(work, 'query');
+    git(work, 'init', '-q', '-b', 'main', dir);
+    mkdirSync(path.join(dir, 'src'));
+    commitFile(dir, 'README.md', 'readme\n', 'readme');
+    commitFile(dir, 'src/a.ts', 'function parse() {}\n', 'add parse');
+    commitFile(dir, 'README.md', 'readme 2\n', 'readme again');
+    execFileSync('git', ['commit', '-q', '--allow-empty', '-m', 'by someone else'], {
+      cwd: dir,
+      env: {
+        ...process.env,
+        GIT_AUTHOR_NAME: 'Ann (QA)',
+        GIT_AUTHOR_EMAIL: 'ann@x',
+        GIT_COMMITTER_NAME: 'T',
+        GIT_COMMITTER_EMAIL: 't@x',
+      },
+    });
+    commitFile(dir, 'src/a.ts', 'function parseAll() {}\n', 'rename parse');
+    const repository = (await Repository.open(dir))!;
+    const subjects = async (query: LogQuery) =>
+      (await repository.snapshot({ query })).commits.map((c) => c.subject);
+
+    // Brackets are taken literally, not as a regular expression.
+    expect(await subjects({ authors: ['ann (qa)'] })).toEqual(['by someone else']);
+    // Where the text appeared and where it disappeared.
+    expect(await subjects({ changes: 'function parse()' })).toEqual(['rename parse', 'add parse']);
+    expect(await subjects({ changes: 'parse\\w+', changesRegex: true })).toEqual(['rename parse']);
+
+    const byPath = (await repository.snapshot({ query: { paths: ['src'] } })).commits;
+    expect(byPath.map((c) => c.subject)).toEqual(['rename parse', 'add parse']);
+    // Parents are rewritten to the shown commits, so the graph stays connected.
+    expect(byPath[0].parents).toEqual([byPath[1].hash]);
   });
 });

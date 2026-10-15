@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { RepositorySnapshot } from '../../shared/model';
+import type { LogQuery, RepositorySnapshot } from '../../shared/model';
 import type { ChangeSetView, HostMessage, WebviewMessage } from '../../shared/protocol';
 import type { GitActions } from '../actions/gitActions';
 import type { SyncActions } from '../actions/syncActions';
@@ -59,6 +59,7 @@ export class LogController implements vscode.Disposable {
   private nextChangeSetId = 1;
   private loadVersion = 0;
   private logLimit = LOG_PAGE;
+  private query: LogQuery = {};
   private readonly disposables: vscode.Disposable[] = [];
 
   constructor(
@@ -79,6 +80,7 @@ export class LogController implements vscode.Disposable {
         if (this.history || repository === this.repository) return;
         this.repository = repository;
         this.logLimit = LOG_PAGE;
+        this.query = {};
         void this.load();
       }),
       services.hosting.onDidChange(() => void this.loadHosting(true)),
@@ -211,11 +213,16 @@ export class LogController implements vscode.Disposable {
         if (!repository) return;
         this.repository = repository;
         this.logLimit = LOG_PAGE;
+        this.query = {};
         this.services.repositories.setCurrent(repository);
         return this.load();
       }
       case 'setFocus':
         await this.setStored(FOCUS_KEY, message.revisions);
+        return this.load();
+      case 'setQuery':
+        this.query = message.query;
+        this.logLimit = LOG_PAGE;
         return this.load();
       case 'toggleFavorite': {
         const favorites = this.stored(FAVORITES_KEY);
@@ -291,6 +298,7 @@ export class LogController implements vscode.Disposable {
         : await this.repository.snapshot({
             revisions: await this.existingRevisions(this.stored(FOCUS_KEY)),
             limit: this.logLimit,
+            query: this.query,
           });
       if (version !== this.loadVersion) return;
       this.snapshot = snapshot;
@@ -385,6 +393,7 @@ export class LogController implements vscode.Disposable {
       repositories: this.services.repositories.all.map((r) => ({ root: r.root, name: r.name })),
       snapshot: this.snapshot,
       focus: this.history ? [] : this.stored(FOCUS_KEY),
+      query: this.history ? {} : this.query,
       favorites: this.stored(FAVORITES_KEY),
       history: this.history ? { title: this.history.title } : undefined,
     });

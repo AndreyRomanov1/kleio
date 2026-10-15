@@ -6,10 +6,12 @@
   import MergeRequestCard from './components/MergeRequestCard.svelte';
   import OperationBanner from './components/OperationBanner.svelte';
   import Details from './components/Details.svelte';
+  import LogFilters from './components/LogFilters.svelte';
   import Splitter from './components/Splitter.svelte';
   import { LogStore } from './store.svelte';
   import { loadUiState, post, saveUiState, type UiState } from './vscode';
   import { t } from '../shared/l10n';
+  import { isEmptyQuery } from '../shared/model';
 
   const store = new LogStore();
   let ui = $state<UiState>(loadUiState());
@@ -31,6 +33,14 @@
     bottom: { next: 'auto', icon: 'layout-panel', title: t('Details: at the bottom') },
   } as const;
   const collapsed = $derived(new Set(ui.collapsed));
+  let filtersOpen = $state(false);
+  const queryCount = $derived(
+    Object.entries(store.query).filter(([key, value]) => key !== 'changesRegex' && value?.length).length,
+  );
+  // A filter set from a menu shows the bar, so that it is clear why commits are missing.
+  $effect(() => {
+    if (!isEmptyQuery(store.query)) filtersOpen = true;
+  });
 
   $effect(() => {
     saveUiState($state.snapshot(ui));
@@ -158,6 +168,16 @@
         onclick={focusCurrent}>{t('Current only')}</button
       >
     {/if}
+    {#if !store.history}
+      <button
+        class="tool"
+        class:on={filtersOpen || queryCount > 0}
+        title={t('Filter by author, date, paths and changed text')}
+        onclick={() => (filtersOpen = !filtersOpen)}
+        ><i class="codicon codicon-filter"></i>
+        {queryCount ? t('Filters: {0}', queryCount) : t('Filters')}</button
+      >
+    {/if}
     <span class="spacer"></span>
     {#if store.loading}<i class="loading codicon codicon-loading codicon-modifier-spin"></i>{/if}
     {#if store.hosting?.api === 'needsAuth' && !store.history}
@@ -197,6 +217,9 @@
     >
   </div>
 
+  {#if filtersOpen && !store.history}
+    <LogFilters {store} onclose={() => (filtersOpen = false)} />
+  {/if}
   {#if store.snapshot?.operation && !store.history}
     <OperationBanner {store} operation={store.snapshot.operation} />
   {/if}

@@ -91,6 +91,29 @@ export interface OperationState {
   conflicted: string[];
 }
 
+/** Filters of the log that git applies, as opposed to the text search over the loaded commits. */
+export interface LogQuery {
+  /** Parts of author names or emails; a commit by any of them passes. */
+  authors?: string[];
+  /** Dates as git takes them: `2026-01-31`, `2 weeks ago`. */
+  since?: string;
+  until?: string;
+  /** Paths relative to the repository root; commits touching any of them pass. */
+  paths?: string[];
+  /** Text added or removed by the commit (`git log -S`), or a regular expression of changed lines (`-G`). */
+  changes?: string;
+  changesRegex?: boolean;
+}
+
+/** Whether the query keeps commits whose neighbours are hidden, so that the graph has no lines to draw. */
+export function breaksGraph(query: LogQuery): boolean {
+  return !!(query.authors?.length || query.since || query.until || query.changes);
+}
+
+export function isEmptyQuery(query: LogQuery): boolean {
+  return !breaksGraph(query) && !query.paths?.length;
+}
+
 export interface RepositorySnapshot {
   root: string;
   head: Head;

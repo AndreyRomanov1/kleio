@@ -98,7 +98,14 @@
       {/if}
     </div>
     {#key details.changeSet.id}
-      <FileList changeSet={details.changeSet} view={fileView} {groupByDirectory} />
+      <FileList
+        changeSet={details.changeSet}
+        view={fileView}
+        {groupByDirectory}
+        onfilterpath={store.history
+          ? undefined
+          : (path) => post({ type: 'setQuery', query: { ...store.query, paths: [path] } })}
+      />
     {/key}
   {/if}
 </div>

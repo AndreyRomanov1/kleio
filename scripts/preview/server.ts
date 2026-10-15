@@ -10,6 +10,7 @@
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import * as path from 'node:path';
+import type { LogQuery } from '../../src/shared/model';
 import type { CommitFile, CommitHostMessage, CommitWebviewMessage } from '../../src/shared/commitProtocol';
 import type { HostMessage, WebviewMessage } from '../../src/shared/protocol';
 import type { PushHostMessage, PushWebviewMessage } from '../../src/shared/pushProtocol';
@@ -128,6 +129,7 @@ const page = readFileSync(path.resolve(__dirname, '../../scripts/preview/index.h
   );
 
 let focus: string[] = [];
+let query: LogQuery = {};
 let favorites: string[] = [];
 let changeSetId = 0;
 let lastCommit: CommitWebviewMessage | undefined;
@@ -287,15 +289,17 @@ async function handle(repository: Repository, message: WebviewMessage): Promise<
     case 'ready':
     case 'refresh':
     case 'setFocus':
+    case 'setQuery':
     case 'toggleFavorite': {
       if (message.type === 'setFocus') focus = message.revisions;
+      if (message.type === 'setQuery') query = message.query;
       if (message.type === 'toggleFavorite') {
         favorites = favorites.includes(message.fullName)
           ? favorites.filter((f) => f !== message.fullName)
           : [...favorites, message.fullName];
       }
       const started = Date.now();
-      const snapshot = await repository.snapshot({ revisions: focus });
+      const snapshot = await repository.snapshot({ revisions: focus, query });
       console.log(`snapshot: ${snapshot.commits.length} commits in ${Date.now() - started} ms`);
       return [
         await hostingMessage(repository),
@@ -304,6 +308,7 @@ async function handle(repository: Repository, message: WebviewMessage): Promise<
           repositories: [{ root: repository.root, name: repository.name }],
           snapshot,
           focus,
+          query,
           favorites,
         },
       ];

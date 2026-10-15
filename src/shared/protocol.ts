@@ -1,4 +1,4 @@
-import type { CommitDetails, FileChange, RepositorySnapshot } from './model';
+import type { CommitDetails, FileChange, LogQuery, RepositorySnapshot } from './model';
 
 export interface RepositoryInfo {
   root: string;
@@ -167,6 +167,7 @@ export type HostMessage =
       repositories: RepositoryInfo[];
       snapshot: RepositorySnapshot;
       focus: string[];
+      query: LogQuery;
       favorites: string[];
       /** Set when the view shows the history of a file or of lines instead of the whole log. */
       history?: { title: string };
@@ -202,6 +203,7 @@ export type WebviewMessage =
   | { type: 'operation'; action: 'continue' | 'skip' | 'abort' | 'resolve' }
   | { type: 'selectRepository'; root: string }
   | { type: 'setFocus'; revisions: string[] }
+  | { type: 'setQuery'; query: LogQuery }
   | { type: 'toggleFavorite'; fullName: string }
   /** Hashes in log order, newest first. */
   | { type: 'selectCommits'; requestId: number; hashes: string[] }

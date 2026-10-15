@@ -9,6 +9,7 @@
   import GraphCell from './GraphCell.svelte';
   import RefBadges from './RefBadges.svelte';
   import { t } from '../../shared/l10n';
+  import { breaksGraph, isEmptyQuery } from '../../shared/model';
 
   interface Props {
     store: LogStore;
@@ -168,7 +169,9 @@
               height={ROW_HEIGHT}
               isHead={commit.hash === headHash}
               isMerge={commit.parents.length > 1}
-              dotOnly={store.filtered !== undefined || store.history !== undefined}
+              dotOnly={store.filtered !== undefined ||
+                store.history !== undefined ||
+                breaksGraph(store.query)}
             />
             {#if decorations || store.hosting?.mergeRequests[commit.hash]}<RefBadges
                 hash={commit.hash}
@@ -190,7 +193,9 @@
       {/each}
     </div>
     {#if store.rowCount === 0 && !store.loading}
-      <div class="empty">{store.filterText ? t('Nothing found') : t('No commits')}</div>
+      <div class="empty">
+        {store.filterText || !isEmptyQuery(store.query) ? t('Nothing found') : t('No commits')}
+      </div>
     {/if}
   </div>
 </div>

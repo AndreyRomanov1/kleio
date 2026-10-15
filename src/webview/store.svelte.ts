@@ -1,5 +1,14 @@
 import { layoutGraph, type GraphLayout } from '../shared/graph';
-import type { Commit, CommitDetails, Ref, RepositorySnapshot, Stash, Worktree } from '../shared/model';
+import {
+  isEmptyQuery,
+  type Commit,
+  type CommitDetails,
+  type LogQuery,
+  type Ref,
+  type RepositorySnapshot,
+  type Stash,
+  type Worktree,
+} from '../shared/model';
 import type {
   ChangeSetView,
   HostingView,
@@ -33,6 +42,8 @@ export class LogStore {
   repositories = $state.raw<RepositoryInfo[]>([]);
   snapshot = $state.raw<RepositorySnapshot | undefined>(undefined);
   focus = $state.raw<string[]>([]);
+  /** Filters git applied to the loaded log. */
+  query = $state.raw<LogQuery>({});
   favorites = $state.raw<string[]>([]);
   hosting = $state.raw<HostingView | undefined>(undefined);
   card = $state.raw<CardState | undefined>(undefined);
@@ -138,6 +149,7 @@ export class LogStore {
         this.snapshot = message.snapshot;
         this.morePending = false;
         this.focus = message.focus;
+        this.query = message.query;
         this.favorites = message.favorites;
         this.history = message.history?.title;
         this.afterSnapshot();
@@ -228,7 +240,8 @@ export class LogStore {
       this.revealRequest++;
     } else {
       this.pendingReveal = hash;
-      // The commit may be hidden by the focus on branches: show everything to find it.
+      // The commit may be hidden by the focus on branches or by the filters: show everything to find it.
+      if (!isEmptyQuery(this.query)) post({ type: 'setQuery', query: {} });
       if (this.focus.length) post({ type: 'setFocus', revisions: [] });
     }
   }
@@ -319,13 +332,17 @@ export class LogStore {
       if (kept.length !== this.selected.size) this.select(new Set(kept));
       return;
     }
-    // The log starts at HEAD; a history view starts at its latest commit.
+    // The log starts at HEAD; a history view, or a log whose filters hide HEAD, at its latest commit.
     const head = this.snapshot?.head.hash;
-    const start = this.history ? this.snapshot?.commits[0]?.hash : head;
-    if (start && this.indexByHash.has(start)) {
+    const start =
+      !this.history && head && this.indexByHash.has(head) ? head : this.snapshot?.commits[0]?.hash;
+    if (start) {
       this.anchor = start;
       this.select(new Set([start]));
       this.revealRequest++;
+    } else {
+      this.selected = new Set();
+      this.details = undefined;
     }
   }
 }

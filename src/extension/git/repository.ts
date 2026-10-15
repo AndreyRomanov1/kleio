@@ -5,6 +5,7 @@ import type {
   CommitDetails,
   FileChange,
   Head,
+  LogQuery,
   OperationKind,
   OperationState,
   Ref,
@@ -70,6 +71,22 @@ export interface LogFilter {
   revisions?: string[];
   /** At most this many newest commits. */
   limit?: number;
+  query?: LogQuery;
+}
+
+/**
+ * Path filters keep the graph connected: `--parents` makes git rewrite parents to the nearest shown commits.
+ * `--fixed-strings` makes authors match literally and leaves the regular expression of `-G` alone.
+ */
+export function queryArgs(query: LogQuery): string[] {
+  const args: string[] = [];
+  for (const author of query.authors ?? []) args.push(`--author=${author}`);
+  if (query.authors?.length) args.push('--fixed-strings', '--regexp-ignore-case');
+  if (query.since) args.push(`--since=${query.since}`);
+  if (query.until) args.push(`--until=${query.until}`);
+  if (query.changes) args.push(query.changesRegex ? `-G${query.changes}` : `-S${query.changes}`);
+  if (query.paths?.length) args.push('--parents');
+  return args;
 }
 
 export class Repository {
@@ -115,8 +132,10 @@ export class Repository {
         '--date-order',
         `--format=${LOG_FORMAT}`,
         ...(filter.limit ? [`-n${filter.limit + 1}`] : []),
+        ...queryArgs(filter.query ?? {}),
         ...revisions,
         '--',
+        ...(filter.query?.paths ?? []),
       ]),
       this.git.run(['for-each-ref', `--format=${REF_FORMAT}`]),
       this.head(),

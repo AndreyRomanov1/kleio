@@ -24,6 +24,15 @@ export function commitMenu(commit: Commit, store: LogStore): MenuEntry[] {
     ...(branchEntries.length ? (['separator'] as const) : []),
     { label: t('Copy hash'), run: action({ type: 'commitAction', action: 'copyHash', hash }) },
     { label: t('Copy subject'), run: action({ type: 'commitAction', action: 'copySubject', hash }) },
+    ...(store.history
+      ? []
+      : [
+          {
+            label: t('Show only commits by {0}', commit.authorName),
+            icon: 'filter',
+            run: () => post({ type: 'setQuery', query: { ...store.query, authors: [commit.authorEmail] } }),
+          },
+        ]),
     { label: t('Save as patch…'), run: action({ type: 'commitAction', action: 'savePatch', hash }) },
     'separator',
     {
@@ -360,7 +369,11 @@ export function worktreeMenu(worktree: Worktree): MenuEntry[] {
   ];
 }
 
-export function fileMenu(changeSet: ChangeSetView, index: number): MenuEntry[] {
+export function fileMenu(
+  changeSet: ChangeSetView,
+  index: number,
+  onfilterpath?: (path: string) => void,
+): MenuEntry[] {
   const run =
     (action: 'openDiff' | 'openCurrent' | 'openRevision' | 'compareWithWorktree' | 'copyPath') => () =>
       post({ type: 'fileAction', action, changeSetId: changeSet.id, index });
@@ -371,6 +384,15 @@ export function fileMenu(changeSet: ChangeSetView, index: number): MenuEntry[] {
     { label: t('Open the version of the revision'), run: run('openRevision') },
     { label: t('Compare with the working tree'), run: run('compareWithWorktree') },
     'separator',
+    ...(onfilterpath && changeSet.files[index]
+      ? [
+          {
+            label: t('Show only commits changing this file'),
+            icon: 'filter',
+            run: () => onfilterpath(changeSet.files[index].path),
+          },
+        ]
+      : []),
     { label: t('Copy path'), run: run('copyPath') },
   ];
 }
