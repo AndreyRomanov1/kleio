@@ -8,6 +8,7 @@ import { WORKTREE, type Repository } from '../git/repository';
 import type { RepositoryManager } from '../git/repositoryManager';
 import { hunkViews } from '../git/patch';
 import { renderHtml, webviewOptions } from '../webviewHtml';
+import { t } from '../../shared/l10n';
 
 const VIEW_TYPE = 'kleio.commit';
 const REFRESH_DELAY_MS = 500;
@@ -204,7 +205,7 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
     }
     const changeSet: ChangeSet = {
       repository,
-      title: 'Локальные изменения',
+      title: t('Local changes'),
       left: 'HEAD',
       right: WORKTREE,
       files,
@@ -221,25 +222,27 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
     const tracked = selected.filter((f) => f.kind !== 'untracked');
     const pieces = parts.reduce((sum, [, keys]) => sum + keys.length, 0);
     const detail = [
-      tracked.length ? `Изменения в ${tracked.length} файл(ах) будут отменены.` : '',
+      tracked.length ? t('Changes in {0} file(s) will be discarded.', tracked.length) : '',
       parts.length
-        ? `Будут отменены ${pieces} кусок(ков) в ${parts.length} файл(ах), остальные правки останутся.`
+        ? t('{0} hunk(s) in {1} file(s) will be discarded, other changes stay.', pieces, parts.length)
         : '',
-      untracked.length ? `${untracked.length} неотслеживаемых файл(ов) уйдут в корзину.` : '',
+      untracked.length ? t('{0} untracked file(s) will go to the trash.', untracked.length) : '',
     ]
       .filter(Boolean)
       .join('\n');
     const all = [...selected.map((f) => f.path), ...parts.map(([p]) => p)];
-    const names = all.length <= 5 ? all.map((p) => path.basename(p)).join(', ') : `${all.length} файлов`;
+    const names = all.length <= 5 ? all.map((p) => path.basename(p)).join(', ') : t('{0} files', all.length);
     const ok = await vscode.window.showWarningMessage(
-      parts.length && !selected.length ? `Откатить ${pieces} кусок(ков) в ${names}?` : `Откатить ${names}?`,
+      parts.length && !selected.length
+        ? t('Roll back {0} hunk(s) in {1}?', pieces, names)
+        : t('Roll back {0}?', names),
       { modal: true, detail },
-      'Откатить',
+      t('Roll back'),
     );
     if (!ok) return;
     for (const [filePath, keys] of parts) {
       if (keys.some((k) => k.startsWith('s:')))
-        throw new Error('Кусок уже в stage — сначала уберите его оттуда, потом откатывайте.');
+        throw new Error(t('The hunk is staged: unstage it first, then roll it back.'));
       if (keys.some((k) => k.startsWith('u:')))
         await repository.rollbackHunks(
           filePath,
@@ -293,18 +296,18 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
     const repository = this.repository;
     if (!repository) return;
     if (this.files.some((f) => f.kind === 'conflict')) {
-      void vscode.window.showWarningMessage('Сначала разрешите конфликты.');
+      void vscode.window.showWarningMessage(t('Resolve the conflicts first.'));
       return;
     }
     if (!message.message.trim()) {
-      void vscode.window.showWarningMessage('Введите сообщение коммита.');
+      void vscode.window.showWarningMessage(t('Enter a commit message.'));
       return;
     }
     if (this.staging) return this.commitIndex(repository, message);
     const selected = this.files.filter((f) => message.paths.includes(f.path));
     const partial = Object.keys(message.hunks).filter((p) => this.files.some((f) => f.path === p));
     if (selected.length === 0 && partial.length === 0 && !message.amend) {
-      void vscode.window.showWarningMessage('Отметьте файлы для коммита.');
+      void vscode.window.showWarningMessage(t('Check the files to commit.'));
       return;
     }
     this.post({ type: 'busy', value: true });
@@ -320,8 +323,12 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
       });
       this.post({ type: 'committed' });
       this.repositories.notifyChanged(repository);
-      const parts = partial.length ? `, частично ещё ${partial.length}` : '';
-      vscode.window.setStatusBarMessage(`Kleio: закоммичено ${selected.length} файл(ов)${parts}`, 4000);
+      vscode.window.setStatusBarMessage(
+        partial.length
+          ? t('Kleio: committed {0} file(s) and parts of {1} more', selected.length, partial.length)
+          : t('Kleio: committed {0} file(s)', selected.length),
+        4000,
+      );
       if (message.push) await this.dialogs.push(repository);
     } finally {
       this.post({ type: 'busy', value: false });
@@ -335,7 +342,7 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
   ): Promise<void> {
     const staged = this.files.filter((f) => f.staged && f.staged !== 'none');
     if (staged.length === 0 && !message.amend) {
-      void vscode.window.showWarningMessage('В stage ничего нет: отметьте файлы или куски для коммита.');
+      void vscode.window.showWarningMessage(t('Nothing is staged: check files or hunks to commit.'));
       return;
     }
     this.post({ type: 'busy', value: true });
@@ -343,7 +350,7 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
       await repository.commitIndex(message.message, message.amend);
       this.post({ type: 'committed' });
       this.repositories.notifyChanged(repository);
-      vscode.window.setStatusBarMessage(`Kleio: закоммичено ${staged.length} файл(ов) из stage`, 4000);
+      vscode.window.setStatusBarMessage(t('Kleio: committed {0} staged file(s)', staged.length), 4000);
       if (message.push) await this.dialogs.push(repository);
     } finally {
       this.post({ type: 'busy', value: false });
@@ -384,9 +391,9 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
         break;
       case 'drop': {
         const ok = await vscode.window.showWarningMessage(
-          `Удалить ${selector}?`,
-          { modal: true, detail: 'Спрятанные изменения пропадут.' },
-          'Удалить',
+          t('Drop {0}?', selector),
+          { modal: true, detail: t('The stashed changes will be lost.') },
+          t('Drop'),
         );
         if (!ok) return;
         await repository.stashDrop(selector);

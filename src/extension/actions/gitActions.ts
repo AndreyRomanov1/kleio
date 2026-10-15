@@ -7,6 +7,7 @@ import { GitError } from '../git/gitRunner';
 import type { Repository } from '../git/repository';
 import type { RepositoryManager } from '../git/repositoryManager';
 import type { SyncActions } from './syncActions';
+import { t } from '../../shared/l10n';
 
 /** What git says when local changes would be lost by a checkout. */
 const OVERWRITTEN = /would be overwritten by checkout|untracked working tree files would be overwritten/;
@@ -59,7 +60,7 @@ export class GitActions {
       const title =
         behind === 0
           ? `Checkout ${localName}`
-          : `Checkout ${localName} и подтянуть ${behind} коммит(ов) из ${remote.name}`;
+          : t('Checkout {0} and pull {1} commit(s) from {2}', localName, behind, remote.name);
       await this.run(repository, title, ['checkout', '-B', localName, remote.name]);
       return;
     }
@@ -67,12 +68,27 @@ export class GitActions {
     const unique = await repository.uniqueCommits(remote.name, local.name);
     const detail =
       unique.length === 0
-        ? `Все ${ahead} локальных коммитов есть в ${remote.name} в другом виде (ветку перебазировали) — сброс ничего не потеряет.`
-        : `${unique.length} из ${ahead} локальных коммитов нет в ${remote.name}. После сброса их можно найти только через reflog.`;
-    const reset = 'Сбросить на ' + remote.name;
-    const keep = 'Переключиться на локальную';
+        ? t(
+            'All {0} local commits are in {1} in another form (the branch was rebased): the reset loses nothing.',
+            ahead,
+            remote.name,
+          )
+        : t(
+            '{0} of {1} local commits are not in {2}. After the reset they can be found only in the reflog.',
+            unique.length,
+            ahead,
+            remote.name,
+          );
+    const reset = t('Reset to {0}', remote.name);
+    const keep = t('Check out the local one');
     const choice = await vscode.window.showWarningMessage(
-      `Локальная ветка ${localName} разошлась с ${remote.name}: ${ahead} своих, ${behind} новых в origin.`,
+      t(
+        'Local branch {0} has diverged from {1}: {2} own commits, {3} new ones on the remote.',
+        localName,
+        remote.name,
+        ahead,
+        behind,
+      ),
       { modal: true, detail },
       reset,
       keep,
@@ -101,13 +117,20 @@ export class GitActions {
     if (target === here.branch) return false;
     if (snapshot.worktrees.some((w) => w.branch === target && !w.isCurrent)) return false;
 
-    const inMain = 'Переключить в основной папке';
-    const inHere = 'Переключить этот worktree';
+    const inMain = t('Check out in the main folder');
+    const inHere = t('Check out in this worktree');
     const choice = await vscode.window.showInformationMessage(
-      `Это worktree ветки ${here.branch ?? '(без ветки)'}. Переключиться на ${target} в основной папке проекта?`,
+      t(
+        'This is the worktree of {0}. Check out {1} in the main folder of the project?',
+        here.branch ?? t('(no branch)'),
+        target,
+      ),
       {
         modal: true,
-        detail: `Основная папка: ${main.path}. Checkout выполнится там, и она откроется в этом окне, а worktree останется при своей ветке.`,
+        detail: t(
+          'Main folder: {0}. The checkout runs there and it opens in this window; the worktree keeps its branch.',
+          main.path,
+        ),
       },
       inMain,
       inHere,
@@ -149,11 +172,11 @@ export class GitActions {
         .replace(/\$\{branch\}/g, branch.replace(/[\\/:*?"<>|\s]+/g, '-')),
     );
     const target = await vscode.window.showInputBox({
-      title: `Worktree для ${branch}`,
-      prompt: 'Папка нового worktree',
+      title: t('Worktree for {0}', branch),
+      prompt: t('Folder of the new worktree'),
       value: suggested,
       valueSelection: [suggested.length - path.basename(suggested).length, suggested.length],
-      validateInput: (value) => (existsSync(value) ? 'Такая папка уже есть' : undefined),
+      validateInput: (value) => (existsSync(value) ? t('This folder already exists') : undefined),
     });
     if (!target) return;
     const local = snapshot.refs.some((r) => r.kind === 'head' && r.name === branch);
@@ -172,10 +195,12 @@ export class GitActions {
       await copyFile(from, to);
       copied.push(file);
     }
-    const newWindow = 'Открыть в новом окне';
-    const thisWindow = 'Открыть в этом окне';
+    const newWindow = t('Open in a new window');
+    const thisWindow = t('Open in this window');
     const choice = await vscode.window.showInformationMessage(
-      `Worktree ${path.basename(target)} создан${copied.length ? `, скопировано: ${copied.join(', ')}` : ''}.`,
+      copied.length
+        ? t('Worktree {0} is created, copied: {1}.', path.basename(target), copied.join(', '))
+        : t('Worktree {0} is created.', path.basename(target)),
       newWindow,
       thisWindow,
     );
@@ -188,13 +213,13 @@ export class GitActions {
 
   /** A branch checked out in another worktree cannot be checked out here; its worktree can be opened instead. */
   private async offerWorktree(branch: string, worktreePath: string): Promise<void> {
-    const newWindow = 'Открыть в новом окне';
-    const thisWindow = 'Открыть в этом окне';
+    const newWindow = t('Open in a new window');
+    const thisWindow = t('Open in this window');
     const choice = await vscode.window.showInformationMessage(
-      `Ветка ${branch} открыта в worktree ${worktreePath}.`,
+      t('Branch {0} is checked out in worktree {1}.', branch, worktreePath),
       {
         modal: true,
-        detail: 'Одна ветка не может быть выбрана в двух worktree сразу — работать с ней нужно там.',
+        detail: t('A branch cannot be checked out in two worktrees at once: work with it there.'),
       },
       newWindow,
       thisWindow,
@@ -207,42 +232,42 @@ export class GitActions {
 
   async checkoutRevision(repository: Repository, revision: string): Promise<void> {
     const ok = await vscode.window.showWarningMessage(
-      `Переключиться на ${shorten(revision)} без ветки (detached HEAD)?`,
+      t('Check out {0} without a branch (detached HEAD)?', shorten(revision)),
       { modal: true },
-      'Переключиться',
+      t('Check out'),
     );
     if (ok) await this.run(repository, `Checkout ${shorten(revision)}`, ['checkout', '--detach', revision]);
   }
 
   async createBranch(repository: Repository, startPoint: string, suggestedName = ''): Promise<void> {
     const name = await vscode.window.showInputBox({
-      title: `Новая ветка от ${shorten(startPoint)}`,
+      title: t('New branch from {0}', shorten(startPoint)),
       value: suggestedName,
-      prompt: 'Имя ветки',
+      prompt: t('Branch name'),
       validateInput: (value) => validateRefName(repository, 'branch', value),
     });
     if (!name) return;
-    const checkout = 'Создать и переключиться';
-    const only = 'Только создать';
-    const choice = await vscode.window.showQuickPick([checkout, only], { title: `Ветка ${name}` });
+    const checkout = t('Create and check out');
+    const only = t('Create only');
+    const choice = await vscode.window.showQuickPick([checkout, only], { title: t('Branch {0}', name) });
     if (!choice) return;
     const args = choice === checkout ? ['checkout', '-b', name, startPoint] : ['branch', name, startPoint];
-    await this.run(repository, `Ветка ${name}`, args);
+    await this.run(repository, t('Branch {0}', name), args);
   }
 
   async createTag(repository: Repository, revision: string): Promise<void> {
     const name = await vscode.window.showInputBox({
-      title: `Новый тег на ${shorten(revision)}`,
-      prompt: 'Имя тега',
+      title: t('New tag at {0}', shorten(revision)),
+      prompt: t('Tag name'),
       validateInput: (value) => validateRefName(repository, 'tag', value),
     });
-    if (name) await this.run(repository, `Тег ${name}`, ['tag', name, revision]);
+    if (name) await this.run(repository, t('Tag {0}', name), ['tag', name, revision]);
   }
 
   async deleteBranch(repository: Repository, snapshot: RepositorySnapshot, ref: Ref): Promise<void> {
     if (ref.kind !== 'head') return;
     if (snapshot.head.branch === ref.name) {
-      void vscode.window.showWarningMessage(`Нельзя удалить текущую ветку ${ref.name}.`);
+      void vscode.window.showWarningMessage(t('The current branch {0} cannot be deleted.', ref.name));
       return;
     }
     const worktree = snapshot.worktrees.find((w) => w.branch === ref.name && !w.isCurrent);
@@ -251,9 +276,9 @@ export class GitActions {
       if (!removed) return;
     } else {
       const ok = await vscode.window.showWarningMessage(
-        `Удалить локальную ветку ${ref.name}?`,
+        t('Delete local branch {0}?', ref.name),
         { modal: true },
-        'Удалить',
+        t('Delete'),
       );
       if (!ok) return;
     }
@@ -264,11 +289,11 @@ export class GitActions {
       if (!(error instanceof GitError) || !error.stderr.includes('not fully merged'))
         return this.report(error);
       const force = await vscode.window.showWarningMessage(
-        `Ветка ${ref.name} не влита ни в одну ветку. Всё равно удалить?`,
-        { modal: true, detail: 'Коммиты останутся доступны только через reflog.' },
-        'Удалить',
+        t('Branch {0} is not merged into any branch. Delete it anyway?', ref.name),
+        { modal: true, detail: t('Its commits will be reachable only through the reflog.') },
+        t('Delete'),
       );
-      if (force) await this.run(repository, `Удаление ${ref.name}`, ['branch', '-D', ref.name]);
+      if (force) await this.run(repository, t('Deleting {0}', ref.name), ['branch', '-D', ref.name]);
     }
   }
 
@@ -279,9 +304,13 @@ export class GitActions {
     worktreePath: string,
   ): Promise<boolean> {
     const ok = await vscode.window.showWarningMessage(
-      `Ветка ${branch} открыта в worktree ${worktreePath}. Удалить worktree и ветку?`,
-      { modal: true, detail: `Папка ${worktreePath} будет удалена с диска.` },
-      'Удалить worktree и ветку',
+      t(
+        'Branch {0} is checked out in worktree {1}. Delete the worktree and the branch?',
+        branch,
+        worktreePath,
+      ),
+      { modal: true, detail: t('Folder {0} will be deleted from the disk.', worktreePath) },
+      t('Delete the worktree and the branch'),
     );
     if (!ok) return false;
     try {
@@ -294,9 +323,9 @@ export class GitActions {
       }
     }
     const force = await vscode.window.showWarningMessage(
-      `В worktree ${worktreePath} есть незакоммиченные изменения. Удалить вместе с ними?`,
-      { modal: true, detail: 'Изменения и неотслеживаемые файлы в этой папке пропадут безвозвратно.' },
-      'Удалить с изменениями',
+      t('Worktree {0} has uncommitted changes. Delete it with them?', worktreePath),
+      { modal: true, detail: t('Changes and untracked files in this folder will be lost for good.') },
+      t('Delete with the changes'),
     );
     if (!force) return false;
     try {
@@ -314,22 +343,27 @@ export class GitActions {
     const remote = ref.name.slice(0, slash);
     const branch = ref.name.slice(slash + 1);
     const ok = await vscode.window.showWarningMessage(
-      `Удалить ветку ${branch} в ${remote}?`,
+      t('Delete branch {0} on {1}?', branch, remote),
       {
         modal: true,
-        detail: `Выполнится git push ${remote} --delete ${branch}. Ветка пропадёт на сервере для всех; локальная ветка ${branch}, если есть, останется.`,
+        detail: t(
+          'Runs git push {0} --delete {1}. The branch disappears from the server for everyone; the local branch {1}, if any, stays.',
+          remote,
+          branch,
+        ),
       },
-      'Удалить в ' + remote,
+      t('Delete on {0}', remote),
     );
-    if (ok) await this.run(repository, `Удаление ${ref.name}`, ['push', remote, '--delete', branch], true);
+    if (ok)
+      await this.run(repository, t('Deleting {0}', ref.name), ['push', remote, '--delete', branch], true);
   }
 
   async revert(repository: Repository, hash: string, parents: string[]): Promise<void> {
     const args = ['revert', '--no-edit'];
     if (parents.length > 1) {
       const picked = await vscode.window.showQuickPick(
-        parents.map((p, i) => ({ label: `Родитель ${i + 1}`, description: shorten(p), number: i + 1 })),
-        { title: 'Merge-коммит: относительно какого родителя отменять?' },
+        parents.map((p, i) => ({ label: t('Parent {0}', i + 1), description: shorten(p), number: i + 1 })),
+        { title: t('Merge commit: revert relative to which parent?') },
       );
       if (!picked) return;
       args.push('-m', String(picked.number));
@@ -367,7 +401,7 @@ export class GitActions {
       } else {
         await task();
       }
-      vscode.window.setStatusBarMessage(`Kleio: ${title} — готово`, 3000);
+      vscode.window.setStatusBarMessage(t('Kleio: {0} — done', title), 3000);
       return true;
     } catch (error) {
       if (args[0] === 'checkout' && error instanceof GitError && OVERWRITTEN.test(error.stderr)) {
@@ -384,11 +418,12 @@ export class GitActions {
    */
   private async smartCheckout(repository: Repository, title: string, args: string[]): Promise<boolean> {
     const ok = await vscode.window.showWarningMessage(
-      'Локальные изменения мешают переключению.',
+      t('Local changes are in the way of the checkout.'),
       {
         modal: true,
-        detail:
-          'Smart checkout: изменения будут спрятаны в stash, ветка переключится, и изменения вернутся поверх неё. Если при возврате будут конфликты, stash останется в списке.',
+        detail: t(
+          'Smart checkout: the changes are stashed, the branch is checked out, and the changes come back on top of it. If they come back with conflicts, the stash stays in the list.',
+        ),
       },
       'Smart checkout',
     );
@@ -415,10 +450,13 @@ export class GitActions {
     }
     try {
       await repository.git.run(['stash', 'pop']);
-      vscode.window.setStatusBarMessage(`Kleio: ${title} — изменения перенесены`, 4000);
+      vscode.window.setStatusBarMessage(t('Kleio: {0} — the changes are carried over', title), 4000);
     } catch {
       void vscode.window.showWarningMessage(
-        `${title}: изменения вернулись с конфликтами. Разрешите их; спрятанная копия осталась в stash.`,
+        t(
+          '{0}: the changes came back with conflicts. Resolve them; the stashed copy stays in the stash.',
+          title,
+        ),
       );
     }
     this.repositories.notifyChanged(repository);
@@ -449,13 +487,13 @@ async function validateRefName(
   kind: 'branch' | 'tag',
   value: string,
 ): Promise<string | undefined> {
-  if (!value.trim()) return 'Имя не может быть пустым';
+  if (!value.trim()) return t('The name cannot be empty');
   const prefix = kind === 'branch' ? 'refs/heads/' : 'refs/tags/';
   try {
     await repository.git.run(['check-ref-format', `${prefix}${value}`]);
   } catch {
-    return 'Недопустимое имя для git';
+    return t('Not a valid git name');
   }
   const exists = await repository.revParse(`${prefix}${value}`);
-  return exists ? 'Такое имя уже есть' : undefined;
+  return exists ? t('This name is taken') : undefined;
 }

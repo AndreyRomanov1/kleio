@@ -4,6 +4,7 @@
   import { post } from '../vscode';
   import FileList from './FileList.svelte';
   import LinkedText from './LinkedText.svelte';
+  import { t } from '../../shared/l10n';
 
   interface Props {
     store: LogStore;
@@ -22,7 +23,7 @@
 
 <div class="details">
   {#if !details}
-    <div class="placeholder">Выберите коммит</div>
+    <div class="placeholder">{t('Select a commit')}</div>
   {:else}
     <div class="info">
       {#if single}
@@ -39,18 +40,20 @@
         <div class="meta">
           <button
             class="hash"
-            title="Копировать хэш"
+            title={t('Copy hash')}
             onclick={() => post({ type: 'commitAction', action: 'copyHash', hash: single.hash })}
             >{shortHash(single.hash)}</button
           >
           <span>{single.authorName} &lt;{single.authorEmail}&gt;</span>
           <span>{formatFullDate(single.authorDate)}</span>
           {#if single.committerEmail !== single.authorEmail || single.commitDate !== single.authorDate}
-            <span class="dim">коммит: {single.committerName}, {formatFullDate(single.commitDate)}</span>
+            <span class="dim"
+              >{t('committed by {0}, {1}', single.committerName, formatFullDate(single.commitDate))}</span
+            >
           {/if}
           {#if single.parents.length}
             <span class="parents">
-              {single.parents.length > 1 ? 'родители' : 'родитель'}:
+              {single.parents.length > 1 ? t('parents:') : t('parent:')}
               {#each single.parents as parent (parent)}
                 <button class="link" onclick={() => store.reveal(parent)}>{shortHash(parent)}</button>
               {/each}
@@ -60,7 +63,7 @@
       {:else}
         <div class="subject">{details.changeSet.title}</div>
         <div class="meta">
-          <span>{details.commits.length} коммит(ов), изменения {details.changeSet.range}</span>
+          <span>{t('{0} commits, changes {1}', details.commits.length, details.changeSet.range)}</span>
           {#each details.commits as commit (commit.hash)}
             <button class="link commit" onclick={() => store.reveal(commit.hash)}>
               {shortHash(commit.hash)}
@@ -71,20 +74,26 @@
       {/if}
     </div>
     <div class="files-toolbar">
-      <span class="count">{details.changeSet.files.length} файл(ов)</span>
+      <span class="count">{t('{0} file(s)', details.changeSet.files.length)}</span>
       <span class="spacer"></span>
-      <button class="toggle" class:on={fileView === 'tree'} title="Деревом" onclick={() => onview('tree')}
-        >Дерево</button
+      <button
+        class="toggle"
+        class:on={fileView === 'tree'}
+        title={t('As a tree')}
+        onclick={() => onview('tree')}>{t('Tree')}</button
       >
-      <button class="toggle" class:on={fileView === 'list'} title="Списком" onclick={() => onview('list')}
-        >Список</button
+      <button
+        class="toggle"
+        class:on={fileView === 'list'}
+        title={t('As a list')}
+        onclick={() => onview('list')}>{t('List')}</button
       >
       {#if fileView === 'list'}
         <button
           class="toggle"
           class:on={groupByDirectory}
-          title="Группировать по папкам"
-          onclick={() => ongroup(!groupByDirectory)}>По папкам</button
+          title={t('Group by folder')}
+          onclick={() => ongroup(!groupByDirectory)}>{t('By folder')}</button
         >
       {/if}
     </div>

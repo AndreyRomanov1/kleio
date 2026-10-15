@@ -2,6 +2,7 @@
   import type { OperationState } from '../../shared/model';
   import type { LogStore } from '../store.svelte';
   import { post } from '../vscode';
+  import { t } from '../../shared/l10n';
 
   interface Props {
     store: LogStore;
@@ -24,15 +25,15 @@
     switch (operation.kind) {
       case 'rebase': {
         const step =
-          operation.step && operation.total ? ` · шаг ${operation.step} из ${operation.total}` : '';
-        return `Идёт rebase ${operation.branch ?? 'HEAD'} на ${target}${step}`;
+          operation.step && operation.total ? t(' · step {0} of {1}', operation.step, operation.total) : '';
+        return t('Rebasing {0} onto {1}', operation.branch ?? 'HEAD', target) + step;
       }
       case 'merge':
-        return `Идёт merge ${target}${current ? ` в ${current}` : ''}`;
+        return current ? t('Merging {0} into {1}', target, current) : t('Merging {0}', target);
       case 'cherry-pick':
-        return `Идёт cherry-pick ${target}`;
+        return t('Cherry-picking {0}', target);
       case 'revert':
-        return `Идёт revert ${target}`;
+        return t('Reverting {0}', target);
     }
   });
 
@@ -44,30 +45,30 @@
   <i class="codicon codicon-{conflicts ? 'warning' : 'debug-pause'}"></i>
   <span class="text">{text}</span>
   {#if conflicts}
-    <span class="detail">· конфликтов: {conflicts}</span>
+    <span class="detail">· {t('conflicts: {0}', conflicts)}</span>
   {:else if operation.stoppedAt}
-    <span class="detail">· остановлен на {operation.stoppedAt.slice(0, 8)}</span>
+    <span class="detail">· {t('stopped at {0}', operation.stoppedAt.slice(0, 8))}</span>
   {/if}
   <span class="spacer"></span>
   {#if conflicts}
     <button class="primary" onclick={() => post({ type: 'operation', action: 'resolve' })}
-      >Разрешить конфликты</button
+      >{t('Resolve conflicts')}</button
     >
   {/if}
   <button
     class:primary={!conflicts}
     title="git {operation.kind} --continue"
-    onclick={() => post({ type: 'operation', action: 'continue' })}>Продолжить</button
+    onclick={() => post({ type: 'operation', action: 'continue' })}>{t('Continue')}</button
   >
   {#if canSkip}
     <button
-      title="Пропустить текущий коммит: git {operation.kind} --skip"
-      onclick={() => post({ type: 'operation', action: 'skip' })}>Пропустить</button
+      title={t('Skip the current commit: git {0} --skip', operation.kind)}
+      onclick={() => post({ type: 'operation', action: 'skip' })}>{t('Skip')}</button
     >
   {/if}
   <button
-    title="Вернуть всё как было до начала: git {operation.kind} --abort"
-    onclick={() => post({ type: 'operation', action: 'abort' })}>Прервать</button
+    title={t('Return everything to where it was before: git {0} --abort', operation.kind)}
+    onclick={() => post({ type: 'operation', action: 'abort' })}>{t('Abort')}</button
   >
 </div>
 

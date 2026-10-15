@@ -12,6 +12,7 @@ import type { Repository } from '../git/repository';
 import type { RepositoryManager } from '../git/repositoryManager';
 import { renderHtml, webviewOptions } from '../webviewHtml';
 import { matchesBranchPattern, pushArgs, readPushState } from './pushState';
+import { t } from '../../shared/l10n';
 
 const PANEL_TYPE = 'kleio.push';
 const PUSH_TIMEOUT_MS = 120_000;
@@ -91,7 +92,7 @@ export class PushDialog implements vscode.Disposable {
     if (!repository) return;
     const state = await readPushState(repository, this.focusBranch, isProtected);
     if (state.remotes.length === 0) {
-      this.post({ type: 'error', message: 'У репозитория нет remote — пушить некуда.' });
+      this.post({ type: 'error', message: t('The repository has no remote to push to.') });
       return;
     }
     this.branches = state.branches;
@@ -106,7 +107,10 @@ export class PushDialog implements vscode.Disposable {
       if (request.force && isProtected(request.target)) {
         this.post({
           type: 'error',
-          message: `Force push в ${request.target} запрещён настройкой kleio.push.protectedBranches.`,
+          message: t(
+            'Force push to {0} is forbidden by the kleio.push.protectedBranches setting.',
+            request.target,
+          ),
         });
         return;
       }
@@ -146,12 +150,12 @@ export class PushDialog implements vscode.Disposable {
     const summary = requests.map((r) => r.branch).join(', ');
     const url = messages.map((m) => /https?:\/\/\S+/.exec(m)?.[0]).find((u) => u !== undefined);
     if (!url) {
-      vscode.window.setStatusBarMessage(`Kleio: push ${summary} — готово`, 5000);
+      vscode.window.setStatusBarMessage(t('Kleio: push {0} — done', summary), 5000);
       return;
     }
-    const open = /merge_requests\/new/.test(url) ? 'Создать MR' : 'Открыть ссылку';
+    const open = /merge_requests\/new/.test(url) ? t('Create merge request') : t('Open link');
     const choice = await vscode.window.showInformationMessage(
-      `Push ${summary} — готово. ${messages.join(' ')}`,
+      t('Push {0} — done. {1}', summary, messages.join(' ')),
       open,
     );
     if (choice) await vscode.env.openExternal(vscode.Uri.parse(url));
@@ -186,9 +190,14 @@ function explain(error: unknown): string {
   if (!(error instanceof GitError)) return error instanceof Error ? error.message : String(error);
   const text = error.stderr;
   if (/stale info/.test(text))
-    return 'Отклонено: ветку на сервере обновили после того, как открылся этот диалог (force-with-lease). Обновите и посмотрите, что пришло.';
+    return t(
+      'Rejected: the branch on the server was updated after this dialog opened (force-with-lease). Update and look at what came.',
+    );
   if (/non-fast-forward|fetch first|\[rejected\]/.test(text))
-    return 'Отклонено: на сервере есть коммиты, которых нет локально. Обновите ветку или, если она перебазирована, включите force-with-lease.';
-  if (/protected branch|pre-receive hook declined/.test(text)) return `Сервер отклонил push: ${text.trim()}`;
+    return t(
+      'Rejected: the server has commits that are not here. Update the branch or, if it was rebased, turn on force-with-lease.',
+    );
+  if (/protected branch|pre-receive hook declined/.test(text))
+    return t('The server rejected the push: {0}', text.trim());
   return text.trim() || error.message;
 }

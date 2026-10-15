@@ -12,6 +12,7 @@ import { emptyUri, revisionUri, workingFileUri } from '../content/revisionUri';
 import type { Repository } from '../git/repository';
 import type { RepositoryManager } from '../git/repositoryManager';
 import { renderHtml, webviewOptions } from '../webviewHtml';
+import { t } from '../../shared/l10n';
 
 const PANEL_TYPE = 'kleio.conflicts';
 const MARKERS = /^(<{7}|>{7}) /m;
@@ -59,7 +60,7 @@ export class ConflictsWindow implements vscode.Disposable {
       await this.load();
       return;
     }
-    const panel = vscode.window.createWebviewPanel(PANEL_TYPE, 'Конфликты', vscode.ViewColumn.Active, {
+    const panel = vscode.window.createWebviewPanel(PANEL_TYPE, t('Conflicts'), vscode.ViewColumn.Active, {
       ...webviewOptions(this.context.extensionUri),
       retainContextWhenHidden: true,
     });
@@ -144,8 +145,8 @@ export class ConflictsWindow implements vscode.Disposable {
       title: state
         ? await this.describeOperation(repository, state)
         : files.length
-          ? 'Возврат незакоммиченных изменений, спрятанных на время операции'
-          : 'Нет идущей операции',
+          ? t('Bringing back uncommitted changes stashed for the operation')
+          : t('No operation in progress'),
       sides: this.sides,
       files,
     });
@@ -190,9 +191,9 @@ export class ConflictsWindow implements vscode.Disposable {
     const text = new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
     if (MARKERS.test(text)) {
       const ok = await vscode.window.showWarningMessage(
-        'В файле остались маркеры конфликта. Всё равно отметить как разрешённый?',
+        t('The file still has conflict markers. Mark it resolved anyway?'),
         { modal: true },
-        'Отметить',
+        t('Mark resolved'),
       );
       if (!ok) return;
     }
@@ -208,7 +209,7 @@ export class ConflictsWindow implements vscode.Disposable {
     const state = await repository.operation();
     if (left > 0) {
       if (relative)
-        vscode.window.setStatusBarMessage(`Kleio: ${relative} — конфликт разрешён, осталось ${left}`, 5000);
+        vscode.window.setStatusBarMessage(t('Kleio: {0} is resolved, {1} left', relative, left), 5000);
     } else if (state) {
       this.offerToContinue(repository, state.kind);
     } else {
@@ -221,10 +222,12 @@ export class ConflictsWindow implements vscode.Disposable {
   private offerToDropAutostash(repository: Repository): void {
     void repository.stashes().then((stashes) => {
       if (!stashes.some((s) => s.message === 'autostash')) return;
-      const drop = 'Удалить копию';
+      const drop = t('Drop the copy');
       void vscode.window
         .showInformationMessage(
-          'Конфликты незакоммиченных изменений разрешены. Их копия осталась в stash («autostash») — удалить её?',
+          t(
+            'Conflicts of the uncommitted changes are resolved. Their copy stays in the stash ("autostash"). Drop it?',
+          ),
           drop,
         )
         .then(async (choice) => {
@@ -237,8 +240,8 @@ export class ConflictsWindow implements vscode.Disposable {
 
   /** Offers to go on once no conflicts are left; not awaited, so the command that resolved them returns. */
   private offerToContinue(repository: Repository, kind: OperationState['kind']): void {
-    const next = `Продолжить ${operationNames[kind]}`;
-    void vscode.window.showInformationMessage('Все конфликты разрешены.', next).then(async (choice) => {
+    const next = t('Continue {0}', operationNames[kind]);
+    void vscode.window.showInformationMessage(t('All conflicts are resolved.'), next).then(async (choice) => {
       if (choice === next) await this.sync.continueOperation(repository, kind);
     });
   }
@@ -249,22 +252,26 @@ export class ConflictsWindow implements vscode.Disposable {
   ): Promise<ConflictSides> {
     const head = await repository.head();
     const current = head.branch ?? 'HEAD';
-    if (!state) return { ours: `${current} (после операции)`, theirs: 'Незакоммиченные изменения (stash)' };
+    if (!state)
+      return { ours: t('{0} (after the operation)', current), theirs: t('Uncommitted changes (stash)') };
     const onto = await this.name(repository, state.onto);
     switch (state.kind) {
       case 'merge':
         return { ours: current, theirs: onto };
       case 'rebase': {
         if (!state.stoppedAt)
-          return { ours: `${onto} (база rebase)`, theirs: state.branch ?? 'применяемый коммит' };
+          return { ours: t('{0} (rebase base)', onto), theirs: state.branch ?? t('the applied commit') };
         const applied = await this.commit(repository, state.stoppedAt);
         // A subject usually starts with the ticket the branch is named after; the branch is not repeated then.
         const branch = state.branch && !applied.includes(state.branch) ? `${state.branch} · ` : '';
-        return { ours: `${onto} (база rebase)`, theirs: `${branch}${applied}` };
+        return { ours: t('{0} (rebase base)', onto), theirs: `${branch}${applied}` };
       }
       case 'cherry-pick':
       case 'revert':
-        return { ours: current, theirs: state.onto ? await this.commit(repository, state.onto) : 'коммит' };
+        return {
+          ours: current,
+          theirs: state.onto ? await this.commit(repository, state.onto) : t('commit'),
+        };
     }
   }
 
@@ -272,11 +279,11 @@ export class ConflictsWindow implements vscode.Disposable {
     const onto = await this.name(repository, state.onto);
     switch (state.kind) {
       case 'rebase': {
-        const step = state.step && state.total ? ` · шаг ${state.step} из ${state.total}` : '';
-        return `Rebase ${state.branch ?? 'HEAD'} на ${onto}${step}`;
+        const step = state.step && state.total ? t(' · step {0} of {1}', state.step, state.total) : '';
+        return t('Rebase {0} onto {1}', state.branch ?? 'HEAD', onto) + step;
       }
       case 'merge':
-        return `Merge ${onto} в ${(await repository.head()).branch ?? 'HEAD'}`;
+        return t('Merge {0} into {1}', onto, (await repository.head()).branch ?? 'HEAD');
       case 'cherry-pick':
         return `Cherry-pick ${onto}`;
       case 'revert':

@@ -4,6 +4,8 @@ import { parseRevisionUri, REVISION_SCHEME, revisionUri } from '../content/revis
 import { UNCOMMITTED, type BlameLine } from '../git/parse';
 import type { Repository } from '../git/repository';
 import type { RepositoryManager } from '../git/repositoryManager';
+import { t } from '../../shared/l10n';
+import { displayLanguage } from '../language';
 
 const CONTEXT_KEY = 'kleio.blameActive';
 const REFRESH_DELAY_MS = 600;
@@ -87,7 +89,7 @@ export class BlameAnnotations implements vscode.Disposable {
     if (!document) return;
     const target = await this.targetFor(document.uri);
     if (!target) {
-      void vscode.window.showWarningMessage('Файл не в git-репозитории.');
+      void vscode.window.showWarningMessage(t('The file is not in a git repository.'));
       return;
     }
     try {
@@ -97,7 +99,7 @@ export class BlameAnnotations implements vscode.Disposable {
       this.updateContext();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      void vscode.window.showWarningMessage(`Blame недоступен: ${message}`);
+      void vscode.window.showWarningMessage(t('Blame is not available: {0}', message));
     }
   }
 
@@ -122,7 +124,7 @@ export class BlameAnnotations implements vscode.Disposable {
     const blame = known ? [known] : await this.blame(target, editor.document).catch(() => []);
     const hit = blame.find((l) => l.line === line);
     if (!hit || hit.commit.hash === UNCOMMITTED) {
-      vscode.window.setStatusBarMessage('Kleio: строка ещё не закоммичена', 3000);
+      vscode.window.setStatusBarMessage(t('Kleio: the line is not committed yet'), 3000);
       return;
     }
     await this.links.revealInLog(hit.commit.hash);
@@ -147,7 +149,9 @@ export class BlameAnnotations implements vscode.Disposable {
     );
     const previous = annotation?.lines.find((l) => l.commit.hash === args.hash)?.commit.previous;
     if (!previous) {
-      void vscode.window.showInformationMessage('Строка появилась в этом коммите — предыдущей ревизии нет.');
+      void vscode.window.showInformationMessage(
+        t('The line appeared in this commit: there is no previous revision.'),
+      );
       return;
     }
     const uri = revisionUri(repository.root, previous.hash, previous.filename);
@@ -213,7 +217,7 @@ export class BlameAnnotations implements vscode.Disposable {
         renderOptions: {
           before: {
             contentText: uncommitted
-              ? pad('не закоммичено')
+              ? pad(t('not committed'))
               : pad(`${shortDate(commit.authorTime)} ${shortAuthor(commit.author)}`),
             backgroundColor: uncommitted
               ? 'rgba(80, 200, 120, 0.25)'
@@ -229,7 +233,7 @@ export class BlameAnnotations implements vscode.Disposable {
     const markdown = new vscode.MarkdownString(undefined, true);
     markdown.isTrusted = { enabledCommands: LINK_COMMANDS };
     if (commit.hash === UNCOMMITTED) {
-      markdown.appendMarkdown('**Не закоммичено**');
+      markdown.appendMarkdown(`**${t('Not committed')}**`);
       return markdown;
     }
     const link = (title: string, command: string, args: unknown) =>
@@ -240,17 +244,19 @@ export class BlameAnnotations implements vscode.Disposable {
       `${escape(commit.author)} <${escape(commit.authorMail)}>, ${fullDate(commit.authorTime)} · \`${commit.hash.slice(0, 8)}\`\n\n`,
     );
     if (commit.filename !== target.path)
-      markdown.appendMarkdown(`Тогда файл назывался \`${commit.filename.replace(/`/g, "'")}\`\n\n`);
+      markdown.appendMarkdown(
+        t('The file was named `{0}` then', commit.filename.replace(/`/g, "'")) + '\n\n',
+      );
     markdown.appendMarkdown(
       [
-        link('$(git-commit) Показать в логе', 'kleio.blame.revealInLog', commit.hash),
-        link('$(diff) Diff коммита', 'kleio.blame.showCommit', {
+        link(`$(git-commit) ${t('Show in log')}`, 'kleio.blame.revealInLog', commit.hash),
+        link(`$(diff) ${t('Commit diff')}`, 'kleio.blame.showCommit', {
           root,
           hash: commit.hash,
           path: commit.filename,
         }),
         commit.previous
-          ? link('$(history) Предыдущая ревизия', 'kleio.blame.annotatePrevious', {
+          ? link(`$(history) ${t('Previous revision')}`, 'kleio.blame.annotatePrevious', {
               root,
               hash: commit.hash,
               path: commit.filename,
@@ -295,15 +301,22 @@ export class BlameAnnotations implements vscode.Disposable {
   }
 }
 
-const dateFormat = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' });
-const fullDateFormat = new Intl.DateTimeFormat('ru-RU', { dateStyle: 'long', timeStyle: 'short' });
+let formats: { short: Intl.DateTimeFormat; full: Intl.DateTimeFormat } | undefined;
+
+/** Made on first use: the language is known only after activation. */
+function dateFormats(): { short: Intl.DateTimeFormat; full: Intl.DateTimeFormat } {
+  return (formats ??= {
+    short: new Intl.DateTimeFormat(displayLanguage(), { day: '2-digit', month: '2-digit', year: '2-digit' }),
+    full: new Intl.DateTimeFormat(displayLanguage(), { dateStyle: 'long', timeStyle: 'short' }),
+  });
+}
 
 function shortDate(unixSeconds: number): string {
-  return dateFormat.format(new Date(unixSeconds * 1000));
+  return dateFormats().short.format(new Date(unixSeconds * 1000));
 }
 
 function fullDate(unixSeconds: number): string {
-  return fullDateFormat.format(new Date(unixSeconds * 1000));
+  return dateFormats().full.format(new Date(unixSeconds * 1000));
 }
 
 function shortAuthor(author: string): string {

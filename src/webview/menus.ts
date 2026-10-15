@@ -4,6 +4,7 @@ import type { ChangeSetView } from '../shared/protocol';
 import type { MenuEntry } from './menu.svelte';
 import type { LogStore } from './store.svelte';
 import { post } from './vscode';
+import { t } from '../shared/l10n';
 
 const refIcons: Record<Ref['kind'], string> = { head: 'git-branch', remote: 'cloud', tag: 'tag' };
 
@@ -21,41 +22,41 @@ export function commitMenu(commit: Commit, store: LogStore): MenuEntry[] {
   return [
     ...branchEntries,
     ...(branchEntries.length ? (['separator'] as const) : []),
-    { label: 'Копировать хэш', run: action({ type: 'commitAction', action: 'copyHash', hash }) },
-    { label: 'Копировать заголовок', run: action({ type: 'commitAction', action: 'copySubject', hash }) },
+    { label: t('Copy hash'), run: action({ type: 'commitAction', action: 'copyHash', hash }) },
+    { label: t('Copy subject'), run: action({ type: 'commitAction', action: 'copySubject', hash }) },
     'separator',
     {
-      label: 'Checkout ревизии (без ветки)',
+      label: t('Checkout revision (no branch)'),
       run: action({ type: 'commitAction', action: 'checkout', hash }),
     },
-    { label: 'Новая ветка…', run: action({ type: 'commitAction', action: 'newBranch', hash }) },
-    { label: 'Новый тег…', run: action({ type: 'commitAction', action: 'newTag', hash }) },
+    { label: t('New branch…'), run: action({ type: 'commitAction', action: 'newBranch', hash }) },
+    { label: t('New tag…'), run: action({ type: 'commitAction', action: 'newTag', hash }) },
     'separator',
     ...rewriteEntries(commit, store),
     'separator',
     {
-      label: 'Cherry-pick в текущую',
+      label: t('Cherry-pick into the current branch'),
       disabled: store.decorations.get(hash)?.isHead,
       run: action({ type: 'commitAction', action: 'cherryPick', hash }),
     },
-    { label: 'Revert коммита', run: action({ type: 'commitAction', action: 'revert', hash }) },
+    { label: t('Revert commit'), run: action({ type: 'commitAction', action: 'revert', hash }) },
     {
-      label: `Reset ${store.snapshot?.head.branch ?? 'HEAD'} сюда…`,
+      label: t('Reset {0} to here…', store.snapshot?.head.branch ?? 'HEAD'),
       run: action({ type: 'commitAction', action: 'reset', hash }),
     },
     'separator',
     {
-      label: 'Сравнить с рабочей копией',
+      label: t('Compare with the working tree'),
       run: action({ type: 'commitAction', action: 'compareWithWorktree', hash }),
     },
     ...hostingEntries(store, [
       {
-        label: `Открыть в ${store.hosting?.name}`,
+        label: t('Open in {0}', store.hosting?.name ?? ''),
         icon: 'link-external',
         run: action({ type: 'commitAction', action: 'openInHosting', hash }),
       },
       {
-        label: `Копировать ссылку на ${store.hosting?.name}`,
+        label: t('Copy {0} link', store.hosting?.name ?? ''),
         run: action({ type: 'commitAction', action: 'copyHostingLink', hash }),
       },
     ]),
@@ -76,13 +77,13 @@ function rewriteEntries(commit: Commit, store: LogStore): MenuEntry[] {
     const allOurs = ours && selection.every((h) => store.headAncestors.has(h));
     return [
       {
-        label: `Объединить ${selection.length} коммита(ов)…`,
+        label: t('Squash {0} commits…', selection.length),
         icon: 'fold',
         disabled: !allOurs,
         run: () => post({ type: 'commitsAction', action: 'squash', hashes: selection }),
       },
       {
-        label: `Удалить ${selection.length} коммита(ов)…`,
+        label: t('Drop {0} commits…', selection.length),
         disabled: !allOurs,
         run: () => post({ type: 'commitsAction', action: 'drop', hashes: selection }),
       },
@@ -90,24 +91,24 @@ function rewriteEntries(commit: Commit, store: LogStore): MenuEntry[] {
   }
   return [
     {
-      label: 'Interactive rebase отсюда…',
+      label: t('Interactive rebase from here…'),
       icon: 'git-pull-request-draft',
       disabled: !ours || merge,
       run: action({ type: 'commitAction', action: 'interactiveRebase', hash }),
     },
     {
-      label: 'Изменить сообщение…',
+      label: t('Edit message…'),
       icon: 'edit',
       disabled: !ours || merge,
       run: action({ type: 'commitAction', action: 'reword', hash }),
     },
     {
-      label: 'Объединить с предыдущим (fixup)',
+      label: t('Meld into the previous one (fixup)'),
       disabled: !ours || merge || commit.parents.length === 0,
       run: action({ type: 'commitAction', action: 'fixupIntoParent', hash }),
     },
     {
-      label: 'Удалить коммит…',
+      label: t('Drop commit…'),
       disabled: !ours || merge,
       run: () => post({ type: 'commitsAction', action: 'drop', hashes: [hash] }),
     },
@@ -132,12 +133,12 @@ export function refMenu(ref: Ref, store: LogStore): MenuEntry[] {
   const entries: MenuEntry[] = worktree
     ? [
         {
-          label: `Открыть worktree ${worktree.path.split(/[\\/]/).pop()} в новом окне`,
+          label: t('Open worktree {0} in a new window', worktree.path.split(/[\\/]/).pop() ?? ''),
           icon: 'empty-window',
           run: () => post({ type: 'openWorktree', path: worktree.path, newWindow: true }),
         },
         {
-          label: 'Открыть worktree в этом окне',
+          label: t('Open the worktree in this window'),
           run: () => post({ type: 'openWorktree', path: worktree.path, newWindow: false }),
         },
         'separator',
@@ -145,28 +146,31 @@ export function refMenu(ref: Ref, store: LogStore): MenuEntry[] {
     : [];
   entries.push(
     {
-      label: ref.kind === 'remote' ? 'Checkout (локальная ветка = origin)' : 'Checkout',
+      label: ref.kind === 'remote' ? t('Checkout (local branch = remote)') : 'Checkout',
       disabled: isCurrent || !!worktree,
       run: run({ type: 'refAction', action: 'checkout', fullName }),
     },
     {
-      label: 'Checkout в новый worktree…',
+      label: t('Checkout into a new worktree…'),
       icon: 'new-folder',
       disabled: isCurrent || !!worktree || ref.kind === 'tag',
       run: run({ type: 'refAction', action: 'checkoutToWorktree', fullName }),
     },
-    { label: 'Новая ветка отсюда…', run: run({ type: 'refAction', action: 'newBranch', fullName }) },
+    { label: t('New branch from here…'), run: run({ type: 'refAction', action: 'newBranch', fullName }) },
     'separator',
     ...syncEntries(ref, store, isCurrent),
     'separator',
     {
-      label: 'Сравнить с текущей',
+      label: t('Compare with the current branch'),
       disabled: isCurrent,
       run: run({ type: 'refAction', action: 'showDiffWithCurrent', fullName }),
     },
   );
   if (ref.kind === 'remote' || ref.upstream) {
-    entries.push({ label: 'Fetch ветки', run: run({ type: 'refAction', action: 'fetchBranch', fullName }) });
+    entries.push({
+      label: t('Fetch branch'),
+      run: run({ type: 'refAction', action: 'fetchBranch', fullName }),
+    });
   }
   const mergeRequest = store.hosting?.mergeRequests[ref.hash]?.[0];
   const defaultBranch = store.hosting?.defaultBranch;
@@ -178,7 +182,7 @@ export function refMenu(ref: Ref, store: LogStore): MenuEntry[] {
     entries.push(
       'separator',
       ...branchLinks.map((link): MenuEntry => ({
-        label: `Открыть ${link.text}`,
+        label: t('Open {0}', link.text),
         icon: 'link-external',
         run: () => post({ type: 'openUrl', url: link.url! }),
       })),
@@ -190,26 +194,26 @@ export function refMenu(ref: Ref, store: LogStore): MenuEntry[] {
         ...(mergeRequest
           ? [
               {
-                label: `Ревью MR !${mergeRequest}`,
+                label: t('Review merge request !{0}', mergeRequest),
                 icon: 'eye',
                 run: () => post({ type: 'startReview', number: mergeRequest }),
               },
               {
-                label: `Открыть MR !${mergeRequest}`,
+                label: t('Open merge request !{0}', mergeRequest),
                 icon: 'git-pull-request',
                 run: () => post({ type: 'openMergeRequest', number: mergeRequest }),
               },
             ]
           : [
               {
-                label: 'Создать MR…',
+                label: t('Create merge request…'),
                 icon: 'git-pull-request-create',
                 disabled: isDefault,
                 run: run({ type: 'refAction', action: 'createMergeRequest', fullName }),
               },
             ]),
         {
-          label: `Открыть в ${store.hosting?.name}`,
+          label: t('Open in {0}', store.hosting?.name ?? ''),
           icon: 'link-external',
           // A local branch is on the server when it tracks one or a remote branch of the same name exists.
           disabled:
@@ -226,27 +230,27 @@ export function refMenu(ref: Ref, store: LogStore): MenuEntry[] {
   entries.push(
     'separator',
     {
-      label: favorite ? 'Убрать из избранного' : 'В избранное',
+      label: favorite ? t('Remove from favorites') : t('Add to favorites'),
       run: () => post({ type: 'toggleFavorite', fullName }),
     },
     {
-      label: focused ? 'Убрать из фокуса' : 'Добавить в фокус',
+      label: focused ? t('Remove from focus') : t('Add to focus'),
       run: () => toggleFocus(store, ref.name),
     },
-    { label: 'Показать только эту ветку', run: () => post({ type: 'setFocus', revisions: [ref.name] }) },
+    { label: t('Show only this branch'), run: () => post({ type: 'setFocus', revisions: [ref.name] }) },
     'separator',
-    { label: 'Копировать имя', run: run({ type: 'refAction', action: 'copyName', fullName }) },
+    { label: t('Copy name'), run: run({ type: 'refAction', action: 'copyName', fullName }) },
   );
   if (ref.kind === 'head') {
     entries.push({
-      label: 'Удалить ветку…',
+      label: t('Delete branch…'),
       disabled: isCurrent,
       run: run({ type: 'refAction', action: 'deleteBranch', fullName }),
     });
   }
   if (ref.kind === 'remote') {
     entries.push({
-      label: `Удалить ветку в ${ref.name.slice(0, ref.name.indexOf('/'))}…`,
+      label: t('Delete branch on {0}…', ref.name.slice(0, ref.name.indexOf('/'))),
       run: run({ type: 'refAction', action: 'deleteRemoteBranch', fullName }),
     });
   }
@@ -263,20 +267,20 @@ function syncEntries(ref: Ref, store: LogStore, isCurrent: boolean): MenuEntry[]
   if (!isCurrent && current) {
     entries.push(
       {
-        label: `Влить ${ref.name} в ${current}`,
+        label: t('Merge {0} into {1}', ref.name, current),
         icon: 'git-merge',
         disabled: busy,
         run: run({ type: 'refAction', action: 'merge', fullName }),
       },
       {
-        label: `Перебазировать ${current} на ${ref.name}`,
+        label: t('Rebase {0} onto {1}', current, ref.name),
         disabled: busy,
         run: run({ type: 'refAction', action: 'rebaseOnto', fullName }),
       },
     );
     if (ref.kind === 'head') {
       entries.push({
-        label: `Checkout ${ref.name} и перебазировать на ${current}`,
+        label: t('Checkout {0} and rebase it onto {1}', ref.name, current),
         disabled: busy,
         run: run({ type: 'refAction', action: 'checkoutAndRebase', fullName }),
       });
@@ -284,7 +288,9 @@ function syncEntries(ref: Ref, store: LogStore, isCurrent: boolean): MenuEntry[]
   }
   if (ref.kind === 'head') {
     entries.push({
-      label: isCurrent ? 'Обновить (fetch + подтянуть из origin)' : 'Обновить из origin без переключения',
+      label: isCurrent
+        ? t('Update (fetch and pull from the remote)')
+        : t('Update from the remote without checkout'),
       icon: 'repo-pull',
       disabled: !ref.upstream || busy,
       run: run({ type: 'refAction', action: 'updateBranch', fullName }),
@@ -301,12 +307,12 @@ function syncEntries(ref: Ref, store: LogStore, isCurrent: boolean): MenuEntry[]
 export function worktreeMenu(worktree: Worktree): MenuEntry[] {
   return [
     {
-      label: 'Открыть в новом окне',
+      label: t('Open in a new window'),
       disabled: worktree.isCurrent,
       run: () => post({ type: 'openWorktree', path: worktree.path, newWindow: true }),
     },
     {
-      label: 'Открыть в этом окне',
+      label: t('Open in this window'),
       disabled: worktree.isCurrent,
       run: () => post({ type: 'openWorktree', path: worktree.path, newWindow: false }),
     },
@@ -319,12 +325,12 @@ export function fileMenu(changeSet: ChangeSetView, index: number): MenuEntry[] {
       post({ type: 'fileAction', action, changeSetId: changeSet.id, index });
   const deleted = changeSet.files[index]?.status === 'D';
   return [
-    { label: 'Показать diff', hint: 'двойной клик', run: run('openDiff') },
-    { label: 'Открыть текущую версию', hint: 'F4', disabled: deleted, run: run('openCurrent') },
-    { label: 'Открыть версию из ревизии', run: run('openRevision') },
-    { label: 'Сравнить с рабочей копией', run: run('compareWithWorktree') },
+    { label: t('Show diff'), hint: t('double-click'), run: run('openDiff') },
+    { label: t('Open the current version'), hint: 'F4', disabled: deleted, run: run('openCurrent') },
+    { label: t('Open the version of the revision'), run: run('openRevision') },
+    { label: t('Compare with the working tree'), run: run('compareWithWorktree') },
     'separator',
-    { label: 'Копировать путь', run: run('copyPath') },
+    { label: t('Copy path'), run: run('copyPath') },
   ];
 }
 

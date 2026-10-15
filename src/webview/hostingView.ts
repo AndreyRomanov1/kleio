@@ -1,24 +1,44 @@
 import type { MergeRequestInfoView, PipelineStatusView } from '../shared/protocol';
+import { t } from '../shared/l10n';
 
 export const pipelineIcons: Record<PipelineStatusView, { icon: string; label: string; tone: string }> = {
-  success: { icon: 'pass-filled', label: 'пайплайн прошёл', tone: 'ok' },
-  failed: { icon: 'error', label: 'пайплайн упал', tone: 'bad' },
-  running: { icon: 'sync~spin', label: 'пайплайн идёт', tone: 'run' },
-  pending: { icon: 'clock', label: 'пайплайн ждёт', tone: 'run' },
-  created: { icon: 'clock', label: 'пайплайн создан', tone: 'run' },
-  preparing: { icon: 'clock', label: 'пайплайн готовится', tone: 'run' },
-  waiting_for_resource: { icon: 'clock', label: 'пайплайн ждёт ресурс', tone: 'run' },
-  scheduled: { icon: 'calendar', label: 'пайплайн запланирован', tone: 'run' },
-  manual: { icon: 'debug-pause', label: 'ждёт ручного запуска', tone: 'idle' },
-  canceled: { icon: 'circle-slash', label: 'пайплайн отменён', tone: 'idle' },
-  skipped: { icon: 'debug-step-over', label: 'пайплайн пропущен', tone: 'idle' },
+  success: { icon: 'pass-filled', label: t('pipeline passed'), tone: 'ok' },
+  failed: { icon: 'error', label: t('pipeline failed'), tone: 'bad' },
+  running: { icon: 'sync~spin', label: t('pipeline running'), tone: 'run' },
+  pending: { icon: 'clock', label: t('pipeline pending'), tone: 'run' },
+  created: { icon: 'clock', label: t('pipeline created'), tone: 'run' },
+  preparing: { icon: 'clock', label: t('pipeline preparing'), tone: 'run' },
+  waiting_for_resource: { icon: 'clock', label: t('pipeline waiting for a resource'), tone: 'run' },
+  scheduled: { icon: 'calendar', label: t('pipeline scheduled'), tone: 'run' },
+  manual: { icon: 'debug-pause', label: t('waiting for a manual run'), tone: 'idle' },
+  canceled: { icon: 'circle-slash', label: t('pipeline canceled'), tone: 'idle' },
+  skipped: { icon: 'debug-step-over', label: t('pipeline skipped'), tone: 'idle' },
 };
+
+const statusWords: Record<PipelineStatusView, string> = {
+  success: t('passed'),
+  failed: t('failed'),
+  running: t('running'),
+  pending: t('pending'),
+  created: t('created'),
+  preparing: t('preparing'),
+  waiting_for_resource: t('waiting for a resource'),
+  scheduled: t('scheduled'),
+  manual: t('waiting for a manual run'),
+  canceled: t('canceled'),
+  skipped: t('skipped'),
+};
+
+/** The status alone, e.g. for a job: "failed". */
+export function statusWord(status: PipelineStatusView): string {
+  return statusWords[status];
+}
 
 export function mergeRequestStateLabel(info: MergeRequestInfoView | undefined): string | undefined {
   if (!info) return undefined;
-  if (info.state === 'merged') return 'влит';
-  if (info.state === 'closed' || info.state === 'locked') return 'закрыт';
-  return info.draft ? 'черновик' : 'открыт';
+  if (info.state === 'merged') return t('merged');
+  if (info.state === 'closed' || info.state === 'locked') return t('closed');
+  return info.draft ? t('draft') : t('open');
 }
 
 /** CSS modifier of a merge request badge: colour by state. */
@@ -30,20 +50,20 @@ export function mergeRequestTone(info: MergeRequestInfoView | undefined): string
 }
 
 const mergeStatuses: Record<string, string> = {
-  mergeable: 'можно вливать',
-  can_be_merged: 'можно вливать',
-  not_approved: 'нужны аппрувы',
-  ci_still_running: 'ждёт пайплайн',
-  ci_must_pass: 'нужен зелёный пайплайн',
-  discussions_not_resolved: 'есть нерешённые обсуждения',
-  draft_status: 'черновик',
-  need_rebase: 'нужен rebase',
-  conflict: 'конфликты',
-  cannot_be_merged: 'конфликты',
-  blocked_status: 'заблокирован другим MR',
-  checking: 'проверяется',
-  unchecked: 'проверяется',
-  not_open: 'не открыт',
+  mergeable: t('can be merged'),
+  can_be_merged: t('can be merged'),
+  not_approved: t('needs approvals'),
+  ci_still_running: t('waiting for the pipeline'),
+  ci_must_pass: t('needs a green pipeline'),
+  discussions_not_resolved: t('has unresolved discussions'),
+  draft_status: t('draft'),
+  need_rebase: t('needs a rebase'),
+  conflict: t('conflicts'),
+  cannot_be_merged: t('conflicts'),
+  blocked_status: t('blocked by another merge request'),
+  checking: t('checking'),
+  unchecked: t('checking'),
+  not_open: t('not open'),
 };
 
 export function mergeStatusLabel(status: string | undefined): string | undefined {
@@ -54,5 +74,5 @@ export function formatDuration(seconds: number | undefined): string {
   if (seconds === undefined) return '';
   const total = Math.round(seconds);
   const minutes = Math.floor(total / 60);
-  return minutes ? `${minutes}м ${total % 60}с` : `${total}с`;
+  return minutes ? t('{0}m {1}s', minutes, total % 60) : t('{0}s', total);
 }

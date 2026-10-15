@@ -3,6 +3,7 @@
   import type { OperationKind } from '../../shared/model';
   import { basename, dirname } from '../format';
   import { postConflicts } from '../vscode';
+  import { t } from '../../shared/l10n';
 
   let files = $state.raw<ConflictFileView[]>([]);
   let sides = $state<ConflictSides>({ ours: '', theirs: '' });
@@ -70,7 +71,7 @@
   }
 
   const describe = (present: boolean, base: boolean) =>
-    present ? (base ? 'изменён' : 'добавлен') : 'удалён';
+    present ? (base ? t('modified') : t('added')) : t('deleted');
   const chosen = $derived(files.filter((f) => selected.has(f.path)));
   const single = $derived(chosen.length === 1 ? chosen[0] : undefined);
   const canMerge = $derived(!!single && single.ours && single.theirs);
@@ -85,24 +86,24 @@
 />
 
 <div class="app">
-  <h1><i class="codicon codicon-warning"></i> Конфликты <span class="sub">{title}</span></h1>
+  <h1><i class="codicon codicon-warning"></i> {t('Conflicts')} <span class="sub">{title}</span></h1>
 
   {#if !loaded}
-    <div class="empty">Загрузка…</div>
+    <div class="empty">{t('Loading…')}</div>
   {:else if files.length === 0}
     <div class="done">
       <i class="codicon codicon-pass-filled"></i>
       {#if operation}
-        Все конфликты разрешены — можно продолжать.
+        {t('All conflicts are resolved: you can go on.')}
       {:else}
-        Конфликтов нет.
+        {t('No conflicts.')}
       {/if}
     </div>
   {:else}
     <div class="body">
       <div class="table" role="listbox" tabindex="0" aria-multiselectable="true" onkeydown={onKey}>
         <div class="head">
-          <span>Файл</span>
+          <span>{t('File')}</span>
           <span title="ours">{sides.ours}</span>
           <span title="theirs">{sides.theirs}</span>
         </div>
@@ -128,24 +129,27 @@
       </div>
       <div class="actions buttons">
         <button disabled={busy || !chosen.length} title="git checkout --ours" onclick={() => resolve('ours')}
-          >Взять {sides.ours}</button
+          >{t('Take {0}', sides.ours)}</button
         >
         <button
           disabled={busy || !chosen.length}
           title="git checkout --theirs"
-          onclick={() => resolve('theirs')}>Взять {sides.theirs}</button
+          onclick={() => resolve('theirs')}>{t('Take {0}', sides.theirs)}</button
         >
         <button
           class="primary"
           disabled={busy || !canMerge}
           title={single && !canMerge
-            ? 'Файл удалён на одной из сторон — выберите, какую версию взять'
-            : 'Трёхпанельное слияние (двойной клик)'}
-          onclick={() => single && postConflicts({ type: 'merge', path: single.path })}>Слить…</button
+            ? t('The file is deleted on one side: choose which version to take')
+            : t('Three-way merge (double-click)')}
+          onclick={() => single && postConflicts({ type: 'merge', path: single.path })}>{t('Merge…')}</button
         >
         <p class="hint">
-          В редакторе слияния: слева — {sides.ours}, справа — {sides.theirs}, снизу — результат. Когда
-          результат готов — ✓ «Завершить слияние» в заголовке (Ctrl+Enter): файл отметится как разрешённый.
+          {t(
+            'In the merge editor: {0} on the left, {1} on the right, the result below. When the result is ready, press ✓ Complete Merge in the title (Ctrl+Enter): the file is marked resolved.',
+            sides.ours,
+            sides.theirs,
+          )}
         </p>
       </div>
     </div>
@@ -155,7 +159,8 @@
     {#if operation}
       <button
         title="git {operation} --abort"
-        onclick={() => postConflicts({ type: 'operation', action: 'abort' })}>Прервать {operation}</button
+        onclick={() => postConflicts({ type: 'operation', action: 'abort' })}
+        >{t('Abort {0}', operation)}</button
       >
     {/if}
     <span class="spacer"></span>
@@ -165,10 +170,10 @@
         disabled={files.length > 0}
         title="git {operation} --continue"
         onclick={() => postConflicts({ type: 'operation', action: 'continue' })}
-        >Продолжить {operation}</button
+        >{t('Continue {0}', operation ?? '')}</button
       >
     {/if}
-    <button onclick={() => postConflicts({ type: 'close' })}>Закрыть</button>
+    <button onclick={() => postConflicts({ type: 'close' })}>{t('Close')}</button>
   </div>
 </div>
 

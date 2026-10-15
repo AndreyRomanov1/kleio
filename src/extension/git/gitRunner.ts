@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { t } from '../../shared/l10n';
 
 export class GitError extends Error {
   constructor(
@@ -66,7 +67,7 @@ export class GitRunner {
         if (code === 0 || (code !== null && options.allowExitCodes?.includes(code))) {
           resolve({ stdout: out, stderr: err });
         } else {
-          reject(new GitError(args, code, err || (code === null ? 'превышено время ожидания' : '')));
+          reject(new GitError(args, code, err || (code === null ? t('timed out') : '')));
         }
       });
 

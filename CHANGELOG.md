@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.15.0
+
+- English interface; Russian is a translation. `kleio.language` picks the language without a language
+  pack. A new language is two translated files; `npm run check:l10n` checks them.
+- Dates follow the language of the interface.
+
 ## 0.14.0
 
 - Uncommitted changes that come back from the autostash of a merge or rebase with conflicts are reported

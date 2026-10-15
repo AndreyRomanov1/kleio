@@ -112,7 +112,20 @@ async function hostingMessage(repository: Repository): Promise<HostMessage> {
 const repoPath = process.argv[2] ?? process.cwd();
 const port = Number(process.argv[3] ?? 5173);
 const dist = path.resolve(__dirname, '..');
-const page = readFileSync(path.resolve(__dirname, '../../scripts/preview/index.html'), 'utf8');
+const language = process.env.KLEIO_PREVIEW_LANG ?? 'en';
+const translations = (() => {
+  try {
+    return readFileSync(path.resolve(__dirname, `../../l10n/bundle.l10n.${language}.json`), 'utf8');
+  } catch {
+    return '{}';
+  }
+})();
+const page = readFileSync(path.resolve(__dirname, '../../scripts/preview/index.html'), 'utf8')
+  .replace('<html lang="ru">', `<html lang="${language}">`)
+  .replace(
+    '<script src="/webview.js"></script>',
+    `<script type="application/json" id="l10n">${translations.replace(/</g, '\\u003c')}</script>\n    <script src="/webview.js"></script>`,
+  );
 
 let focus: string[] = [];
 let favorites: string[] = [];

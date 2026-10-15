@@ -7,6 +7,7 @@
   import { mergeRequestStateLabel, mergeRequestTone } from '../hostingView';
   import { buildTree, flatten, type TreeNode } from '../tree';
   import { post } from '../vscode';
+  import { t } from '../../shared/l10n';
 
   interface Props {
     store: LogStore;
@@ -60,8 +61,8 @@
           leaf(
             'head',
             snapshot.operation?.kind === 'rebase' && snapshot.operation.branch
-              ? `${snapshot.head.hash.slice(0, 8)} (идёт rebase ${snapshot.operation.branch})`
-              : `${snapshot.head.hash.slice(0, 8)} (без ветки)`,
+              ? t('{0} (rebasing {1})', snapshot.head.hash.slice(0, 8), snapshot.operation.branch ?? '')
+              : t('{0} (no branch)', snapshot.head.hash.slice(0, 8)),
             {
               kind: 'detached',
               hash: snapshot.head.hash,
@@ -74,7 +75,7 @@
     if (favorites.length) {
       result.push({
         key: 'section:favorites',
-        title: 'Избранные',
+        title: t('Favorites'),
         nodes: favorites.map((r) => leaf(`favorite:${r.fullName}`, r.name, { kind: 'ref', ref: r })),
       });
     }
@@ -85,18 +86,18 @@
         (e) => (e as { ref: Ref }).ref.name,
         prefix,
       );
-    result.push({ key: 'section:local', title: 'Локальные', nodes: toTree(byKind('head'), 'local') });
+    result.push({ key: 'section:local', title: t('Local'), nodes: toTree(byKind('head'), 'local') });
     const detached = snapshot.worktrees.filter((w) => !w.branch && !w.isCurrent && matches(w.path));
     if (detached.length) {
       result.push({
         key: 'section:worktrees',
-        title: 'Worktree без ветки',
+        title: t('Worktrees without a branch'),
         nodes: detached.map((w) =>
           leaf(`worktree:${w.path}`, basename(w.path), { kind: 'worktree', worktree: w }),
         ),
       });
     }
-    result.push({ key: 'section:remote', title: 'Удалённые', nodes: toTree(byKind('remote'), 'remote') });
+    result.push({ key: 'section:remote', title: t('Remote'), nodes: toTree(byKind('remote'), 'remote') });
 
     const stashes = snapshot.stashes.filter((s) => matches(s.message));
     if (stashes.length) {
@@ -108,7 +109,7 @@
     }
 
     const tags = byKind('tag');
-    if (tags.length) result.push({ key: 'section:tags', title: 'Теги', nodes: toTree(tags, 'tags') });
+    if (tags.length) result.push({ key: 'section:tags', title: t('Tags'), nodes: toTree(tags, 'tags') });
     return result;
   });
 
@@ -154,7 +155,7 @@
   <input
     id="kleio-branch-search"
     class="search"
-    placeholder="Поиск веток"
+    placeholder={t('Search branches')}
     bind:value={query}
     spellcheck="false"
     onkeydown={(e) => {
@@ -205,12 +206,19 @@
                   class:current={ref.kind === 'head' && store.snapshot?.head.branch === ref.name}
                   class:merged
                   title={merged
-                    ? `${ref.name} — влита в ${store.hosting?.defaultBranch}, можно удалить`
+                    ? t(
+                        '{0} is merged into {1} and can be deleted',
+                        ref.name,
+                        store.hosting?.defaultBranch ?? '',
+                      )
                     : ref.name}>{node.label}</span
                 >
                 {#if worktree}<i
                     class="info codicon codicon-repo"
-                    title="Ветка открыта в worktree {worktree.path} — ПКМ, чтобы открыть"
+                    title={t(
+                      'The branch is checked out in worktree {0}; right-click to open it',
+                      worktree.path,
+                    )}
                   ></i>{/if}
                 {#if mergeRequest}
                   {@const info = store.hosting?.mergeRequestInfo[mergeRequest]}
@@ -224,16 +232,17 @@
                       store.openCard(mergeRequest);
                     }}>!{mergeRequest}</button
                   >{/if}
-                {#if ref.upstreamGone}<span class="info gone" title="Ветка в origin удалена">origin</span
+                {#if ref.upstreamGone}<span class="info gone" title={t('The branch is deleted on the remote')}
+                    >origin</span
                   >{/if}
-                {#if ref.ahead}<span class="info ahead" title="Не отправлено в origin">↑{ref.ahead}</span
+                {#if ref.ahead}<span class="info ahead" title={t('Not pushed')}>↑{ref.ahead}</span>{/if}
+                {#if ref.behind}<span class="info behind" title={t('New on the remote')}>↓{ref.behind}</span
                   >{/if}
-                {#if ref.behind}<span class="info behind" title="Новое в origin">↓{ref.behind}</span>{/if}
                 <span class="actions">
                   <button
                     class="icon"
                     class:on={store.favorites.includes(ref.fullName)}
-                    title="Избранное"
+                    title={t('Favorite')}
                     onclick={(e) => {
                       e.stopPropagation();
                       post({ type: 'toggleFavorite', fullName: ref.fullName });
@@ -243,8 +252,8 @@
                     class="icon"
                     class:on={focused}
                     title={focused
-                      ? 'Убрать из фокуса'
-                      : 'Добавить в фокус: лог покажет только ветки в фокусе'}
+                      ? t('Remove from focus')
+                      : t('Add to focus: the log shows only the branches in focus')}
                     onclick={(e) => {
                       e.stopPropagation();
                       toggleFocus(store, ref.name);
@@ -255,7 +264,7 @@
                 {@const w = entry.worktree}
                 <span class="label" class:current={w.isCurrent} title={w.path}>{node.label}</span>
                 <span class="info">{w.branch ?? w.head?.slice(0, 8) ?? ''}</span>
-                {#if w.isCurrent}<span class="info">это окно</span>{/if}
+                {#if w.isCurrent}<span class="info">{t('this window')}</span>{/if}
               {:else if entry.kind === 'stash'}
                 <span class="label" title={entry.stash.message}>{node.label}</span>
                 <span class="info">{formatDate(entry.stash.date)}</span>

@@ -5,6 +5,7 @@
   import type { Decorations, LogStore } from '../store.svelte';
   import { basename } from '../format';
   import { mergeRequestStateLabel, mergeRequestTone } from '../hostingView';
+  import { t } from '../../shared/l10n';
 
   interface Props {
     hash: string;
@@ -47,7 +48,7 @@
         kind: 'detached',
         current: true,
         synced: false,
-        title: 'HEAD (без ветки)',
+        title: t('HEAD (no branch)'),
       });
     }
     const order = { head: 0, remote: 1, tag: 2 };
@@ -61,11 +62,11 @@
           ? store.snapshot?.worktrees.find((w) => w.branch === ref.name && !w.isCurrent)
           : undefined;
       const notes = [
-        current ? 'текущая ветка' : '',
+        current ? t('current branch') : '',
         synced
-          ? `= ${remote!.replace('refs/remotes/', '')}${ref.upstream ? '' : ' (upstream не настроен)'}`
+          ? `= ${remote!.replace('refs/remotes/', '')}${ref.upstream ? '' : t(' (no upstream set)')}`
           : '',
-        worktree ? `открыта в worktree ${worktree.path}` : '',
+        worktree ? t('checked out in worktree {0}', worktree.path) : '',
       ].filter(Boolean);
       result.push({
         ref,
@@ -105,7 +106,8 @@
     {#if badge.kind === 'tag'}<i class="marker codicon codicon-tag"></i>{/if}
     {badge.label}
     {#if badge.worktree}<i class="marker codicon codicon-repo"></i>{/if}
-    {#if badge.synced}<i class="marker codicon codicon-cloud" aria-label="совпадает с origin"></i>{/if}
+    {#if badge.synced}<i class="marker codicon codicon-cloud" aria-label={t('same as on the remote')}
+      ></i>{/if}
   </span>
 {/each}
 {#each store.hosting?.mergeRequests[hash] ?? [] as number (number)}

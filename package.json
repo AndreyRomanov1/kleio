@@ -2,7 +2,7 @@
   "name": "kleio",
   "displayName": "Kleio",
   "description": "Git the JetBrains way: commit graph, one diff viewer for any changes, history, blame, interactive rebase, conflicts, GitLab merge requests and review",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "publisher": "aroma",
   "license": "MIT",
   "repository": {
@@ -24,6 +24,7 @@
     "Other"
   ],
   "main": "./dist/extension.js",
+  "l10n": "./l10n",
   "activationEvents": [
     "workspaceContains:.git",
     "onStartupFinished"
@@ -31,11 +32,11 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": false,
-      "description": "Kleio запускает git, а git выполняет хуки и настройки из репозитория."
+      "description": "%capabilities.untrusted%"
     },
     "virtualWorkspaces": {
       "supported": false,
-      "description": "Kleio работает с git в локальных папках."
+      "description": "%capabilities.virtual%"
     }
   },
   "contributes": {
@@ -50,7 +51,7 @@
       "activitybar": [
         {
           "id": "kleio-commit",
-          "title": "Коммит",
+          "title": "%view.commit%",
           "icon": "media/commit.svg"
         }
       ]
@@ -68,7 +69,7 @@
         {
           "id": "kleio.commit",
           "type": "webview",
-          "name": "Коммит",
+          "name": "%view.commit%",
           "icon": "media/commit.svg"
         }
       ]
@@ -76,187 +77,187 @@
     "commands": [
       {
         "command": "kleio.log.focusView",
-        "title": "Показать лог",
+        "title": "%command.log.focusView%",
         "category": "Kleio"
       },
       {
         "command": "kleio.log.openInEditor",
-        "title": "Открыть лог во вкладке",
+        "title": "%command.log.openInEditor%",
         "category": "Kleio",
         "icon": "$(link-external)"
       },
       {
         "command": "kleio.log.openInNewWindow",
-        "title": "Открыть лог в отдельном окне",
+        "title": "%command.log.openInNewWindow%",
         "category": "Kleio",
         "icon": "$(empty-window)"
       },
       {
         "command": "kleio.diff.previousChange",
-        "title": "Предыдущее изменение (с переходом в предыдущий файл)",
+        "title": "%command.diff.previousChange%",
         "category": "Kleio",
         "icon": "$(chevron-up)",
         "enablement": "kleio.inChangeSet"
       },
       {
         "command": "kleio.diff.nextChange",
-        "title": "Следующее изменение (с переходом в следующий файл)",
+        "title": "%command.diff.nextChange%",
         "category": "Kleio",
         "icon": "$(chevron-down)",
         "enablement": "kleio.inChangeSet"
       },
       {
         "command": "kleio.diff.previousFile",
-        "title": "Предыдущий файл",
+        "title": "%command.diff.previousFile%",
         "category": "Kleio",
         "icon": "$(arrow-left)",
         "enablement": "kleio.inChangeSet"
       },
       {
         "command": "kleio.diff.nextFile",
-        "title": "Следующий файл",
+        "title": "%command.diff.nextFile%",
         "category": "Kleio",
         "icon": "$(arrow-right)",
         "enablement": "kleio.inChangeSet"
       },
       {
         "command": "kleio.diff.selectFile",
-        "title": "Файлы набора изменений…",
+        "title": "%command.diff.selectFile%",
         "category": "Kleio",
         "icon": "$(list-tree)",
         "enablement": "kleio.inChangeSet"
       },
       {
         "command": "kleio.diff.openCurrent",
-        "title": "Открыть текущую версию для правки",
+        "title": "%command.diff.openCurrent%",
         "category": "Kleio",
         "icon": "$(edit)",
         "enablement": "kleio.inChangeSet"
       },
       {
         "command": "kleio.blame.show",
-        "title": "Аннотации Git (blame)",
+        "title": "%command.blame.show%",
         "category": "Kleio",
         "icon": "$(person)"
       },
       {
         "command": "kleio.blame.hide",
-        "title": "Скрыть аннотации Git",
+        "title": "%command.blame.hide%",
         "category": "Kleio"
       },
       {
         "command": "kleio.blame.lineInLog",
-        "title": "Показать коммит строки в логе",
+        "title": "%command.blame.lineInLog%",
         "category": "Kleio"
       },
       {
         "command": "kleio.history.file",
-        "title": "История файла",
+        "title": "%command.history.file%",
         "category": "Kleio",
         "icon": "$(history)"
       },
       {
         "command": "kleio.history.selection",
-        "title": "История выделенного фрагмента",
+        "title": "%command.history.selection%",
         "category": "Kleio"
       },
       {
         "command": "kleio.compare.withRevision",
-        "title": "Сравнить с веткой или ревизией…",
+        "title": "%command.compare.withRevision%",
         "category": "Kleio"
       },
       {
         "command": "kleio.blame.toggle",
-        "title": "Переключить аннотации Git (blame)",
+        "title": "%command.blame.toggle%",
         "category": "Kleio"
       },
       {
         "command": "kleio.hosting.openFile",
-        "title": "Открыть в GitLab/GitHub",
+        "title": "%command.hosting.openFile%",
         "category": "Kleio",
         "icon": "$(link-external)"
       },
       {
         "command": "kleio.hosting.copyFileLink",
-        "title": "Копировать ссылку на GitLab/GitHub",
+        "title": "%command.hosting.copyFileLink%",
         "category": "Kleio"
       },
       {
         "command": "kleio.gitlab.connect",
-        "title": "Подключить GitLab…",
+        "title": "%command.gitlab.connect%",
         "category": "Kleio"
       },
       {
         "command": "kleio.gitlab.disconnect",
-        "title": "Удалить токен GitLab из Kleio…",
+        "title": "%command.gitlab.disconnect%",
         "category": "Kleio"
       },
       {
         "command": "kleio.review.publish",
-        "title": "Опубликовать",
+        "title": "%command.review.publish%",
         "category": "Kleio"
       },
       {
         "command": "kleio.review.draft",
-        "title": "В черновик",
+        "title": "%command.review.draft%",
         "category": "Kleio"
       },
       {
         "command": "kleio.review.resolve",
-        "title": "Решено",
+        "title": "%command.review.resolve%",
         "category": "Kleio",
         "icon": "$(check)"
       },
       {
         "command": "kleio.review.unresolve",
-        "title": "Открыть снова",
+        "title": "%command.review.unresolve%",
         "category": "Kleio",
         "icon": "$(issue-reopened)"
       },
       {
         "command": "kleio.review.deleteDraft",
-        "title": "Удалить черновик",
+        "title": "%command.review.deleteDraft%",
         "category": "Kleio",
         "icon": "$(trash)"
       },
       {
         "command": "kleio.review.publishDrafts",
-        "title": "Опубликовать черновики ревью",
+        "title": "%command.review.publishDrafts%",
         "category": "Kleio",
         "icon": "$(cloud-upload)"
       },
       {
         "command": "kleio.review.refresh",
-        "title": "Обновить обсуждения ревью",
+        "title": "%command.review.refresh%",
         "category": "Kleio",
         "icon": "$(refresh)"
       },
       {
         "command": "kleio.review.end",
-        "title": "Закончить ревью",
+        "title": "%command.review.end%",
         "category": "Kleio",
         "icon": "$(close-all)"
       },
       {
         "command": "kleio.review.openJournal",
-        "title": "Журнал комментариев ревью",
+        "title": "%command.review.openJournal%",
         "category": "Kleio"
       },
       {
         "command": "kleio.review.previousComment",
-        "title": "Предыдущее замечание ревью",
+        "title": "%command.review.previousComment%",
         "category": "Kleio",
         "icon": "$(arrow-circle-up)"
       },
       {
         "command": "kleio.review.nextComment",
-        "title": "Следующее замечание ревью",
+        "title": "%command.review.nextComment%",
         "category": "Kleio",
         "icon": "$(arrow-circle-down)"
       },
       {
         "command": "kleio.git.updateProject",
-        "title": "Обновить проект",
+        "title": "%command.git.updateProject%",
         "category": "Kleio",
         "icon": "$(repo-pull)"
       },
@@ -268,13 +269,13 @@
       },
       {
         "command": "kleio.conflicts.show",
-        "title": "Конфликты",
+        "title": "%command.conflicts.show%",
         "category": "Kleio",
         "icon": "$(warning)"
       },
       {
         "command": "kleio.conflicts.markResolved",
-        "title": "Завершить слияние и отметить как разрешённый",
+        "title": "%command.conflicts.markResolved%",
         "category": "Kleio",
         "icon": "$(check)"
       }
@@ -603,17 +604,17 @@
         "kleio.codeLens.authors": {
           "type": "boolean",
           "default": true,
-          "description": "Показывать над классами и методами автора большинства строк и число других авторов (как code vision в Rider)."
+          "description": "%config.codeLens.authors%"
         },
         "kleio.history.showDiffOnSelect": {
           "type": "boolean",
           "default": true,
-          "description": "Во вкладке истории сразу показывать diff выбранного коммита в соседней группе редактора."
+          "description": "%config.history.showDiffOnSelect%"
         },
         "kleio.autolinks": {
           "type": "array",
           "default": [],
-          "markdownDescription": "Правила, превращающие текст сообщений коммитов в ссылки: регулярное выражение и адрес с `$0` (всё совпадение), `$1`… (группы). Например, `{\"pattern\": \"PROJ-\\\\d+\", \"url\": \"https://youtrack.example.com/issue/$0\"}`. Удобно задать в `.vscode/settings.json` репозитория — правило будет у всей команды. Ссылки на MR (`!12`) и issues (`#12`) GitLab и GitHub добавляются сами.",
+          "markdownDescription": "%config.autolinks%",
           "items": {
             "type": "object",
             "required": [
@@ -623,11 +624,11 @@
             "properties": {
               "pattern": {
                 "type": "string",
-                "description": "Регулярное выражение (JavaScript)."
+                "description": "%config.autolinks.pattern%"
               },
               "url": {
                 "type": "string",
-                "description": "Адрес ссылки, `$0` — совпадение, `$1`… — группы."
+                "description": "%config.autolinks.url%"
               }
             }
           }
@@ -642,7 +643,7 @@
               "github"
             ]
           },
-          "markdownDescription": "Тип хостинга для своих серверов, если Kleio не определил его сам: `{\"git.example.com\": \"gitlab\"}`. github.com и gitlab.com известны; сервер GitLab обычно определяется сам по ссылкам на merge requests."
+          "markdownDescription": "%config.hosting.instances%"
         },
         "kleio.update.method": {
           "type": "string",
@@ -653,11 +654,11 @@
           ],
           "default": "ask",
           "enumDescriptions": [
-            "Спросить при первом обновлении и запомнить ответ",
-            "Пришедшие коммиты вливаются merge-коммитом, как git pull",
-            "Свои коммиты перебазируются поверх пришедших, как git pull --rebase"
+            "%config.update.method.ask%",
+            "%config.update.method.merge%",
+            "%config.update.method.rebase%"
           ],
-          "markdownDescription": "Как «Обновить проект» подтягивает текущую ветку из upstream, когда в ней есть свои коммиты. Без своих коммитов ветка просто переезжает вперёд (fast-forward)."
+          "markdownDescription": "%config.update.method%"
         },
         "kleio.push.protectedBranches": {
           "type": "array",
@@ -668,12 +669,12 @@
             "master",
             "main"
           ],
-          "markdownDescription": "Ветки на сервере, в которые push с force запрещён. Можно использовать `*`, например `release/*`."
+          "markdownDescription": "%config.push.protectedBranches%"
         },
         "kleio.worktree.path": {
           "type": "string",
           "default": "${repoParent}/${repoName}-${branch}",
-          "markdownDescription": "Папка нового worktree при «Checkout в новый worktree…». `${repoParent}` — папка, где лежит основная папка репозитория, `${repoName}` — её имя, `${branch}` — имя ветки (`/` заменяется на `-`). Путь можно поправить перед созданием."
+          "markdownDescription": "%config.worktree.path%"
         },
         "kleio.worktree.copyFiles": {
           "type": "array",
@@ -681,17 +682,22 @@
             "type": "string"
           },
           "default": [],
-          "markdownDescription": "Файлы, которые копируются из основной папки в новый worktree, — то, что git не хранит, но без чего проект не запустить, например `settings/vault.json`. Пути относительно корня репозитория."
+          "markdownDescription": "%config.worktree.copyFiles%"
         },
         "kleio.hosting.backgroundRefresh": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Раз в несколько минут при обновлении лога запрашивать у сервера ссылки на merge requests (`git ls-remote`). Выключите, если сервер каждый раз спрашивает пароль SSH-ключа: тогда ссылки запрашиваются при открытии лога и после Fetch."
+          "markdownDescription": "%config.hosting.backgroundRefresh%"
         },
         "kleio.commit.stagingArea": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Окно коммита работает с индексом git (stage), как `git commit` и встроенный Git VS Code: галочки показывают, что в stage, и меняют его, а коммитится содержимое stage. Выключено — как в Rider: коммитятся отмеченные файлы и куски в том виде, в каком они на диске, stage не учитывается. Переключается и галкой «Stage» в окне коммита."
+          "markdownDescription": "%config.commit.stagingArea%"
+        },
+        "kleio.language": {
+          "type": "string",
+          "default": "auto",
+          "markdownDescription": "%config.language%"
         }
       }
     }
@@ -700,6 +706,7 @@
     "build": "node scripts/build.mjs",
     "watch": "node scripts/build.mjs --watch",
     "typecheck": "tsc --noEmit -p . && svelte-check --tsconfig ./tsconfig.webview.json --fail-on-warnings",
+    "check:l10n": "node scripts/check-l10n.mjs",
     "test": "vitest run",
     "test:integration": "node scripts/build.mjs && node scripts/integration.mjs",
     "format": "prettier --write .",

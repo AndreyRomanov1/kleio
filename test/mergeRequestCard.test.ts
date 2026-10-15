@@ -211,7 +211,7 @@ describe('buildCard', () => {
     expect(view.drafts).toBe(2);
     expect(view.general).toEqual([
       { author: 'Bob', body: 'LGTM?', createdAt: 't1' },
-      { author: 'Вы', body: 'draft general', createdAt: '', draft: true },
+      { author: 'You', body: 'draft general', createdAt: '', draft: true },
     ]);
     expect(view.threads.map((t) => [t.body, t.replies, t.resolved, t.outdated])).toEqual([
       ['why?', 1, false, false],

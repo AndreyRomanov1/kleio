@@ -11,6 +11,8 @@ import type { DiffPosition, DiffRefs, Discussion, DraftNote, GitLabApi, Note } f
 import type { HostingService } from '../hosting/hostingService';
 import { linePair, type Side } from './positions';
 import type { ReviewJournal } from './reviewJournal';
+import { t } from '../../shared/l10n';
+import { displayLanguage } from '../language';
 
 const CONTROLLER_ID = 'kleio.review';
 const CONTEXT_KEY = 'kleio.reviewActive';
@@ -53,7 +55,7 @@ class ReviewComment implements vscode.Comment {
   ) {
     this.body = new vscode.MarkdownString(text);
     this.author = { name: authorName };
-    this.label = draftId !== undefined ? 'черновик' : createdAt ? formatTime(createdAt) : undefined;
+    this.label = draftId !== undefined ? t('draft') : createdAt ? formatTime(createdAt) : undefined;
     this.contextValue = draftId !== undefined ? 'draft' : 'note';
   }
 }
@@ -72,8 +74,11 @@ export class ReviewController implements vscode.Disposable {
     private readonly navigator: ChangeSetNavigator,
     private readonly journal: ReviewJournal,
   ) {
-    this.comments = vscode.comments.createCommentController(CONTROLLER_ID, 'Ревью MR');
-    this.comments.options = { placeHolder: 'Комментарий к строке', prompt: 'Комментарий к MR' };
+    this.comments = vscode.comments.createCommentController(CONTROLLER_ID, t('Merge request review'));
+    this.comments.options = {
+      placeHolder: t('Comment on the line'),
+      prompt: t('Comment on the merge request'),
+    };
     this.comments.commentingRangeProvider = {
       provideCommentingRanges: (document) =>
         this.session?.documents.has(document.uri.toString())
@@ -124,7 +129,7 @@ export class ReviewController implements vscode.Disposable {
   async start(repository: Repository, iid: number, filePath?: string, line?: number): Promise<void> {
     if (this.session?.iid !== iid || this.session.repository !== repository) {
       const session = await vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Notification, title: `Kleio: ревью MR !${iid}` },
+        { location: vscode.ProgressLocation.Notification, title: t('Kleio: review of !{0}', iid) },
         () => this.createSession(repository, iid),
       );
       if (!session) return;
@@ -135,7 +140,7 @@ export class ReviewController implements vscode.Disposable {
     }
     const session = this.session!;
     if (session.changeSet.files.length === 0) {
-      void vscode.window.showInformationMessage(`В MR !${iid} нет изменений.`);
+      void vscode.window.showInformationMessage(t('Merge request !{0} has no changes.', iid));
       return;
     }
     const index = filePath
@@ -165,26 +170,26 @@ export class ReviewController implements vscode.Disposable {
     const api = await this.hosting.gitlab(repository, true);
     if (!api) return;
     await api.publishDraftNotes(iid);
-    vscode.window.setStatusBarMessage(`Kleio: черновики MR !${iid} опубликованы`, 4000);
+    vscode.window.setStatusBarMessage(t('Kleio: drafts of !{0} are published', iid), 4000);
     if (this.session?.iid === iid) await this.reload();
   }
 
   private async createSession(repository: Repository, iid: number): Promise<Session | undefined> {
     const api = await this.hosting.gitlab(repository, true);
     if (!api) {
-      void vscode.window.showWarningMessage('Для ревью нужен доступ к GitLab.');
+      void vscode.window.showWarningMessage(t('The review needs access to GitLab.'));
       return undefined;
     }
     const details = await api.mergeRequest(iid);
     const refs = details.diffRefs;
     if (!refs) {
-      void vscode.window.showWarningMessage(`GitLab не отдал версии diff для MR !${iid}.`);
+      void vscode.window.showWarningMessage(t('GitLab returned no diff versions for !{0}.', iid));
       return undefined;
     }
     const hosting = await this.hosting.known(repository);
     const remote = hosting?.remoteName ?? 'origin';
     if (!(await this.ensureCommits(repository, remote, iid, details.targetBranch, refs))) {
-      void vscode.window.showErrorMessage(`Не удалось получить коммиты MR !${iid} из ${remote}.`);
+      void vscode.window.showErrorMessage(t('Could not fetch the commits of !{0} from {1}.', iid, remote));
       return undefined;
     }
 
@@ -266,7 +271,7 @@ export class ReviewController implements vscode.Disposable {
         session.api.draftNotes(session.iid),
       ]);
     } catch (error) {
-      void vscode.window.showErrorMessage(`Kleio: обсуждения MR не загрузились: ${message(error)}`);
+      void vscode.window.showErrorMessage(t('Kleio: the discussions did not load: {0}', message(error)));
       return;
     }
     if (session !== this.session) return;
@@ -286,7 +291,7 @@ export class ReviewController implements vscode.Disposable {
       if (!place) continue;
       const comments = [
         ...notes.map((n) => new ReviewComment(n.body, n.author.name, undefined, n.createdAt)),
-        ...(draftReplies.get(discussion.id) ?? []).map((d) => new ReviewComment(d.body, 'Вы', d.id)),
+        ...(draftReplies.get(discussion.id) ?? []).map((d) => new ReviewComment(d.body, t('You'), d.id)),
       ];
       const thread = this.comments.createCommentThread(place.uri, place.range, comments);
       this.decorate(thread, first);
@@ -298,9 +303,9 @@ export class ReviewController implements vscode.Disposable {
       const place = this.placeOf(session, draft.position);
       if (!place) continue;
       const thread = this.comments.createCommentThread(place.uri, place.range, [
-        new ReviewComment(draft.body, 'Вы', draft.id),
+        new ReviewComment(draft.body, t('You'), draft.id),
       ]);
-      thread.label = 'Черновик';
+      thread.label = t('Draft');
       thread.contextValue = 'draft';
       thread.canReply = false;
       session.threads.push(thread);
@@ -328,7 +333,7 @@ export class ReviewController implements vscode.Disposable {
         ? vscode.CommentThreadState.Resolved
         : vscode.CommentThreadState.Unresolved;
       thread.contextValue = first.resolved ? 'resolved' : 'unresolved';
-      thread.label = first.resolved ? 'Решено' : undefined;
+      thread.label = first.resolved ? t('Resolved') : undefined;
       thread.collapsibleState = first.resolved
         ? vscode.CommentThreadCollapsibleState.Collapsed
         : vscode.CommentThreadCollapsibleState.Expanded;
@@ -347,7 +352,7 @@ export class ReviewController implements vscode.Disposable {
     let target: string;
     let request: () => Promise<void>;
     if (discussionId) {
-      target = `ответ в обсуждение ${discussionId}`;
+      target = t('reply in discussion {0}', discussionId);
       request = () =>
         kind === 'publish'
           ? session.api.reply(session.iid, discussionId, text)
@@ -366,7 +371,7 @@ export class ReviewController implements vscode.Disposable {
         newPath: file.change.path,
         ...linePair(await file.hunks, side, line),
       };
-      target = `${side === 'new' ? file.change.path : position.oldPath}:${line}${side === 'old' ? ' (старая версия)' : ''}`;
+      target = `${side === 'new' ? file.change.path : position.oldPath}:${line}${side === 'old' ? t(' (old version)') : ''}`;
       request = () =>
         kind === 'publish'
           ? session.api.createDiscussion(session.iid, text, position)
@@ -389,16 +394,18 @@ export class ReviewController implements vscode.Disposable {
       await request();
       await done('sent');
       vscode.window.setStatusBarMessage(
-        entry.kind === 'publish' ? 'Kleio: комментарий опубликован' : 'Kleio: черновик сохранён в GitLab',
+        entry.kind === 'publish'
+          ? t('Kleio: the comment is published')
+          : t('Kleio: the draft is saved in GitLab'),
         3000,
       );
       return true;
     } catch (error) {
       await done({ failed: message(error) });
-      const retry = 'Повторить';
-      const journal = 'Журнал';
+      const retry = t('Retry');
+      const journal = t('Journal');
       const choice = await vscode.window.showErrorMessage(
-        `Комментарий не отправлен: ${message(error)}. Текст сохранён в журнале ревью.`,
+        t('The comment was not sent: {0}. Its text is saved in the review journal.', message(error)),
         retry,
         journal,
       );
@@ -422,7 +429,10 @@ export class ReviewController implements vscode.Disposable {
       .filter((t) => t.file >= 0)
       .sort((a, b) => a.file - b.file || a.line - b.line);
     if (targets.length === 0) {
-      vscode.window.setStatusBarMessage('Kleio: в MR нет замечаний к текущей версии', 3000);
+      vscode.window.setStatusBarMessage(
+        t('Kleio: the merge request has no comments on the current version'),
+        3000,
+      );
       return;
     }
     const editor = vscode.window.activeTextEditor;
@@ -433,7 +443,7 @@ export class ReviewController implements vscode.Disposable {
     const target = direction === 1 ? targets.find(after) : [...targets].reverse().find(before);
     if (!target) {
       vscode.window.setStatusBarMessage(
-        direction === 1 ? 'Kleio: это последнее замечание' : 'Kleio: это первое замечание',
+        direction === 1 ? t('Kleio: this is the last comment') : t('Kleio: this is the first comment'),
         3000,
       );
       return;
@@ -504,9 +514,9 @@ function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-const timeFormat = new Intl.DateTimeFormat('ru-RU', { dateStyle: 'short', timeStyle: 'short' });
-
 function formatTime(iso: string): string {
   const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : timeFormat.format(date);
+  return Number.isNaN(date.getTime())
+    ? iso
+    : new Intl.DateTimeFormat(displayLanguage(), { dateStyle: 'short', timeStyle: 'short' }).format(date);
 }

@@ -5,6 +5,7 @@ import { commitChangeSet } from '../changes/changeSet';
 import type { ChangeSetNavigator } from '../changes/changeSetNavigator';
 import type { Repository } from '../git/repository';
 import { renderHtml, webviewOptions } from '../webviewHtml';
+import { t } from '../../shared/l10n';
 
 const PANEL_TYPE = 'kleio.rebase';
 
@@ -61,10 +62,10 @@ export class RebaseDialog implements vscode.Disposable {
     if (typeof range === 'string') return void vscode.window.showWarningMessage(range);
     const ok = await vscode.window.showWarningMessage(
       hashes.length === 1
-        ? `Удалить коммит ${hashes[0].slice(0, 8)} из ${range.branch}?`
-        : `Удалить ${hashes.length} коммита(ов) из ${range.branch}?`,
-      { modal: true, detail: 'Ветка будет переписана; коммиты останутся доступны через reflog.' },
-      'Удалить',
+        ? t('Drop commit {0} from {1}?', hashes[0].slice(0, 8), range.branch)
+        : t('Drop {0} commits from {1}?', hashes.length, range.branch),
+      { modal: true, detail: t('The branch is rewritten; the commits stay reachable through the reflog.') },
+      t('Drop'),
     );
     if (!ok) return;
     const drop = new Set(hashes);
@@ -78,7 +79,7 @@ export class RebaseDialog implements vscode.Disposable {
   async fixupIntoParent(repository: Repository, hash: string): Promise<void> {
     const details = await repository.commitDetails(hash);
     const parent = details.parents[0];
-    if (!parent) return void vscode.window.showWarningMessage('У первого коммита нет предыдущего.');
+    if (!parent) return void vscode.window.showWarningMessage(t('The first commit has no previous one.'));
     const range = await this.rangeFor(repository, parent);
     if (typeof range === 'string') return void vscode.window.showWarningMessage(range);
     const entries = await this.entries(repository, range.hashes, (h) => (h === hash ? 'fixup' : 'pick'));
@@ -112,7 +113,7 @@ export class RebaseDialog implements vscode.Disposable {
           if (head !== range.hashes[range.hashes.length - 1]) {
             this.post({
               type: 'error',
-              message: 'Ветка изменилась, пока был открыт диалог. Откройте его заново.',
+              message: t('The branch changed while the dialog was open. Open it again.'),
             });
             return;
           }
@@ -177,15 +178,17 @@ export class RebaseDialog implements vscode.Disposable {
    */
   private async rangeFor(repository: Repository, oldest: string): Promise<Range | string> {
     const head = await repository.head();
-    if (!head.branch || !head.hash) return 'HEAD без ветки: сначала переключитесь на ветку.';
+    if (!head.branch || !head.hash) return t('HEAD has no branch: check out a branch first.');
     if ((await repository.operation()) !== undefined)
-      return 'Уже идёт merge или rebase — сначала завершите или прервите его.';
+      return t('A merge or rebase is in progress: finish or abort it first.');
     if (!(await repository.isAncestor(oldest, head.hash)))
-      return `Коммит ${oldest.slice(0, 8)} не входит в текущую ветку ${head.branch}.`;
+      return t('Commit {0} is not on the current branch {1}.', oldest.slice(0, 8), head.branch);
     const base = (await repository.commitDetails(oldest)).parents[0];
     const range = await repository.rebaseRange(base);
     if (range.merges > 0)
-      return 'Между выбранным коммитом и HEAD есть merge-коммиты — interactive rebase с ними Kleio не делает.';
+      return t(
+        'There are merge commits between the chosen commit and HEAD: Kleio does not rebase them interactively.',
+      );
     return { branch: head.branch, base, hashes: range.commits.map((c) => c.hash) };
   }
 

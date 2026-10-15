@@ -19,7 +19,7 @@ export type ConflictsHostMessage =
   | {
       type: 'state';
       operation?: OperationKind;
-      /** Short description, e.g. `rebase PROJ-1234 на main · шаг 2 из 5`. */
+      /** Short description, e.g. `Rebase PROJ-1234 onto main · step 2 of 5`. */
       title: string;
       sides: ConflictSides;
       files: ConflictFileView[];

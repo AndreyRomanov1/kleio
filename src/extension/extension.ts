@@ -7,7 +7,9 @@ import { ChangeSetNavigator } from './changes/changeSetNavigator';
 import { CommitView } from './commit/commitView';
 import { RevisionContentProvider } from './content/revisionContentProvider';
 import { REVISION_SCHEME } from './content/revisionUri';
+import { t } from '../shared/l10n';
 import { watchGitPath } from './git/gitPath';
+import { loadLanguage } from './language';
 import type { Repository } from './git/repository';
 import { RepositoryManager } from './git/repositoryManager';
 import { ReviewController } from './review/reviewController';
@@ -34,7 +36,7 @@ export interface KleioApi {
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<KleioApi> {
-  context.subscriptions.push(watchGitPath());
+  context.subscriptions.push(await loadLanguage(context), watchGitPath());
   const repositories = new RepositoryManager();
   const navigator = new ChangeSetNavigator();
   const sync = new SyncActions(repositories);
@@ -118,7 +120,7 @@ async function pickRepository(repositories: RepositoryManager): Promise<Reposito
   if (all.length <= 1) return all[0];
   const picked = await vscode.window.showQuickPick(
     all.map((r) => ({ label: r.name, description: r.root, repository: r })),
-    { title: 'Репозиторий' },
+    { title: t('Repository') },
   );
   return picked?.repository;
 }

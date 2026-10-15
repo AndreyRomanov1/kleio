@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { createGitLabApi, GitLabApiError } from './gitlabApi';
+import { t } from '../../shared/l10n';
 
 /** Provider registered by the GitLab Workflow extension; it shares its accounts with scope `api`. */
 const WORKFLOW_PROVIDER = 'gitlab';
@@ -59,9 +60,9 @@ export class GitLabAuth implements vscode.Disposable {
   /** Asks for access: first the GitLab Workflow account, then Kleio's own token. */
   async connect(host?: string): Promise<boolean> {
     host ??= await vscode.window.showInputBox({
-      title: 'Подключить GitLab',
-      prompt: 'Адрес сервера GitLab',
-      placeHolder: 'gitlab.com или git.example.com',
+      title: t('Connect GitLab'),
+      prompt: t('GitLab server address'),
+      placeHolder: t('gitlab.com or git.example.com'),
     });
     host = host?.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
     if (!host) return false;
@@ -77,14 +78,15 @@ export class GitLabAuth implements vscode.Disposable {
   }
 
   private async askToken(host: string): Promise<boolean> {
-    const create = 'Создать токен в браузере';
-    const paste = 'У меня есть токен';
+    const create = t('Create a token in the browser');
+    const paste = t('I have a token');
     const choice = await vscode.window.showInformationMessage(
-      `Нужен доступ к ${host}`,
+      t('Kleio needs access to {0}', host),
       {
         modal: true,
-        detail:
-          'Kleio использует личный токен GitLab со scope api. Если стоит расширение GitLab Workflow и в нём есть аккаунт этого сервера, Kleio возьмёт доступ оттуда — тогда токен не нужен.',
+        detail: t(
+          'Kleio uses a GitLab personal access token with the api scope. If the GitLab Workflow extension is signed in to this server, Kleio takes the access from there and no token is needed.',
+        ),
       },
       create,
       paste,
@@ -95,8 +97,8 @@ export class GitLabAuth implements vscode.Disposable {
       await vscode.env.openExternal(vscode.Uri.parse(page, true));
     }
     const token = await vscode.window.showInputBox({
-      title: `Токен GitLab для ${host}`,
-      prompt: 'Личный токен со scope api',
+      title: t('GitLab token for {0}', host),
+      prompt: t('Personal access token with the api scope'),
       password: true,
       ignoreFocusOut: true,
     });
@@ -105,13 +107,13 @@ export class GitLabAuth implements vscode.Disposable {
       const user = await createGitLabApi(host, '', token.trim()).currentUser();
       await this.secrets.store(SECRET_PREFIX + host, token.trim());
       this.changed.fire();
-      void vscode.window.showInformationMessage(`Kleio: подключено к ${host} как ${user.username}.`);
+      void vscode.window.showInformationMessage(t('Kleio: connected to {0} as {1}.', host, user.username));
       return true;
     } catch (error) {
       const message =
         error instanceof GitLabApiError && error.unauthorized
-          ? 'GitLab не принял токен.'
-          : `Не удалось проверить токен: ${error instanceof Error ? error.message : String(error)}`;
+          ? t('GitLab did not accept the token.')
+          : t('Could not check the token: {0}', error instanceof Error ? error.message : String(error));
       void vscode.window.showErrorMessage(`Kleio: ${message}`);
       return false;
     }
@@ -119,8 +121,8 @@ export class GitLabAuth implements vscode.Disposable {
 
   private async disconnect(): Promise<void> {
     const host = await vscode.window.showInputBox({
-      title: 'Удалить токен GitLab из Kleio',
-      prompt: 'Адрес сервера GitLab',
+      title: t('Remove the GitLab token from Kleio'),
+      prompt: t('GitLab server address'),
     });
     if (!host) return;
     await this.secrets.delete(SECRET_PREFIX + host.replace(/^https?:\/\//, '').replace(/\/.*$/, ''));

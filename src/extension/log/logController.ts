@@ -13,6 +13,7 @@ import type { PushDialog } from '../push/pushDialog';
 import type { RebaseDialog } from '../rebase/rebaseDialog';
 import type { MergeRequestCards } from '../hosting/mergeRequestCards';
 import type { ReviewController } from '../review/reviewController';
+import { t } from '../../shared/l10n';
 
 const FOCUS_KEY = 'kleio.focus';
 /** Commits loaded at once; huge histories are loaded further as the log is scrolled down. */
@@ -378,7 +379,7 @@ export class LogController implements vscode.Disposable {
             repository,
             oldest.parents[0],
             newest.hash,
-            `Коммиты ${oldest.hash.slice(0, 8)}…${newest.hash.slice(0, 8)}`,
+            t('Commits {0}…{1}', oldest.hash.slice(0, 8), newest.hash.slice(0, 8)),
           );
     const view = this.register(changeSet);
     if (this.history && commits.length === 1) view.focusIndex = this.historyFileIndex(changeSet, newest.hash);
@@ -503,7 +504,7 @@ export class LogController implements vscode.Disposable {
           repository,
           hash,
           WORKTREE,
-          `${hash.slice(0, 8)} ↔ рабочая копия`,
+          t('{0} ↔ working tree', hash.slice(0, 8)),
         );
         return this.openChangeSet(changeSet);
       }
@@ -567,7 +568,7 @@ export class LogController implements vscode.Disposable {
 
   private async openChangeSet(changeSet: ChangeSet): Promise<void> {
     if (changeSet.files.length === 0) {
-      void vscode.window.showInformationMessage(`${changeSet.title}: различий нет.`);
+      void vscode.window.showInformationMessage(t('{0}: no differences.', changeSet.title));
       return;
     }
     await this.services.navigator.open(changeSet, 0);

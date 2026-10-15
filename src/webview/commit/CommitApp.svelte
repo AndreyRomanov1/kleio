@@ -6,6 +6,7 @@
   import ChangesTree from './ChangesTree.svelte';
   import { CommitStore } from './commitStore.svelte';
   import StashList from './StashList.svelte';
+  import { t } from '../../shared/l10n';
 
   const store = new CommitStore();
   let tab = $state<'commit' | 'stash'>('commit');
@@ -53,7 +54,7 @@
       class:on={tab === 'commit'}
       role="tab"
       aria-selected={tab === 'commit'}
-      onclick={() => (tab = 'commit')}>Коммит</button
+      onclick={() => (tab = 'commit')}>{t('Commit')}</button
     >
     <button
       class="tab"
@@ -64,39 +65,39 @@
       >Stash{#if store.stashes.length}<span class="badge">{store.stashes.length}</span>{/if}</button
     >
     <span class="spacer"></span>
-    {#if store.branch}<span class="branch" title="Текущая ветка"
+    {#if store.branch}<span class="branch" title={t('Current branch')}
         ><i class="codicon codicon-git-branch"></i>{store.branch}</span
       >{/if}
   </div>
 
   {#if store.noRepository}
-    <div class="empty">В открытых папках нет git-репозитория.</div>
+    <div class="empty">{t('There is no git repository in the open folders.')}</div>
   {:else if tab === 'commit'}
     <div class="toolbar">
-      <button title="Обновить" onclick={() => postCommit({ type: 'refresh' })}
+      <button title={t('Refresh')} onclick={() => postCommit({ type: 'refresh' })}
         ><i class="codicon codicon-refresh"></i></button
       >
       <button
-        title="Откатить выделенные (или отмеченные) файлы"
+        title={t('Roll back the selected (or checked) files')}
         disabled={store.targets.length === 0}
         onclick={() => postCommit({ type: 'rollback', ...store.rollbackTargets() })}
         ><i class="codicon codicon-discard"></i></button
       >
       <button
-        title="Показать diff"
+        title={t('Show diff')}
         disabled={store.targets.length === 0}
         onclick={() => postCommit({ type: 'openDiff', path: store.targets[0] })}
         ><i class="codicon codicon-diff"></i></button
       >
       <span class="separator"></span>
-      <button title="Развернуть всё" onclick={() => (collapsed = new Set())}
+      <button title={t('Expand all')} onclick={() => (collapsed = new Set())}
         ><i class="codicon codicon-expand-all"></i></button
       >
-      <button title="Свернуть всё" onclick={() => (collapsed = allFolders)}
+      <button title={t('Collapse all')} onclick={() => (collapsed = allFolders)}
         ><i class="codicon codicon-collapse-all"></i></button
       >
       <button
-        title={store.flat ? 'Показать деревом' : 'Показать списком'}
+        title={store.flat ? t('Show as a tree') : t('Show as a list')}
         class:on={store.flat}
         onclick={() => {
           store.flat = !store.flat;
@@ -115,7 +116,7 @@
 
     <div class="bottom" style:height="{store.messageHeight}px">
       <div class="options">
-        <label title="Дописать изменения в последний коммит и поправить его сообщение">
+        <label title={t('Add the changes to the last commit and edit its message')}>
           <input
             type="checkbox"
             checked={store.amend}
@@ -124,7 +125,9 @@
           Amend
         </label>
         <label
-          title="Галочки показывают индекс git: отметить — git add, снять — убрать из stage. Коммитится то, что в stage, как git commit. Без галки коммитятся отмеченные файлы как есть на диске, как в Rider."
+          title={t(
+            'The checkboxes show the git index: check to git add, uncheck to unstage. The commit takes what is staged, as git commit does. Unchecked, the checked files are committed as they are on disk, as in Rider.',
+          )}
         >
           <input
             type="checkbox"
@@ -135,13 +138,13 @@
         </label>
         <span class="spacer"></span>
         <div class="recent">
-          <button title="Недавние сообщения" onclick={openRecent}
+          <button title={t('Recent messages')} onclick={openRecent}
             ><i class="codicon codicon-history"></i></button
           >
           {#if showRecent}
             <div class="recent-list" role="listbox">
               {#if !store.recent}
-                <div class="recent-item dim">Загрузка…</div>
+                <div class="recent-item dim">{t('Loading…')}</div>
               {:else}
                 {#each store.recent as recent, i (i)}
                   <button
@@ -154,7 +157,7 @@
                     }}>{recent.split('\n')[0]}</button
                   >
                 {:else}
-                  <div class="recent-item dim">Нет сообщений</div>
+                  <div class="recent-item dim">{t('No messages')}</div>
                 {/each}
               {/if}
             </div>
@@ -162,7 +165,7 @@
         </div>
       </div>
       <textarea
-        placeholder="Сообщение коммита (Ctrl+Enter — коммит)"
+        placeholder={t('Commit message (Ctrl+Enter to commit)')}
         bind:value={store.message}
         oninput={() => store.persist()}
         onkeydown={(e) => {
@@ -177,7 +180,11 @@
           {store.amend ? 'Amend' : 'Commit'} and Push…
         </button>
         <span class="spacer"></span>
-        <span class="count">{store.staging ? 'в stage ' : ''}{checkedCount} из {store.files.length}</span>
+        <span class="count"
+          >{store.staging
+            ? t('{0} of {1} staged', checkedCount, store.files.length)
+            : t('{0} of {1}', checkedCount, store.files.length)}</span
+        >
         {#if store.busy}<i class="codicon codicon-loading codicon-modifier-spin"></i>{/if}
       </div>
     </div>

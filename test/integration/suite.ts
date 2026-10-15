@@ -231,7 +231,7 @@ const tests: Test[] = [
       assert.deepEqual([sent[1].body.position.old_line, sent[1].body.position.new_line], [10, 10]);
       assert.ok(sent[1].url.endsWith('/draft_notes'));
       await waitFor(
-        () => (api.review.openThreads().some((t) => t.label === 'Черновик') ? true : undefined),
+        () => (api.review.openThreads().some((t) => t.label === 'Draft') ? true : undefined),
         'draft thread',
       );
 

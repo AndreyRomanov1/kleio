@@ -7,6 +7,7 @@ import { buildCard, buildDiscussions, type ChildJobs } from './mergeRequestCard'
 const MAX_CHILD_PIPELINES = 10;
 import type { HostingService } from './hostingService';
 import { cleanLog } from './jobLogText';
+import { t } from '../../shared/l10n';
 
 const LOG_SCHEME = 'kleio-job-log';
 
@@ -44,7 +45,7 @@ export class MergeRequestCards implements vscode.TextDocumentContentProvider, vs
     const api = await this.hosting.gitlab(repository, true);
     if (!api) return;
     const text = await vscode.window.withProgress(
-      { location: vscode.ProgressLocation.Window, title: `Kleio: лог джобы ${name}` },
+      { location: vscode.ProgressLocation.Window, title: t('Kleio: log of job {0}', name) },
       () => api.jobLog(jobId, projectId),
     );
     const uri = vscode.Uri.from({ scheme: LOG_SCHEME, path: `/${jobId}/${name.replace(/[/\\]/g, '_')}.log` });
@@ -62,7 +63,7 @@ export class MergeRequestCards implements vscode.TextDocumentContentProvider, vs
     if (!api) return;
     await this.report(
       () => (approve ? api.approve(iid) : api.unapprove(iid)),
-      approve ? 'аппрув поставлен' : 'аппрув снят',
+      approve ? t('approved') : t('approval removed'),
     );
   }
 
@@ -74,18 +75,18 @@ export class MergeRequestCards implements vscode.TextDocumentContentProvider, vs
     const running = ['created', 'waiting_for_resource', 'preparing', 'pending', 'running'].includes(
       details.pipeline?.status ?? '',
     );
-    const now = 'Влить';
-    const later = 'Влить после пайплайна';
+    const now = t('Merge');
+    const later = t('Merge when the pipeline succeeds');
     const status =
       details.mergeStatus && details.mergeStatus !== 'mergeable'
-        ? `Статус GitLab: ${details.mergeStatus}. `
+        ? t('GitLab status: {0}. ', details.mergeStatus)
         : '';
     const choice = await vscode.window.showWarningMessage(
-      `Влить !${iid} «${details.title}» в ${details.targetBranch}?`,
+      t('Merge !{0} "{1}" into {2}?', iid, details.title, details.targetBranch),
       {
         modal: true,
         detail:
-          `${status}${running ? 'Пайплайн ещё идёт — можно влить автоматически, когда он пройдёт.' : ''}`.trim() ||
+          `${status}${running ? t('The pipeline is still running: the merge can happen automatically when it succeeds.') : ''}`.trim() ||
           undefined,
       },
       ...(running ? [later, now] : [now]),
@@ -93,27 +94,23 @@ export class MergeRequestCards implements vscode.TextDocumentContentProvider, vs
     if (!choice) return;
     await this.report(
       () => api.merge(iid, { whenPipelineSucceeds: choice === later }),
-      choice === later ? 'MR вольётся после пайплайна' : 'MR влит',
+      choice === later ? t('will be merged when the pipeline succeeds') : t('the merge request is merged'),
     );
   }
 
   async rebase(repository: Repository, iid: number): Promise<void> {
     const api = await this.hosting.gitlab(repository, true);
     if (!api) return;
-    await this.report(() => api.rebase(iid), 'rebase запущен на сервере');
+    await this.report(() => api.rebase(iid), t('rebase started on the server'));
   }
 
   /** Starts a manual job or a trigger job (e.g. a deploy to a stand) after a confirmation. */
   async playJob(repository: Repository, jobId: number, name: string, projectId?: number): Promise<void> {
     const api = await this.hosting.gitlab(repository, true);
     if (!api) return;
-    const ok = await vscode.window.showInformationMessage(
-      `Запустить «${name}»?`,
-      { modal: true },
-      'Запустить',
-    );
+    const ok = await vscode.window.showInformationMessage(t('Run "{0}"?', name), { modal: true }, t('Run'));
     if (!ok) return;
-    await this.report(() => api.playJob(jobId, projectId), `«${name}» запущена`);
+    await this.report(() => api.playJob(jobId, projectId), t('"{0}" started', name));
   }
 
   private async report(action: () => Promise<void>, done: string): Promise<void> {
@@ -131,7 +128,7 @@ export class MergeRequestCards implements vscode.TextDocumentContentProvider, vs
     const api = await this.hosting.gitlab(repository, true);
     if (!api) return;
     await api.retryPipeline(pipelineId);
-    vscode.window.setStatusBarMessage('Kleio: упавшие джобы перезапущены', 4000);
+    vscode.window.setStatusBarMessage(t('Kleio: failed jobs are retried'), 4000);
   }
 
   provideTextDocumentContent(uri: vscode.Uri): string {

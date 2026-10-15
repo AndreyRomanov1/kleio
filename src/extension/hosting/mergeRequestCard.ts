@@ -5,6 +5,7 @@ import type {
   PipelineStageView,
 } from '../../shared/protocol';
 import type { Approvals, Bridge, Discussion, DraftNote, Job, MergeRequestDetails } from './gitlabApi';
+import { t } from '../../shared/l10n';
 
 /** Jobs of child pipelines, by child pipeline id. */
 export type ChildJobs = Record<number, Job[]>;
@@ -123,7 +124,7 @@ export function buildDiscussions(
   }
   for (const draft of drafts) {
     if (!draft.position && !draft.discussionId) {
-      view.general.push({ author: 'Вы', body: draft.body, createdAt: '', draft: true });
+      view.general.push({ author: t('You'), body: draft.body, createdAt: '', draft: true });
     }
   }
   return view;

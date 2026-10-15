@@ -1,3 +1,4 @@
+import './l10n';
 import { mount } from 'svelte';
 import App from './App.svelte';
 import CommitApp from './commit/CommitApp.svelte';

@@ -3,6 +3,7 @@ import type { OperationKind, Ref, RepositorySnapshot } from '../../shared/model'
 import type { RebaseEntry } from '../../shared/rebaseProtocol';
 import type { OperationOutcome, Repository } from '../git/repository';
 import type { RepositoryManager } from '../git/repositoryManager';
+import { t } from '../../shared/l10n';
 
 const FETCH_TIMEOUT_MS = 120_000;
 
@@ -37,7 +38,7 @@ export class SyncActions {
   ): Promise<void> {
     const current = branch ?? snapshot.head.branch;
     if (!current) return this.detached();
-    await this.operation(repository, `Rebase ${current} на ${shorten(onto)}`, 'rebase', () =>
+    await this.operation(repository, t('Rebase {0} onto {1}', current, shorten(onto)), 'rebase', () =>
       repository.rebase(onto, branch),
     );
   }
@@ -60,31 +61,32 @@ export class SyncActions {
   }
 
   async continueOperation(repository: Repository, kind: OperationKind): Promise<void> {
-    await this.operation(repository, `${operationNames[kind]}: продолжение`, kind, () =>
+    await this.operation(repository, t('{0}: continue', operationNames[kind]), kind, () =>
       repository.continueOperation(kind),
     );
   }
 
   async skip(repository: Repository, kind: OperationKind): Promise<void> {
-    await this.operation(repository, `${operationNames[kind]}: пропуск коммита`, kind, () =>
+    await this.operation(repository, t('{0}: skip the commit', operationNames[kind]), kind, () =>
       repository.skipOperation(kind),
     );
   }
 
   async abort(repository: Repository, kind: OperationKind): Promise<void> {
     const ok = await vscode.window.showWarningMessage(
-      `Прервать ${operationNames[kind].toLowerCase()}?`,
+      t('Abort {0}?', operationNames[kind].toLowerCase()),
       {
         modal: true,
-        detail:
-          'Ветка вернётся в состояние до начала операции; разрешённые конфликты пропадут. Незакоммиченные изменения, спрятанные на время операции, вернутся.',
+        detail: t(
+          'The branch returns to where it was before the operation; resolved conflicts are lost. Uncommitted changes stashed for the operation come back.',
+        ),
       },
-      'Прервать',
+      t('Abort'),
     );
     if (!ok) return;
     try {
       await repository.abortOperation(kind);
-      vscode.window.setStatusBarMessage(`Kleio: ${operationNames[kind]} прерван`, 4000);
+      vscode.window.setStatusBarMessage(t('Kleio: {0} aborted', operationNames[kind]), 4000);
     } catch (error) {
       report(error);
     } finally {
@@ -97,7 +99,7 @@ export class SyncActions {
    * upstream — fast-forward when it has no own commits, otherwise rebase or merge as configured.
    */
   async updateProject(repository: Repository): Promise<void> {
-    const fetched = await this.withProgress('Kleio: обновление проекта', async (progress) => {
+    const fetched = await this.withProgress(t('Kleio: updating the project'), async (progress) => {
       progress.report({ message: 'fetch' });
       await repository.git.run(['fetch', '--all', '--prune'], { timeoutMs: FETCH_TIMEOUT_MS });
       return true;
@@ -107,22 +109,24 @@ export class SyncActions {
 
     const head = await repository.head();
     if (!head.branch) {
-      void vscode.window.showInformationMessage('Fetch выполнен. HEAD без ветки — обновлять нечего.');
+      void vscode.window.showInformationMessage(
+        t('Fetched. HEAD has no branch, so there is nothing to update.'),
+      );
       return;
     }
     const upstream = await this.upstream(repository, head.branch);
     if (!upstream) {
       void vscode.window.showInformationMessage(
-        `Fetch выполнен. У ветки ${head.branch} нет upstream в origin — подтягивать неоткуда.`,
+        t('Fetched. Branch {0} has no upstream, so there is nothing to pull from.', head.branch),
       );
       return;
     }
     const { ahead, behind } = await repository.aheadBehind(head.branch, upstream);
     if (behind === 0) {
-      vscode.window.setStatusBarMessage(`Kleio: ${head.branch} актуальна`, 4000);
+      vscode.window.setStatusBarMessage(t('Kleio: {0} is up to date', head.branch), 4000);
       return;
     }
-    const title = `Обновление ${head.branch} из ${upstream}: ${behind} новых`;
+    const title = t('Updating {0} from {1}: {2} new', head.branch, upstream, behind);
     if (ahead === 0) {
       await this.operation(repository, title, 'merge', () =>
         repository.merge(upstream, { fastForwardOnly: true }),
@@ -147,13 +151,13 @@ export class SyncActions {
     if (snapshot.head.branch === ref.name) return this.updateProject(repository);
     const upstreamRef = snapshot.refs.find((r) => r.fullName === ref.upstream);
     if (!ref.upstream || !upstreamRef) {
-      void vscode.window.showInformationMessage(`У ветки ${ref.name} нет upstream — обновлять неоткуда.`);
+      void vscode.window.showInformationMessage(t('Branch {0} has no upstream to update from.', ref.name));
       return;
     }
     const worktree = snapshot.worktrees.find((w) => w.branch === ref.name);
     if (worktree) {
       void vscode.window.showInformationMessage(
-        `Ветка ${ref.name} открыта в worktree ${worktree.path} — обновите её там.`,
+        t('Branch {0} is checked out in worktree {1}: update it there.', ref.name, worktree.path),
       );
       return;
     }
@@ -172,15 +176,24 @@ export class SyncActions {
     if (!local || !upstream) return;
     const { ahead, behind } = await repository.aheadBehind(local, upstream);
     if (behind === 0) {
-      vscode.window.setStatusBarMessage(`Kleio: ${ref.name} актуальна`, 4000);
+      vscode.window.setStatusBarMessage(t('Kleio: {0} is up to date', ref.name), 4000);
     } else if (ahead > 0) {
       void vscode.window.showWarningMessage(
-        `Ветка ${ref.name} разошлась с ${upstreamRef.name}: ${ahead} своих коммитов, ${behind} новых. Без переключения её можно обновить, только если своих коммитов нет — переключитесь на неё и обновите проект.`,
+        t(
+          'Branch {0} has diverged from {1}: {2} own commits, {3} new. Without a checkout it can be updated only when it has no own commits: check it out and update the project.',
+          ref.name,
+          upstreamRef.name,
+          ahead,
+          behind,
+        ),
       );
     } else {
       try {
         await repository.moveBranch(ref.name, upstream, local);
-        vscode.window.setStatusBarMessage(`Kleio: ${ref.name} +${behind} из ${upstreamRef.name}`, 4000);
+        vscode.window.setStatusBarMessage(
+          t('Kleio: {0} +{1} from {2}', ref.name, behind, upstreamRef.name),
+          4000,
+        );
       } catch (error) {
         report(error);
       }
@@ -195,29 +208,30 @@ export class SyncActions {
         {
           label: 'Soft',
           mode: 'soft' as const,
-          detail: 'Изменения коммитов после этого останутся в индексе',
+          detail: t('Changes of the later commits stay in the index'),
         },
         {
           label: 'Mixed',
           mode: 'mixed' as const,
-          detail: 'Изменения останутся в рабочей копии, индекс очистится',
+          detail: t('Changes stay in the working tree, the index is cleared'),
         },
         {
           label: 'Hard',
           mode: 'hard' as const,
-          detail: 'Изменения коммитов и незакоммиченные правки пропадут',
+          detail: t('Changes of the commits and uncommitted changes are lost'),
         },
       ],
-      { title: `Reset ${branch} на ${shorten(hash)}` },
+      { title: t('Reset {0} to {1}', branch, shorten(hash)) },
     );
     if (!picked) return;
     if (picked.mode === 'hard') {
       const ok = await vscode.window.showWarningMessage(
-        `Hard reset ${branch} на ${shorten(hash)}?`,
+        t('Hard reset {0} to {1}?', branch, shorten(hash)),
         {
           modal: true,
-          detail:
-            'Незакоммиченные изменения отслеживаемых файлов пропадут безвозвратно; коммиты останутся в reflog.',
+          detail: t(
+            'Uncommitted changes of tracked files are lost for good; the commits stay in the reflog.',
+          ),
         },
         'Hard reset',
       );
@@ -225,7 +239,7 @@ export class SyncActions {
     }
     try {
       await repository.reset(hash, picked.mode);
-      vscode.window.setStatusBarMessage(`Kleio: reset ${branch} на ${shorten(hash)}`, 4000);
+      vscode.window.setStatusBarMessage(t('Kleio: reset {0} to {1}', branch, shorten(hash)), 4000);
     } catch (error) {
       report(error);
     } finally {
@@ -243,16 +257,17 @@ export class SyncActions {
     this.repositories.notifyChanged(repository);
     if (outcome === undefined) return;
     if (outcome === 'done') {
-      vscode.window.setStatusBarMessage(`Kleio: ${title} — готово`, 4000);
+      vscode.window.setStatusBarMessage(t('Kleio: {0} — done', title), 4000);
       return;
     }
     if (outcome === 'stash-conflicts') {
-      const resolve = 'Разрешить конфликты';
+      const resolve = t('Resolve conflicts');
       const choice = await vscode.window.showWarningMessage(
-        `${title}: выполнено, но незакоммиченные изменения вернулись с конфликтами.`,
+        t('{0}: done, but uncommitted changes came back with conflicts.', title),
         {
-          detail:
-            'Изменения прятались в stash на время операции. Копия осталась в stash — её можно удалить после разрешения конфликтов.',
+          detail: t(
+            'The changes were stashed for the operation. Their copy stays in the stash; drop it once the conflicts are resolved.',
+          ),
         },
         resolve,
       );
@@ -263,7 +278,13 @@ export class SyncActions {
     const name = operationNames[state?.kind ?? kind];
     if (outcome === 'stopped') {
       void vscode.window.showInformationMessage(
-        `${name} остановлен${state?.stoppedAt ? ` на ${shorten(state.stoppedAt)}` : ''}: внесите правки и нажмите «Продолжить» в логе.`,
+        state?.stoppedAt
+          ? t(
+              '{0} stopped at {1}: make the changes and press Continue in the log.',
+              name,
+              shorten(state.stoppedAt),
+            )
+          : t('{0} stopped: make the changes and press Continue in the log.', name),
       );
       return;
     }
@@ -272,9 +293,9 @@ export class SyncActions {
       return;
     }
     const files = state?.conflicted ?? [];
-    const abort = 'Прервать';
+    const abort = t('Abort');
     const choice = await vscode.window.showWarningMessage(
-      `${name}: конфликты в ${files.length} файл(ах)`,
+      t('{0}: conflicts in {1} file(s)', name, files.length),
       { detail: files.slice(0, 10).join('\n') },
       abort,
     );
@@ -296,17 +317,26 @@ export class SyncActions {
         {
           label: 'Merge',
           method: 'merge' as const,
-          detail: `Влить ${upstream} в ${branch} merge-коммитом — как git pull`,
+          detail: t('Merge {0} into {1} with a merge commit, as git pull does', upstream, branch),
         },
         {
           label: 'Rebase',
           method: 'rebase' as const,
-          detail: `Переставить свои коммиты поверх ${upstream} — как git pull --rebase; история линейная, но коммиты получат новые хеши`,
+          detail: t(
+            'Move own commits on top of {0}, as git pull --rebase does; the history stays linear, but the commits get new hashes',
+            upstream,
+          ),
         },
       ],
       {
-        title: `${branch}: ${ahead} своих коммитов, ${behind} новых в ${upstream}. Как обновлять ветки, разошедшиеся с upstream?`,
-        placeHolder: 'Выбор запомнится в настройке kleio.update.method',
+        title: t(
+          '{0}: {1} own commits, {2} new in {3}. How to update branches that diverged from their upstream?',
+          branch,
+          ahead,
+          behind,
+          upstream,
+        ),
+        placeHolder: t('The choice is saved in the kleio.update.method setting'),
         ignoreFocusOut: true,
       },
     );
@@ -339,7 +369,7 @@ export class SyncActions {
   }
 
   private detached(): void {
-    void vscode.window.showWarningMessage('HEAD без ветки: сначала переключитесь на ветку.');
+    void vscode.window.showWarningMessage(t('HEAD has no branch: check out a branch first.'));
   }
 }
 

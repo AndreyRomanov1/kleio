@@ -4,6 +4,7 @@
   import Check from '../commit/Check.svelte';
   import { basename, dirname, formatDate, shortHash } from '../format';
   import { postPush } from '../vscode';
+  import { t } from '../../shared/l10n';
 
   interface Row extends PushBranchView {
     force: boolean;
@@ -102,9 +103,9 @@
   <h1><i class="codicon codicon-repo-push"></i> Push</h1>
 
   {#if !loaded}
-    <div class="empty">Загрузка…</div>
+    <div class="empty">{t('Loading…')}</div>
   {:else}
-    <div class="branches" role="listbox" aria-label="Ветки">
+    <div class="branches" role="listbox" aria-label={t('Branches')}>
       {#each rows as row, index (row.branch)}
         <div
           class="branch"
@@ -122,7 +123,7 @@
         >
           <Check
             state={row.checked ? 'all' : 'none'}
-            label="Пушить {row.branch}"
+            label={t('Push {0}', row.branch)}
             onchange={(value) => (row.checked = value)}
           />
           <i class="codicon codicon-git-branch"></i>
@@ -143,17 +144,17 @@
               class="target-input"
               bind:value={row.target}
               spellcheck="false"
-              aria-label="Имя ветки на сервере"
+              aria-label={t('Branch name on the server')}
               onclick={(e) => e.stopPropagation()}
             />
           {/if}
-          {#if !row.existsOnRemote}<span class="badge new">новая</span>{/if}
-          <span class="count" title="Коммитов к отправке">↑{row.commits.length}</span>
+          {#if !row.existsOnRemote}<span class="badge new">{t('new')}</span>{/if}
+          <span class="count" title={t('Commits to push')}>↑{row.commits.length}</span>
           {#if needsForce(row)}
-            <span class="badge warn" title="На сервере есть коммиты, которых нет локально">↓{row.behind}</span
+            <span class="badge warn" title={t('The server has commits that are not here')}>↓{row.behind}</span
             >
             {#if row.protected}
-              <span class="badge bad" title="kleio.push.protectedBranches">force запрещён</span>
+              <span class="badge bad" title="kleio.push.protectedBranches">{t('force forbidden')}</span>
             {:else}
               <label class="force">
                 <input type="checkbox" bind:checked={row.force} /> force-with-lease
@@ -166,9 +167,11 @@
 
     {#if current}
       <div class="body">
-        <div class="commits" role="listbox" aria-label="Коммиты {current.branch}">
+        <div class="commits" role="listbox" aria-label={t('Commits of {0}', current.branch)}>
           {#if current.commits.length === 0}
-            <div class="empty">Нечего отправлять: ветка совпадает с {current.remote}/{current.target}.</div>
+            <div class="empty">
+              {t('Nothing to push: the branch matches {0}.', `${current.remote}/${current.target}`)}
+            </div>
           {/if}
           {#each current.commits as commit (commit.hash)}
             <div
@@ -187,13 +190,13 @@
             </div>
           {/each}
         </div>
-        <div class="files" aria-label="Файлы коммита">
+        <div class="files" aria-label={t('Files of the commit')}>
           {#each files as file, index (file.path)}
             <div
               class="file"
               role="button"
               tabindex="0"
-              title="Двойной клик — diff"
+              title={t('Double-click for the diff')}
               ondblclick={() => selectedCommit && postPush({ type: 'openFile', hash: selectedCommit, index })}
               onkeydown={(e) =>
                 e.key === 'Enter' &&
@@ -213,10 +216,12 @@
 
     <div class="buttons footer">
       {#if checkedRows.some(blocked)}
-        <span class="hint">Ветка разошлась с сервером: обновите её или отметьте force-with-lease.</span>
+        <span class="hint"
+          >{t('The branch has diverged from the server: update it or check force-with-lease.')}</span
+        >
       {/if}
       <span class="spacer"></span>
-      <button onclick={() => postPush({ type: 'cancel' })}>Отмена</button>
+      <button onclick={() => postPush({ type: 'cancel' })}>{t('Cancel')}</button>
       <button class="primary" disabled={!canPush} onclick={push} title="Ctrl+Enter"
         >{busy ? 'Push…' : checkedRows.some((r) => r.force && needsForce(r)) ? 'Force push' : 'Push'}</button
       >

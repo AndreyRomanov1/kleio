@@ -97,6 +97,7 @@ extension when it is signed in, or from a personal access token (command «По�
 | `kleio.worktree.copyFiles`        | `[]`                                  | Untracked files copied into a new worktree, e.g. local settings with secrets                 |
 | `kleio.codeLens.authors`          | `true`                                | The main author and the number of others above classes and methods                           |
 | `kleio.history.showDiffOnSelect`  | `true`                                | Show the diff of the selected commit in a history tab                                        |
+| `kleio.language`                  | `auto`                                | Language of Kleio: the editor's, or `en`, `ru` without a language pack                       |
 
 ## Key bindings
 
@@ -132,6 +133,7 @@ npm run watch              # rebuild on change; F5 in VS Code starts an Extensio
 npm test                   # unit tests, against real git repositories in a temp folder
 npm run test:integration   # tests inside a real editor; KLEIO_CODE=/path/to/codium
 npm run preview -- <repo>  # the UI in a browser against a real repository; nothing is committed or pushed
+                           # KLEIO_PREVIEW_LANG=ru for another language
 npm run package            # kleio.vsix
 ```
 
@@ -144,6 +146,19 @@ src/webview/    log, commit, push, rebase and conflicts UIs (Svelte 5)
 scripts/        build, integration test runner, browser preview, fake GitLab for tests
 test/           unit tests (vitest) and integration tests
 ```
+
+## Languages
+
+Kleio speaks English and Russian. It follows the display language of the editor; `kleio.language` picks
+another one without installing a language pack (commands and settings still follow the editor).
+
+To add a language, translate two files and name them with the language code, e.g. for German:
+
+- `l10n/bundle.l10n.de.json` — messages of the interface: copy `bundle.l10n.ru.json` and translate the
+  values; the keys are the English originals, `{0}` are placeholders;
+- `package.nls.de.json` — commands and settings: copy `package.nls.json` and translate the values.
+
+`npm run check:l10n` (also run by CI) lists messages missing from a translation or no longer used.
 
 ## License
 

@@ -6,6 +6,7 @@ import type { Hunk } from '../git/parse';
 import { WORKTREE } from '../git/repository';
 import { emptyUri, revisionUri, workingFileUri } from '../content/revisionUri';
 import { describeRange, shortRevision, type ChangeSet } from './changeSet';
+import { t } from '../../shared/l10n';
 
 interface OpenedFile {
   changeSet: ChangeSet;
@@ -102,7 +103,7 @@ export class ChangeSetNavigator implements vscode.Disposable {
     this.clearEdgeHint();
     const target = edge === 'first' ? hunks[0] : hunks[hunks.length - 1];
     const line = show.line ?? (target ? hunkLine(target, 'right') : 0);
-    const moved = change.oldPath && change.oldPath !== change.path ? ' — перемещён' : '';
+    const moved = change.oldPath && change.oldPath !== change.path ? t(' — moved') : '';
     const title = `${path.basename(change.path)}${moved} (${describeRange(changeSet)}) — ${index + 1}/${changeSet.files.length}`;
     const options: vscode.TextDocumentShowOptions = {
       preview: true,
@@ -148,10 +149,10 @@ export class ChangeSetNavigator implements vscode.Disposable {
         editor.setDecorations(this.renameDecoration, []);
         continue;
       }
-      const unchanged = current!.hunks.length === 0 ? ', содержимое не изменилось' : '';
+      const unchanged = current!.hunks.length === 0 ? t(', contents unchanged') : '';
       const text = isRight
-        ? `⟵ перемещён из ${change.oldPath}${unchanged}`
-        : `⟶ перемещён в ${change.path}${unchanged}`;
+        ? t('⟵ moved from {0}', change.oldPath ?? '') + unchanged
+        : t('⟶ moved to {0}', change.path) + unchanged;
       const end = editor.document.lineAt(0).range.end;
       editor.setDecorations(this.renameDecoration, [
         { range: new vscode.Range(end, end), renderOptions: { after: { contentText: text } } },
@@ -203,7 +204,7 @@ export class ChangeSetNavigator implements vscode.Disposable {
     if (!change) return;
     const uri = workingFileUri(changeSet.repository.root, change.path);
     if (!fs.existsSync(uri.fsPath)) {
-      void vscode.window.showWarningMessage(`Файла ${change.path} нет в рабочей копии.`);
+      void vscode.window.showWarningMessage(t('File {0} is not in the working tree.', change.path));
       return;
     }
     await vscode.window.showTextDocument(uri, {
@@ -235,7 +236,7 @@ export class ChangeSetNavigator implements vscode.Disposable {
         ? revisionUri(root, changeSet.left ?? '', change.oldPath ?? change.path)
         : revisionUri(root, changeSet.right, change.path);
     const right = workingFileUri(root, change.path);
-    const title = `${path.basename(change.path)} (${shortRevision(changeSet.right)} ↔ рабочая копия)`;
+    const title = `${path.basename(change.path)} (${t('{0} ↔ working tree', shortRevision(changeSet.right))})`;
     await vscode.commands.executeCommand('vscode.diff', left, right, title, { preview: true });
   }
 
@@ -293,16 +294,17 @@ export class ChangeSetNavigator implements vscode.Disposable {
         editor,
         direction,
         current.index,
-        direction === 1 ? 'Последнее изменение набора' : 'Первое изменение набора',
+        direction === 1 ? t('The last change of the set') : t('The first change of the set'),
       );
       return;
     }
-    const verb = direction === 1 ? 'следующий' : 'предыдущий';
     this.showEdgeHint(
       editor,
       direction,
       current.index,
-      `Ещё раз — ${verb} файл: ${path.basename(target.path)}`,
+      direction === 1
+        ? t('Once more for the next file: {0}', path.basename(target.path))
+        : t('Once more for the previous file: {0}', path.basename(target.path)),
     );
   }
 
@@ -338,7 +340,9 @@ export class ChangeSetNavigator implements vscode.Disposable {
     const index = current.index + direction;
     if (index < 0 || index >= current.changeSet.files.length) {
       vscode.window.setStatusBarMessage(
-        direction === 1 ? 'Kleio: это последнее изменение набора' : 'Kleio: это первое изменение набора',
+        direction === 1
+          ? t('Kleio: this is the last change of the set')
+          : t('Kleio: this is the first change of the set'),
         3000,
       );
       return;
@@ -359,7 +363,7 @@ export class ChangeSetNavigator implements vscode.Disposable {
     const picked = await vscode.window.showQuickPick(items, {
       title: `${current.changeSet.title}: ${describeRange(current.changeSet)}`,
       matchOnDescription: true,
-      placeHolder: 'Файл набора изменений',
+      placeHolder: t('File of the change set'),
     });
     if (picked) await this.open(current.changeSet, picked.index);
   }

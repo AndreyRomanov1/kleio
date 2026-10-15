@@ -1,6 +1,7 @@
 <script lang="ts">
+  import { t } from '../../shared/l10n';
   import type { PipelineJobView, PipelineStageView } from '../../shared/protocol';
-  import { formatDuration, pipelineIcons } from '../hostingView';
+  import { formatDuration, pipelineIcons, statusWord } from '../hostingView';
   import { post } from '../vscode';
   import PipelineStages from './PipelineStages.svelte';
 
@@ -30,20 +31,19 @@
   }
 
   function title(job: PipelineJobView): string {
-    const state = pipelineIcons[job.status].label.replace(
-      'пайплайн',
-      job.bridge ? 'дочерний пайплайн' : 'джоба',
-    );
+    const state = job.bridge
+      ? t('child pipeline {0}', statusWord(job.status))
+      : t('job {0}', statusWord(job.status));
     const action = job.child
       ? expanded.has(job.id)
-        ? 'свернуть дочерний пайплайн'
-        : 'развернуть дочерний пайплайн'
+        ? t('collapse the child pipeline')
+        : t('expand the child pipeline')
       : job.status === 'manual'
-        ? 'запустить'
+        ? t('run')
         : job.bridge
-          ? 'ещё не запускался'
-          : 'открыть лог';
-    return `${job.name}: ${state}${job.allowFailure ? ' (падение допустимо)' : ''} — ${action}`;
+          ? t('not started yet')
+          : t('open the log');
+    return `${job.name}: ${state}${job.allowFailure ? t(' (allowed to fail)') : ''} — ${action}`;
   }
 </script>
 
@@ -72,14 +72,12 @@
       <div class="child-head">
         <i class="codicon codicon-type-hierarchy-sub"></i>
         <a href={job.child!.webUrl}>{job.name}</a>
-        <span class="muted"
-          >{pipelineIcons[job.child!.status].label.replace('пайплайн', 'дочерний пайплайн')}</span
-        >
+        <span class="muted">{t('child pipeline {0}', statusWord(job.child!.status))}</span>
       </div>
       {#if job.child!.stages.length}
         <PipelineStages stages={job.child!.stages} {number} />
       {:else}
-        <div class="muted">джоб нет</div>
+        <div class="muted">{t('no jobs')}</div>
       {/if}
     </div>
   {/each}

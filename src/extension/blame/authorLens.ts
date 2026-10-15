@@ -2,6 +2,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { UNCOMMITTED, type BlameLine } from '../git/parse';
 import type { RepositoryManager } from '../git/repositoryManager';
+import { t } from '../../shared/l10n';
 
 const SYMBOL_KINDS = new Set([
   vscode.SymbolKind.Class,
@@ -80,10 +81,10 @@ export class AuthorLens implements vscode.CodeLensProvider, vscode.Disposable {
       const title = main
         ? `$(person) ${main.name}${others.length ? ` +${others.length}` : ''}`
         : '$(person) —';
-      const tooltip = authors.map((a) => `${a.name}: ${a.lines} стр.`).join('\n');
+      const tooltip = authors.map((a) => t('{0}: {1} lines', a.name, a.lines)).join('\n');
       return new vscode.CodeLens(new vscode.Range(declaration.anchor, declaration.anchor), {
         title,
-        tooltip: `${tooltip}\n\nНажмите, чтобы показать авторов по строкам`,
+        tooltip: `${tooltip}\n\n${t('Click to show the authors line by line')}`,
         command: 'kleio.blame.toggle',
         arguments: [document.uri],
       });
@@ -136,7 +137,7 @@ function authorsIn(lines: BlameLine[], range: vscode.Range): AuthorShare[] {
   for (let line = range.start.line + 1; line <= range.end.line + 1; line++) {
     const blame = lines[line - 1];
     if (!blame) continue;
-    const name = blame.commit.hash === UNCOMMITTED ? 'вы (не закоммичено)' : blame.commit.author;
+    const name = blame.commit.hash === UNCOMMITTED ? t('you (not committed)') : blame.commit.author;
     counts.set(name, (counts.get(name) ?? 0) + 1);
   }
   return [...counts].map(([name, count]) => ({ name, lines: count })).sort((a, b) => b.lines - a.lines);

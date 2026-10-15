@@ -3,6 +3,7 @@
   import { menu } from '../menu.svelte';
   import { postCommit } from '../vscode';
   import type { CommitStore } from './commitStore.svelte';
+  import { t } from '../../shared/l10n';
 
   interface Props {
     store: CommitStore;
@@ -25,13 +26,13 @@
 <div class="stash">
   <div class="save">
     <input
-      placeholder="Описание (необязательно)"
+      placeholder={t('Description (optional)')}
       bind:value={message}
       onkeydown={(e) => e.key === 'Enter' && save()}
       spellcheck="false"
     />
-    <label><input type="checkbox" bind:checked={includeUntracked} /> с неотслеживаемыми</label>
-    <button class="primary" disabled={store.files.length === 0} onclick={save}>Спрятать изменения</button>
+    <label><input type="checkbox" bind:checked={includeUntracked} /> {t('with untracked files')}</label>
+    <button class="primary" disabled={store.files.length === 0} onclick={save}>{t('Stash changes')}</button>
   </div>
   <div class="list">
     {#each store.stashes as stash (stash.hash)}
@@ -41,12 +42,12 @@
         ondblclick={() => act('show', stash.selector, stash.hash)}
         oncontextmenu={(e) =>
           menu.show(e, [
-            { label: 'Показать изменения', icon: 'diff', run: () => act('show', stash.selector, stash.hash) },
+            { label: t('Show changes'), icon: 'diff', run: () => act('show', stash.selector, stash.hash) },
             'separator',
-            { label: 'Применить', icon: 'check', run: () => act('apply', stash.selector, stash.hash) },
-            { label: 'Применить и удалить (pop)', run: () => act('pop', stash.selector, stash.hash) },
+            { label: t('Apply'), icon: 'check', run: () => act('apply', stash.selector, stash.hash) },
+            { label: t('Apply and drop (pop)'), run: () => act('pop', stash.selector, stash.hash) },
             'separator',
-            { label: 'Удалить…', icon: 'trash', run: () => act('drop', stash.selector, stash.hash) },
+            { label: t('Drop…'), icon: 'trash', run: () => act('drop', stash.selector, stash.hash) },
           ])}
       >
         <div class="text">
@@ -54,22 +55,22 @@
           <span class="meta">{stash.selector} · {formatDate(stash.date)}</span>
         </div>
         <span class="actions">
-          <button title="Показать изменения" onclick={() => act('show', stash.selector, stash.hash)}
+          <button title={t('Show changes')} onclick={() => act('show', stash.selector, stash.hash)}
             ><i class="codicon codicon-diff"></i></button
           >
-          <button title="Применить" onclick={() => act('apply', stash.selector, stash.hash)}
+          <button title={t('Apply')} onclick={() => act('apply', stash.selector, stash.hash)}
             ><i class="codicon codicon-check"></i></button
           >
-          <button title="Применить и удалить (pop)" onclick={() => act('pop', stash.selector, stash.hash)}
+          <button title={t('Apply and drop (pop)')} onclick={() => act('pop', stash.selector, stash.hash)}
             ><i class="codicon codicon-check-all"></i></button
           >
-          <button title="Удалить" onclick={() => act('drop', stash.selector, stash.hash)}
+          <button title={t('Drop')} onclick={() => act('drop', stash.selector, stash.hash)}
             ><i class="codicon codicon-trash"></i></button
           >
         </span>
       </div>
     {:else}
-      <div class="empty">Спрятанных изменений нет</div>
+      <div class="empty">{t('No stashed changes')}</div>
     {/each}
   </div>
 </div>

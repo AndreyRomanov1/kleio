@@ -208,7 +208,7 @@ describe('Repository', () => {
         amend: false,
         hunks: { 'a.txt': ['gone'] },
       }),
-    ).rejects.toThrow(/изменился/);
+    ).rejects.toThrow(/has changed/);
   });
 
   it('commits a later hunk while skipping an earlier one that adds lines', async () => {

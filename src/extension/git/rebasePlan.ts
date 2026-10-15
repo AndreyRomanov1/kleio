@@ -1,4 +1,5 @@
 import type { RebaseAction, RebaseEntry } from '../../shared/rebaseProtocol';
+import { t } from '../../shared/l10n';
 
 export interface RebaseTodo {
   /** Contents of the todo list given to `git rebase -i`. */
@@ -40,7 +41,7 @@ export function buildRebaseTodo(
       continue;
     }
     if (isMeld(entry.action)) {
-      if (!started) throw new Error('Первый коммит не может объединяться с предыдущим.');
+      if (!started) throw new Error(t('The first commit cannot be melded into the previous one.'));
       lines.push(`fixup ${entry.hash}`);
       continue;
     }

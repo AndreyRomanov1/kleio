@@ -6,6 +6,7 @@ import type { Repository } from '../git/repository';
 import type { RepositoryManager } from '../git/repositoryManager';
 import type { HostingService, RepositoryHosting } from './hostingService';
 import type { HostingLinks } from './hosting';
+import { t } from '../../shared/l10n';
 
 /** Opening things on GitLab/GitHub and creating merge requests, without any API access. */
 export class HostingActions implements vscode.Disposable {
@@ -56,15 +57,17 @@ export class HostingActions implements vscode.Disposable {
     const source = remoteBranchName(ref);
     const target = hosting.defaultBranch?.slice(hosting.remoteName.length + 1) ?? 'master';
     if (source === target) {
-      void vscode.window.showInformationMessage(`${source} — основная ветка, MR из неё не создают.`);
+      void vscode.window.showInformationMessage(
+        t('{0} is the default branch: merge requests are not created from it.', source),
+      );
       return;
     }
 
     const existing = hosting.mergeRequests[ref.hash]?.[0];
     if (existing) {
       const open = await vscode.window.showInformationMessage(
-        `Для ${source} уже есть MR !${existing}.`,
-        'Открыть MR',
+        t('{0} already has merge request !{1}.', source, existing),
+        t('Open merge request'),
       );
       if (open) await this.openUrl(links.mergeRequest(existing));
       return;
@@ -73,13 +76,14 @@ export class HostingActions implements vscode.Disposable {
     const unpushed = ref.kind === 'head' && (!ref.upstream || (ref.ahead ?? 0) > 0);
     if (!unpushed) return this.openUrl(links.newMergeRequest(source, target));
 
-    const pushAndCreate = links.kind === 'gitlab' ? 'Отправить и создать MR' : 'Отправить и открыть форму';
-    const formOnly = 'Только открыть форму';
+    const pushAndCreate =
+      links.kind === 'gitlab' ? t('Push and create merge request') : t('Push and open the form');
+    const formOnly = t('Only open the form');
     const choice = await vscode.window.showInformationMessage(
       ref.upstream
-        ? `В ${source} есть неотправленные коммиты.`
-        : `Ветка ${source} ещё не отправлена в ${hosting.remoteName}.`,
-      { modal: true, detail: `MR будет в ${target}.` },
+        ? t('{0} has commits that are not pushed.', source)
+        : t('Branch {0} is not pushed to {1} yet.', source, hosting.remoteName),
+      { modal: true, detail: t('The merge request will target {0}.', target) },
       pushAndCreate,
       formOnly,
     );
@@ -158,12 +162,14 @@ export class HostingActions implements vscode.Disposable {
   private async deliver(url: string, mode: 'open' | 'copy'): Promise<void> {
     if (mode === 'open') return this.openUrl(url);
     await vscode.env.clipboard.writeText(url);
-    vscode.window.setStatusBarMessage('Kleio: ссылка скопирована', 3000);
+    vscode.window.setStatusBarMessage(t('Kleio: the link is copied'), 3000);
   }
 
   private noHosting(): void {
     void vscode.window.showInformationMessage(
-      'Не удалось определить GitLab или GitHub по адресу remote. Для своего сервера укажите его в настройке kleio.hosting.instances.',
+      t(
+        'Could not tell GitLab or GitHub from the remote address. For your own server, add it to the kleio.hosting.instances setting.',
+      ),
     );
   }
 

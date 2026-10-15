@@ -9,6 +9,7 @@
   import Splitter from './components/Splitter.svelte';
   import { LogStore } from './store.svelte';
   import { loadUiState, post, saveUiState, type UiState } from './vscode';
+  import { t } from '../shared/l10n';
 
   const store = new LogStore();
   let ui = $state<UiState>(loadUiState());
@@ -25,9 +26,9 @@
     ui.detailsPosition === 'bottom' || (ui.detailsPosition === 'auto' && sideSpace - 600 < 220),
   );
   const positions = {
-    auto: { next: 'right', icon: 'layout', title: 'Детали: по ширине окна' },
-    right: { next: 'bottom', icon: 'layout-sidebar-right', title: 'Детали: справа' },
-    bottom: { next: 'auto', icon: 'layout-panel', title: 'Детали: снизу' },
+    auto: { next: 'right', icon: 'layout', title: t('Details: by the window width') },
+    right: { next: 'bottom', icon: 'layout-sidebar-right', title: t('Details: on the right') },
+    bottom: { next: 'auto', icon: 'layout-panel', title: t('Details: at the bottom') },
   } as const;
   const collapsed = $derived(new Set(ui.collapsed));
 
@@ -112,14 +113,14 @@
       <button
         class="tool"
         class:on={ui.showBranches}
-        title="Панель веток"
-        onclick={() => (ui.showBranches = !ui.showBranches)}>Ветки</button
+        title={t('Branches panel')}
+        onclick={() => (ui.showBranches = !ui.showBranches)}>{t('Branches')}</button
       >
     {/if}
     <input
       id="kleio-filter"
       class="filter"
-      placeholder="Текст, автор или хэш (Ctrl+F)"
+      placeholder={t('Text, author or hash (Ctrl+F)')}
       bind:value={store.filterText}
       spellcheck="false"
       onkeydown={(e) =>
@@ -130,27 +131,31 @@
         })}
     />
     {#if store.history}
-      <span class="hint">diff выбранного коммита — справа, стрелками по истории</span>
+      <span class="hint"
+        >{t('the diff of the selected commit is on the right; arrows move through the history')}</span
+      >
     {:else if store.focus.length}
-      <div class="focus" title="Лог показывает только историю этих веток">
-        <span class="focus-label">Фокус:</span>
+      <div class="focus" title={t('The log shows only the history of these branches')}>
+        <span class="focus-label">{t('Focus:')}</span>
         {#each store.focus as revision (revision)}
           <span class="chip">
             {revision}
             <button
-              title="Убрать из фокуса"
+              title={t('Remove from focus')}
               onclick={() => post({ type: 'setFocus', revisions: store.focus.filter((r) => r !== revision) })}
               >×</button
             >
           </span>
         {/each}
-        <button class="tool" onclick={() => post({ type: 'setFocus', revisions: [] })}>Все ветки</button>
+        <button class="tool" onclick={() => post({ type: 'setFocus', revisions: [] })}
+          >{t('All branches')}</button
+        >
       </div>
     {:else}
       <button
         class="tool"
-        title="Показать только текущую ветку, её origin, master и origin/master"
-        onclick={focusCurrent}>Только текущая</button
+        title={t('Show only the current branch, its remote branch and the default branch')}
+        onclick={focusCurrent}>{t('Current only')}</button
       >
     {/if}
     <span class="spacer"></span>
@@ -158,9 +163,9 @@
     {#if store.hosting?.api === 'needsAuth' && !store.history}
       <button
         class="tool"
-        title="Дать Kleio доступ к {store.hosting.name ?? 'GitLab'}: статусы MR, пайплайны"
+        title={t('Give Kleio access to {0}: merge request states, pipelines', store.hosting.name ?? 'GitLab')}
         onclick={() => post({ type: 'connectHosting' })}
-        ><i class="codicon codicon-plug"></i> Подключить GitLab</button
+        ><i class="codicon codicon-plug"></i> {t('Connect GitLab')}</button
       >
     {/if}
     {#if !store.history}
@@ -169,9 +174,9 @@
       >
       <button
         class="tool"
-        title="Обновить проект: fetch и подтянуть текущую ветку из origin"
+        title={t('Update project: fetch and pull the current branch from its upstream')}
         onclick={() => post({ type: 'updateProject' })}
-        ><i class="codicon codicon-repo-pull"></i> Обновить</button
+        ><i class="codicon codicon-repo-pull"></i> {t('Update')}</button
       >
       <button class="tool" title="Push…" onclick={() => post({ type: 'push' })}
         ><i class="codicon codicon-repo-push"></i> Push</button
@@ -179,13 +184,16 @@
     {/if}
     <button
       class="tool icon"
-      title="{positions[ui.detailsPosition].title} — нажмите, чтобы сменить"
+      title={t('{0}; click to change', positions[ui.detailsPosition].title)}
       aria-label={positions[ui.detailsPosition].title}
       onclick={() => (ui.detailsPosition = positions[ui.detailsPosition].next)}
       ><i class="codicon codicon-{positions[ui.detailsPosition].icon}"></i></button
     >
-    <button class="tool icon" title="Обновить" aria-label="Обновить" onclick={() => post({ type: 'refresh' })}
-      ><i class="codicon codicon-refresh"></i></button
+    <button
+      class="tool icon"
+      title={t('Refresh')}
+      aria-label={t('Refresh')}
+      onclick={() => post({ type: 'refresh' })}><i class="codicon codicon-refresh"></i></button
     >
   </div>
 
@@ -193,7 +201,7 @@
     <OperationBanner {store} operation={store.snapshot.operation} />
   {/if}
   {#if store.noRepository}
-    <div class="empty">В открытых папках нет git-репозитория.</div>
+    <div class="empty">{t('There is no git repository in the open folders.')}</div>
   {:else}
     <div class="main" class:narrow>
       {#if showBranches}

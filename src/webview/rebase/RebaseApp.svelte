@@ -3,6 +3,7 @@
   import type { RebaseAction, RebaseEntry, RebaseHostMessage } from '../../shared/rebaseProtocol';
   import { basename, dirname, formatDate, shortHash } from '../format';
   import { postRebase } from '../vscode';
+  import { t } from '../../shared/l10n';
 
   interface Row {
     hash: string;
@@ -14,17 +15,22 @@
   }
 
   const actions: { action: RebaseAction; label: string; key: string; title: string }[] = [
-    { action: 'pick', label: 'Pick', key: 'p', title: 'Оставить как есть' },
-    { action: 'reword', label: 'Reword', key: 'r', title: 'Изменить сообщение' },
-    { action: 'edit', label: 'Edit', key: 'e', title: 'Остановиться на коммите, чтобы поправить его' },
+    { action: 'pick', label: 'Pick', key: 'p', title: t('Keep as it is') },
+    { action: 'reword', label: 'Reword', key: 'r', title: t('Edit the message') },
+    { action: 'edit', label: 'Edit', key: 'e', title: t('Stop at the commit to amend it') },
     {
       action: 'squash',
       label: 'Squash',
       key: 's',
-      title: 'Объединить с коммитом выше, сообщение добавить к его',
+      title: t('Meld into the commit above, adding the message to its one'),
     },
-    { action: 'fixup', label: 'Fixup', key: 'f', title: 'Объединить с коммитом выше, сообщение отбросить' },
-    { action: 'drop', label: 'Drop', key: 'd', title: 'Удалить коммит' },
+    {
+      action: 'fixup',
+      label: 'Fixup',
+      key: 'f',
+      title: t('Meld into the commit above, discarding the message'),
+    },
+    { action: 'drop', label: 'Drop', key: 'd', title: t('Remove the commit') },
   ];
 
   let rows = $state<Row[]>([]);
@@ -224,7 +230,7 @@
   const firstKept = $derived(rows.find((r) => r.action !== 'drop'));
   const invalid = $derived(
     firstKept && isMeld(firstKept.action)
-      ? 'Первый оставшийся коммит не может объединяться с предыдущим — его не с чем объединить.'
+      ? t('The first remaining commit cannot be melded: there is nothing above it.')
       : undefined,
   );
   const changed = $derived(
@@ -243,10 +249,11 @@
 
   const messageHint = $derived.by(() => {
     if (!current) return '';
-    if (current.action === 'drop') return 'Коммит будет удалён.';
-    if (current.action === 'fixup') return 'Изменения войдут в коммит выше, сообщение отбрасывается.';
+    if (current.action === 'drop') return t('The commit will be removed.');
+    if (current.action === 'fixup')
+      return t('The changes go into the commit above; the message is discarded.');
     if (current.action === 'squash')
-      return 'Изменения и сообщение войдут в коммит выше — правьте итоговое сообщение там.';
+      return t('The changes and the message go into the commit above: edit the resulting message there.');
     return '';
   });
 
@@ -271,12 +278,13 @@
 <div class="app">
   <h1>
     <i class="codicon codicon-git-pull-request-draft"></i> Interactive rebase
-    {#if branch}<span class="sub">{branch}{base ? ` на ${shortHash(base)}` : ' от первого коммита'}</span
+    {#if branch}<span class="sub"
+        >{branch}{base ? t(' onto {0}', shortHash(base)) : t(' from the first commit')}</span
       >{/if}
   </h1>
 
   {#if !loaded}
-    <div class="empty">Загрузка…</div>
+    <div class="empty">{t('Loading…')}</div>
   {:else if rows.length}
     <div class="toolbar" role="toolbar">
       {#each actions as a (a.action)}
@@ -288,19 +296,28 @@
         >
       {/each}
       <span class="gap"></span>
-      <button title="Выше (Alt+↑)" aria-label="Выше" onclick={() => move(selected, selected - 1)}
+      <button title={t('Up (Alt+↑)')} aria-label={t('Up')} onclick={() => move(selected, selected - 1)}
         ><i class="codicon codicon-arrow-up"></i></button
       >
-      <button title="Ниже (Alt+↓)" aria-label="Ниже" onclick={() => move(selected, selected + 1)}
+      <button title={t('Down (Alt+↓)')} aria-label={t('Down')} onclick={() => move(selected, selected + 1)}
         ><i class="codicon codicon-arrow-down"></i></button
       >
       <span class="gap"></span>
       <span class="hint"
-        >Сверху — старые коммиты. Ctrl/Shift — выбрать несколько: Squash объединит их в верхний.</span
+        >{t(
+          'Oldest commits are on top. Ctrl/Shift selects several: Squash melds them into the topmost.',
+        )}</span
       >
     </div>
 
-    <div class="rows" role="listbox" tabindex="0" aria-label="Коммиты" bind:this={list} onkeydown={onListKey}>
+    <div
+      class="rows"
+      role="listbox"
+      tabindex="0"
+      aria-label={t('Commits')}
+      bind:this={list}
+      onkeydown={onListKey}
+    >
       {#each rows as row, index (row.hash)}
         <div
           class="row {row.action}"
@@ -334,7 +351,7 @@
           <select
             class="action"
             value={row.action}
-            aria-label="Действие"
+            aria-label={t('Action')}
             onclick={(e) => e.stopPropagation()}
             onchange={(e) => setAction(index, (e.currentTarget as HTMLSelectElement).value as RebaseAction)}
           >
@@ -345,7 +362,7 @@
             {#if isMeld(row.action)}<i class="codicon codicon-arrow-small-up"></i>{/if}
             {row.message.split('\n')[0]}
             {#if row.action === 'reword' || (row.message.trim() !== row.original.trim() && !isMeld(row.action))}
-              <span class="edited">сообщение изменено</span>
+              <span class="edited">{t('message edited')}</span>
             {/if}
           </span>
           <span class="author">{row.authorName}</span>
@@ -356,7 +373,7 @@
 
     <div class="bottom">
       <div class="message">
-        <div class="label">Сообщение {current ? shortHash(current.hash) : ''}</div>
+        <div class="label">{t('Message {0}', current ? shortHash(current.hash) : '')}</div>
         {#if messageHint}<div class="hint">{messageHint}</div>{/if}
         {#if current}
           <textarea
@@ -372,13 +389,13 @@
             }}></textarea>
         {/if}
       </div>
-      <div class="files" aria-label="Файлы коммита">
+      <div class="files" aria-label={t('Files of the commit')}>
         {#each files as file, index (file.path)}
           <div
             class="file"
             role="button"
             tabindex="0"
-            title="Двойной клик — diff"
+            title={t('Double-click for the diff')}
             ondblclick={() => filesOf && postRebase({ type: 'openFile', hash: filesOf, index })}
             onkeydown={(e) =>
               e.key === 'Enter' && filesOf && postRebase({ type: 'openFile', hash: filesOf, index })}
@@ -400,16 +417,20 @@
     {:else if published > 0}
       <span class="warn"
         ><i class="codicon codicon-warning"></i>
-        {published} из {rows.length} коммитов уже на сервере — после rebase ветку придётся пушить с force-with-lease.</span
+        {t(
+          '{0} of {1} commits are already on the server: after the rebase the branch has to be pushed with force-with-lease.',
+          published,
+          rows.length,
+        )}</span
       >
     {/if}
     <span class="spacer"></span>
-    <button onclick={() => postRebase({ type: 'cancel' })}>Отмена</button>
+    <button onclick={() => postRebase({ type: 'cancel' })}>{t('Cancel')}</button>
     <button
       class="primary"
       disabled={!!invalid || !changed || !rows.length}
       title="Ctrl+Enter"
-      onclick={start}>Начать rebase</button
+      onclick={start}>{t('Start rebase')}</button
     >
   </div>
 </div>

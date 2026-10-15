@@ -1,8 +1,10 @@
 <script lang="ts">
+  import { locale } from '../format';
   import { mergeRequestStateLabel, mergeRequestTone, mergeStatusLabel, pipelineIcons } from '../hostingView';
   import type { LogStore } from '../store.svelte';
   import { post } from '../vscode';
   import PipelineStages from './PipelineStages.svelte';
+  import { t } from '../../shared/l10n';
 
   interface Props {
     store: LogStore;
@@ -22,7 +24,7 @@
     comment = '';
   }
 
-  const timeFormat = new Intl.DateTimeFormat('ru-RU', { dateStyle: 'short', timeStyle: 'short' });
+  const timeFormat = new Intl.DateTimeFormat(locale, { dateStyle: 'short', timeStyle: 'short' });
   function formatTime(iso: string): string {
     const date = new Date(iso);
     return Number.isNaN(date.getTime()) ? '' : timeFormat.format(date);
@@ -50,34 +52,35 @@
         <span class="state {mergeRequestTone(card)}">{mergeRequestStateLabel(card)}</span>
       {/if}
       <span class="spacer"></span>
-      <button class="icon" title="Обновить" onclick={() => store.openCard(current.number)}
+      <button class="icon" title={t('Refresh')} onclick={() => store.openCard(current.number)}
         ><i class="codicon codicon-refresh"></i></button
       >
-      <button class="icon" title="Закрыть (Esc)" onclick={() => store.closeCard()}
+      <button class="icon" title={t('Close (Esc)')} onclick={() => store.closeCard()}
         ><i class="codicon codicon-close"></i></button
       >
     </div>
 
     {#if current.loading && !card}
-      <div class="muted"><i class="codicon codicon-loading codicon-modifier-spin"></i> Загрузка…</div>
+      <div class="muted"><i class="codicon codicon-loading codicon-modifier-spin"></i> {t('Loading…')}</div>
     {:else if current.needsAuth}
-      <p>Чтобы показать детали MR и пайплайн, Kleio нужен доступ к GitLab.</p>
+      <p>{t('Kleio needs access to GitLab to show the merge request and its pipeline.')}</p>
       <p class="muted">
-        Если стоит расширение GitLab Workflow с аккаунтом этого сервера, Kleio возьмёт доступ оттуда; иначе
-        попросит личный токен.
+        {t(
+          'If the GitLab Workflow extension is signed in to this server, Kleio takes the access from there; otherwise it asks for a personal access token.',
+        )}
       </p>
       <div class="actions">
         <button class="primary" onclick={() => post({ type: 'connectHosting', number: current.number })}
-          >Подключить GitLab</button
+          >{t('Connect GitLab')}</button
         >
         <button onclick={() => post({ type: 'openMergeRequest', number: current.number })}
-          >Открыть в браузере</button
+          >{t('Open in the browser')}</button
         >
       </div>
     {:else if current.error}
       <p class="error">{current.error}</p>
       <div class="actions">
-        <button onclick={() => store.openCard(current.number)}>Повторить</button>
+        <button onclick={() => store.openCard(current.number)}>{t('Retry')}</button>
       </div>
     {:else if card}
       <a class="title" href={card.webUrl}>{card.title}</a>
@@ -89,19 +92,20 @@
             ><i class="codicon codicon-git-merge"></i>{mergeStatusLabel(card.mergeStatus)}</span
           >
         {/if}
-        {#if card.hasConflicts}<span class="fact warn"><i class="codicon codicon-warning"></i>конфликты</span
+        {#if card.hasConflicts}<span class="fact warn"
+            ><i class="codicon codicon-warning"></i>{t('conflicts')}</span
           >{/if}
         <span class="fact"><i class="codicon codicon-comment"></i>{card.notes}</span>
       </div>
 
       <div class="section">
         <div class="label">
-          Ревьюеры{#if card.approvalsLeft > 0}<span class="muted">
-              · нужно ещё аппрувов: {card.approvalsLeft}</span
+          {t('Reviewers')}{#if card.approvalsLeft > 0}<span class="muted">
+              · {t('approvals needed: {0}', card.approvalsLeft)}</span
             >{/if}
         </div>
         {#if card.reviewers.length === 0 && card.approvedBy.length === 0}
-          <div class="muted">не назначены</div>
+          <div class="muted">{t('none assigned')}</div>
         {/if}
         {#each card.reviewers as reviewer (reviewer.name)}
           <div class="person" class:approved={reviewer.approved}>
@@ -111,7 +115,8 @@
         {/each}
         {#each card.approvedBy as name (name)}
           <div class="person approved">
-            <i class="codicon codicon-pass-filled"></i>{name} <span class="muted">(не ревьюер)</span>
+            <i class="codicon codicon-pass-filled"></i>{name}
+            <span class="muted">{t('(not a reviewer)')}</span>
           </div>
         {/each}
       </div>
@@ -122,42 +127,42 @@
         <div class="section">
           <div class="label pipeline-head">
             <span class="status {icon.tone}"><i class="codicon codicon-{icon.icon}"></i></span>
-            <a href={pipeline.webUrl}>Пайплайн #{pipeline.id}</a>
+            <a href={pipeline.webUrl}>{t('Pipeline #{0}', pipeline.id)}</a>
             <span class="muted">{icon.label}</span>
             <span class="spacer"></span>
             {#if pipeline.status === 'failed' || pipeline.status === 'canceled'}
               <button
                 class="small"
-                title="Перезапустить упавшие и отменённые джобы"
+                title={t('Retry failed and canceled jobs')}
                 onclick={() => post({ type: 'retryPipeline', pipelineId: pipeline.id, number: card.iid })}
-                ><i class="codicon codicon-debug-restart"></i> Перезапустить</button
+                ><i class="codicon codicon-debug-restart"></i> {t('Retry')}</button
               >
             {/if}
           </div>
           <PipelineStages stages={pipeline.stages} number={card.iid} />
         </div>
       {:else}
-        <div class="section muted">Пайплайна нет</div>
+        <div class="section muted">{t('No pipeline')}</div>
       {/if}
 
       {#if card.discussions}
         {@const d = card.discussions}
-        {@const open = d.threads.filter((t) => !t.outdated && !(t.resolvable && t.resolved))}
-        {@const rest = d.threads.filter((t) => !open.includes(t))}
+        {@const open = d.threads.filter((th) => !th.outdated && !(th.resolvable && th.resolved))}
+        {@const rest = d.threads.filter((th) => !open.includes(th))}
         <div class="section">
           <div class="label">
-            Обсуждения
+            {t('Discussions')}
             <span class="muted">
-              {#if d.unresolved}· нерешённых {d.unresolved}{/if}
-              {#if d.drafts}· черновиков {d.drafts}{/if}
+              {#if d.unresolved}· {t('unresolved: {0}', d.unresolved)}{/if}
+              {#if d.drafts}· {t('drafts: {0}', d.drafts)}{/if}
             </span>
             <span class="spacer"></span>
             {#if d.drafts}
               <button
                 class="small"
-                title="Опубликовать все ваши черновики к этому MR (как Submit review на вебе)"
+                title={t('Publish all your drafts on this merge request (as Submit review on the web)')}
                 onclick={() => post({ type: 'publishDrafts', number: card.iid })}
-                ><i class="codicon codicon-cloud-upload"></i> Опубликовать черновики</button
+                ><i class="codicon codicon-cloud-upload"></i> {t('Publish drafts')}</button
               >
             {/if}
           </div>
@@ -165,7 +170,9 @@
             <button
               class="thread"
               class:resolved={thread.resolved}
-              title={thread.outdated ? 'К прошлой версии MR' : 'Открыть в коде'}
+              title={thread.outdated
+                ? t('On an earlier version of the merge request')
+                : t('Open in the code')}
               onclick={() =>
                 post({
                   type: 'startReview',
@@ -190,23 +197,21 @@
           {/each}
           {#if rest.length}
             <button class="more" onclick={() => (showAll = !showAll)}>
-              {showAll
-                ? 'Скрыть решённые и к прошлым версиям'
-                : `Ещё ${rest.length}: решённые и к прошлым версиям`}
+              {showAll ? t('Hide resolved and outdated') : t('{0} more: resolved and outdated', rest.length)}
             </button>
           {/if}
           {#each d.general as note, i (i)}
             <div class="note" class:draft={note.draft}>
               <div class="note-head">
                 <b>{note.author}</b>
-                <span class="muted">{note.draft ? 'черновик' : formatTime(note.createdAt)}</span>
+                <span class="muted">{note.draft ? t('draft') : formatTime(note.createdAt)}</span>
               </div>
               <div
                 class="note-body"
                 class:clamped={!expandedNotes.has(i)}
                 role="button"
                 tabindex="-1"
-                title={expandedNotes.has(i) ? '' : 'Показать целиком'}
+                title={expandedNotes.has(i) ? '' : t('Show all')}
                 onclick={() => (expandedNotes = new Set([...expandedNotes, i]))}
                 onkeydown={() => {}}
               >
@@ -215,18 +220,20 @@
             </div>
           {/each}
           <textarea
-            placeholder="Комментарий ко всему MR"
+            placeholder={t('Comment on the whole merge request')}
             bind:value={comment}
             onkeydown={(e) => {
               if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) send(false);
             }}></textarea>
           <div class="comment-actions">
-            <button class="small" disabled={!comment.trim()} onclick={() => send(false)}>Опубликовать</button>
+            <button class="small" disabled={!comment.trim()} onclick={() => send(false)}
+              >{t('Publish')}</button
+            >
             <button
               class="small"
               disabled={!comment.trim()}
-              title="Сохранить черновиком в GitLab"
-              onclick={() => send(true)}>В черновик</button
+              title={t('Save as a draft in GitLab')}
+              onclick={() => send(true)}>{t('Save draft')}</button
             >
           </div>
         </div>
@@ -234,30 +241,31 @@
 
       <div class="actions">
         <button class="primary" onclick={() => post({ type: 'startReview', number: card.iid })}
-          ><i class="codicon codicon-eye"></i> {card.reviewing ? 'Ревью открыто' : 'Ревью'}</button
+          ><i class="codicon codicon-eye"></i> {card.reviewing ? t('Review is open') : t('Review')}</button
         >
         {#if card.state === 'opened'}
           <button
-            title={card.approvedByMe ? 'Снять ваш аппрув' : 'Поставить аппрув'}
+            title={card.approvedByMe ? t('Remove your approval') : t('Approve')}
             onclick={() =>
               post({ type: 'approveMergeRequest', number: card.iid, approve: !card.approvedByMe })}
             ><i class="codicon codicon-{card.approvedByMe ? 'circle-slash' : 'pass'}"></i>
-            {card.approvedByMe ? 'Снять аппрув' : 'Аппрув'}</button
+            {card.approvedByMe ? t('Unapprove') : t('Approve')}</button
           >
           {#if card.mergeStatus === 'need_rebase'}
             <button
-              title="Перебазировать ветку на сервере GitLab"
+              title={t('Rebase the branch on the GitLab server')}
               onclick={() => post({ type: 'rebaseMergeRequest', number: card.iid })}
               ><i class="codicon codicon-git-compare"></i> Rebase</button
             >
           {/if}
           <button
-            title="Влить MR — с подтверждением"
+            title={t('Merge, after a confirmation')}
             onclick={() => post({ type: 'mergeMergeRequest', number: card.iid })}
-            ><i class="codicon codicon-git-merge"></i> Влить…</button
+            ><i class="codicon codicon-git-merge"></i> {t('Merge…')}</button
           >
         {/if}
-        <a class="button" href={card.webUrl}><i class="codicon codicon-link-external"></i> Открыть в GitLab</a
+        <a class="button" href={card.webUrl}
+          ><i class="codicon codicon-link-external"></i> {t('Open in GitLab')}</a
         >
       </div>
     {/if}

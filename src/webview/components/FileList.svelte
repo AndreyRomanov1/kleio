@@ -7,6 +7,7 @@
   import { fileMenu } from '../menus';
   import { buildTree, flatten, type FlatRow } from '../tree';
   import { post } from '../vscode';
+  import { t } from '../../shared/l10n';
 
   interface Props {
     changeSet: ChangeSetView;
@@ -83,13 +84,13 @@
   }
 
   const statusTitle: Record<string, string> = {
-    A: 'Добавлен',
-    M: 'Изменён',
-    D: 'Удалён',
-    R: 'Переименован',
-    C: 'Скопирован',
-    T: 'Сменился тип',
-    U: 'Конфликт',
+    A: t('Added'),
+    M: t('Modified'),
+    D: t('Deleted'),
+    R: t('Renamed'),
+    C: t('Copied'),
+    T: t('Type changed'),
+    U: t('Conflict'),
   };
 </script>
 

@@ -6,6 +6,7 @@
   import { postCommit } from '../vscode';
   import Check from './Check.svelte';
   import type { CommitStore } from './commitStore.svelte';
+  import { t } from '../../shared/l10n';
 
   interface Props {
     store: CommitStore;
@@ -41,8 +42,8 @@
     const changes = store.files.filter((f) => f.kind !== 'untracked');
     const untracked = store.files.filter((f) => f.kind === 'untracked');
     return [
-      make('section:changes', 'Изменения', changes),
-      ...(untracked.length ? [make('section:untracked', 'Неотслеживаемые файлы', untracked)] : []),
+      make('section:changes', t('Changes'), changes),
+      ...(untracked.length ? [make('section:untracked', t('Untracked files'), untracked)] : []),
     ];
   });
 
@@ -65,13 +66,13 @@
     const rollback = store.rollbackTargets();
     menu.show(event, [
       {
-        label: 'Показать diff',
-        hint: 'двойной клик',
+        label: t('Show diff'),
+        hint: t('double-click'),
         icon: 'diff',
         run: () => postCommit({ type: 'openDiff', path: file.path }),
       },
       {
-        label: 'Открыть файл',
+        label: t('Open file'),
         icon: 'go-to-file',
         run: () => postCommit({ type: 'openFile', path: file.path }),
       },
@@ -79,10 +80,10 @@
       {
         label:
           targets.length > 1
-            ? `Откатить (${targets.length})…`
+            ? t('Roll back ({0})…', targets.length)
             : rollback.paths.length
-              ? 'Откатить…'
-              : 'Откатить отмеченные куски…',
+              ? t('Roll back…')
+              : t('Roll back the checked hunks…'),
         icon: 'discard',
         run: () => postCommit({ type: 'rollback', ...rollback }),
       },
@@ -92,14 +93,14 @@
   function hunkMenu(event: MouseEvent, file: CommitFile, key: string, line: number): void {
     menu.show(event, [
       {
-        label: 'Показать diff',
-        hint: 'двойной клик',
+        label: t('Show diff'),
+        hint: t('double-click'),
         icon: 'diff',
         run: () => postCommit({ type: 'openDiff', path: file.path, line }),
       },
       'separator',
       {
-        label: 'Откатить этот кусок…',
+        label: t('Roll back this hunk…'),
         icon: 'discard',
         run: () => postCommit({ type: 'rollback', paths: [], hunks: { [file.path]: [key] } }),
       },
@@ -107,14 +108,14 @@
   }
 
   const statusTitle: Record<string, string> = {
-    A: 'Добавлен',
-    M: 'Изменён',
-    D: 'Удалён',
-    R: 'Перемещён',
-    C: 'Скопирован',
-    T: 'Сменился тип',
-    U: 'Конфликт',
-    '?': 'Не под версионным контролем',
+    A: t('Added'),
+    M: t('Modified'),
+    D: t('Deleted'),
+    R: t('Moved'),
+    C: t('Copied'),
+    T: t('Type changed'),
+    U: t('Conflict'),
+    '?': t('Untracked'),
   };
 </script>
 
@@ -122,7 +123,7 @@
   {#each sections as section (section.key)}
     {@const open = !collapsed.has(section.key)}
     <div class="row section" role="treeitem" aria-selected="false" aria-expanded={open} tabindex="-1">
-      <button class="chevron" aria-label="Свернуть" onclick={() => ontoggle(section.key)}
+      <button class="chevron" aria-label={t('Collapse')} onclick={() => ontoggle(section.key)}
         ><i class="codicon codicon-chevron-{open ? 'down' : 'right'}"></i></button
       >
       <Check
@@ -187,8 +188,8 @@
             {#if splittable(file)}
               <button
                 class="chevron"
-                aria-label={store.expanded.has(file.path) ? 'Скрыть куски' : 'Показать куски'}
-                title="Куски изменений: коммитить часть файла"
+                aria-label={store.expanded.has(file.path) ? t('Hide hunks') : t('Show hunks')}
+                title={t('Hunks: commit a part of the file')}
                 onclick={(e) => {
                   e.stopPropagation();
                   store.toggleExpanded(file.path);
@@ -214,9 +215,11 @@
           {#if store.expanded.has(file.path)}
             {@const hunks = store.hunks.get(file.path)}
             {#if !hunks}
-              <div class="row hunk muted" style:padding-left="{52 + depth * 14}px">Загрузка…</div>
+              <div class="row hunk muted" style:padding-left="{52 + depth * 14}px">{t('Loading…')}</div>
             {:else if hunks.length === 0}
-              <div class="row hunk muted" style:padding-left="{52 + depth * 14}px">Не делится на куски</div>
+              <div class="row hunk muted" style:padding-left="{52 + depth * 14}px">
+                {t('Cannot be split into hunks')}
+              </div>
             {/if}
             {#each hunks ?? [] as hunk (hunk.key)}
               <div
@@ -238,10 +241,10 @@
               >
                 <Check
                   state={store.hunkChecked(file.path, hunk.key) ? 'all' : 'none'}
-                  label="Строка {hunk.line}"
+                  label={t('Line {0}', hunk.line)}
                   onchange={(v) => store.setHunk(file.path, hunk.key, v)}
                 />
-                <span class="where">стр. {hunk.line}</span>
+                <span class="where">{t('line {0}', hunk.line)}</span>
                 {#if hunk.added}<span class="added">+{hunk.added}</span>{/if}
                 {#if hunk.removed}<span class="removed">−{hunk.removed}</span>{/if}
                 <code class="preview"
@@ -255,7 +258,7 @@
     {/if}
   {/each}
   {#if store.loaded && store.files.length === 0}
-    <div class="empty">Нет изменений</div>
+    <div class="empty">{t('No changes')}</div>
   {/if}
 </div>
 

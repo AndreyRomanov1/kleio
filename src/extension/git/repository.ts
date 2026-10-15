@@ -35,6 +35,7 @@ import {
   type FileHistory,
   type Hunk,
 } from './parse';
+import { t } from '../../shared/l10n';
 
 /** Pseudo-revision for files on disk. */
 export const WORKTREE = 'WORKTREE';
@@ -306,7 +307,7 @@ export class Repository {
         const patch = await this.workingPatch(filePath);
         const known = new Set(patch.hunks.map((h) => h.key));
         if (keys.some((k) => !known.has(k)))
-          throw new Error(`Файл ${filePath} изменился — проверьте выбранные куски и повторите коммит.`);
+          throw new Error(t('File {0} has changed: check the chosen hunks and commit again.', filePath));
         return selectHunks(patch, new Set(keys));
       }),
     );
@@ -367,7 +368,7 @@ export class Repository {
     const patch = value ? await this.unstagedPatch(filePath) : await this.stagedPatch(filePath);
     const known = new Set(patch.hunks.map((h) => h.key));
     if (keys.some((k) => !known.has(k)))
-      throw new Error(`Файл ${filePath} изменился — обновите список и повторите.`);
+      throw new Error(t('File {0} has changed: refresh the list and try again.', filePath));
     const args = ['apply', '--cached', '--unidiff-zero', '--whitespace=nowarn'];
     if (!value) args.push('-R');
     await this.git.run([...args, '-'], { input: selectHunks(patch, new Set(keys)) });
@@ -388,7 +389,7 @@ export class Repository {
     const patch = unstagedOnly ? await this.unstagedPatch(filePath) : await this.workingPatch(filePath);
     const known = new Set(patch.hunks.map((h) => h.key));
     if (keys.some((k) => !known.has(k)))
-      throw new Error(`Файл ${filePath} изменился — обновите список и повторите откат.`);
+      throw new Error(t('File {0} has changed: refresh the list and roll back again.', filePath));
     await this.git.run(['apply', '-R', '--unidiff-zero', '--whitespace=nowarn', '-'], {
       input: selectHunks(patch, new Set(keys)),
     });

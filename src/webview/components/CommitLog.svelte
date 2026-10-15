@@ -8,6 +8,7 @@
   import { post } from '../vscode';
   import GraphCell from './GraphCell.svelte';
   import RefBadges from './RefBadges.svelte';
+  import { t } from '../../shared/l10n';
 
   interface Props {
     store: LogStore;
@@ -106,24 +107,24 @@
 
 <div class="log" style:--author-width="{authorWidth}px" style:--date-width="{dateWidth}px">
   <div class="header">
-    <span>Коммит</span>
+    <span>{t('Commit')}</span>
     <span class="resizable"
       ><span
         class="resize"
         role="separator"
-        aria-label="Ширина колонки автора"
+        aria-label={t('Width of the author column')}
         onpointerdown={(e) => startResize(e, 'author')}
-      ></span>Автор</span
+      ></span>{t('Author')}</span
     >
     <span class="resizable"
       ><span
         class="resize"
         role="separator"
-        aria-label="Ширина колонки даты"
+        aria-label={t('Width of the date column')}
         onpointerdown={(e) => startResize(e, 'date')}
-      ></span>Дата</span
+      ></span>{t('Date')}</span
     >
-    <span>Хэш</span>
+    <span>{t('Hash')}</span>
   </div>
   <div
     class="viewport"
@@ -134,7 +135,7 @@
     tabindex="0"
     role="listbox"
     aria-multiselectable="true"
-    aria-label="Коммиты"
+    aria-label={t('Commits')}
   >
     <div class="spacer" style:height="{store.rowCount * ROW_HEIGHT}px">
       {#each visible as row (row)}
@@ -189,7 +190,7 @@
       {/each}
     </div>
     {#if store.rowCount === 0 && !store.loading}
-      <div class="empty">{store.filterText ? 'Ничего не найдено' : 'Нет коммитов'}</div>
+      <div class="empty">{store.filterText ? t('Nothing found') : t('No commits')}</div>
     {/if}
   </div>
 </div>
