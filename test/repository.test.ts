@@ -29,7 +29,7 @@ function commitFile(cwd: string, file: string, content: string, message: string)
 }
 
 beforeAll(() => {
-  work = mkdtempSync(path.join(tmpdir(), 'grove-repo-'));
+  work = mkdtempSync(path.join(tmpdir(), 'kleio-repo-'));
 });
 
 afterAll(() => {

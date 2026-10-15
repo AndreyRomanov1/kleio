@@ -13,7 +13,7 @@ import type { Repository } from '../git/repository';
 import type { RepositoryManager } from '../git/repositoryManager';
 import { renderHtml, webviewOptions } from '../webviewHtml';
 
-const PANEL_TYPE = 'grove.conflicts';
+const PANEL_TYPE = 'kleio.conflicts';
 const MARKERS = /^(<{7}|>{7}) /m;
 
 const operationNames = {
@@ -44,11 +44,11 @@ export class ConflictsWindow implements vscode.Disposable {
       repositories.onDidChangeRepository((repository) => {
         if (repository === this.repository && this.panel) void this.load();
       }),
-      vscode.commands.registerCommand('grove.conflicts.show', async () => {
+      vscode.commands.registerCommand('kleio.conflicts.show', async () => {
         const repository = this.repository ?? repositories.all[0];
         if (repository) await this.open(repository);
       }),
-      vscode.commands.registerCommand('grove.conflicts.markResolved', () => this.markActiveResolved()),
+      vscode.commands.registerCommand('kleio.conflicts.markResolved', () => this.markActiveResolved()),
     );
   }
 
@@ -163,7 +163,7 @@ export class ConflictsWindow implements vscode.Disposable {
     this.repositories.notifyChanged(repository);
     const left = state.conflicted.length - 1;
     if (left > 0) {
-      vscode.window.setStatusBarMessage(`Grove: ${relative} — конфликт разрешён, осталось ${left}`, 5000);
+      vscode.window.setStatusBarMessage(`Kleio: ${relative} — конфликт разрешён, осталось ${left}`, 5000);
     } else {
       this.offerToContinue(repository, state.kind);
     }
@@ -210,7 +210,7 @@ export class ConflictsWindow implements vscode.Disposable {
     if (left === 0 && state) {
       this.offerToContinue(repository, state.kind);
     } else {
-      vscode.window.setStatusBarMessage(`Grove: ${relative} — конфликт разрешён, осталось ${left}`, 5000);
+      vscode.window.setStatusBarMessage(`Kleio: ${relative} — конфликт разрешён, осталось ${left}`, 5000);
     }
     if (this.panel && repository === this.repository) await this.load();
   }

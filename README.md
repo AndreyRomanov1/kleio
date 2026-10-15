@@ -1,4 +1,6 @@
-# Grove
+# Kleio
+
+_Kleio (Clio) is the muse of history._
 
 Git for VS Code and VSCodium the way JetBrains IDEs do it: a commit graph you can work from, one diff
 viewer for any set of changes, history and blame a click away, interactive rebase and conflicts in proper
@@ -69,7 +71,7 @@ stays editable.
 ## Install
 
 Until the extension is published, build it from source (see below) and install the package:
-`codium --install-extension grove.vsix` (or `code …`).
+`codium --install-extension kleio.vsix` (or `code …`).
 
 GitLab access is taken from the [GitLab Workflow](https://open-vsx.org/extension/GitLab/gitlab-workflow)
 extension when it is signed in, or from a personal access token (command «Подключить GitLab…», scope
@@ -79,18 +81,18 @@ extension when it is signed in, or from a personal access token (command «По�
 
 | Setting                          | Default                               | What it does                                                                                 |
 | -------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `grove.autolinks`                | `[]`                                  | Rules turning text into links: `{"pattern": "\\bPROJ-\\d+\\b", "url": "https://tracker/$0"}` |
-| `grove.hosting.instances`        | `{}`                                  | Hosting type of your own servers, e.g. `{"git.example.com": "gitlab"}`                       |
-| `grove.update.method`            | `rebase`                              | How Update Project brings a branch with own commits up to date: `rebase` or `merge`          |
-| `grove.push.protectedBranches`   | `["master", "main"]`                  | Branches never force-pushed; `*` works, e.g. `release/*`                                     |
-| `grove.worktree.path`            | `${repoParent}/${repoName}-${branch}` | Folder of a new worktree                                                                     |
-| `grove.worktree.copyFiles`       | `[]`                                  | Untracked files copied into a new worktree, e.g. local settings with secrets                 |
-| `grove.codeLens.authors`         | `true`                                | The main author and the number of others above classes and methods                           |
-| `grove.history.showDiffOnSelect` | `true`                                | Show the diff of the selected commit in a history tab                                        |
+| `kleio.autolinks`                | `[]`                                  | Rules turning text into links: `{"pattern": "\\bPROJ-\\d+\\b", "url": "https://tracker/$0"}` |
+| `kleio.hosting.instances`        | `{}`                                  | Hosting type of your own servers, e.g. `{"git.example.com": "gitlab"}`                       |
+| `kleio.update.method`            | `rebase`                              | How Update Project brings a branch with own commits up to date: `rebase` or `merge`          |
+| `kleio.push.protectedBranches`   | `["master", "main"]`                  | Branches never force-pushed; `*` works, e.g. `release/*`                                     |
+| `kleio.worktree.path`            | `${repoParent}/${repoName}-${branch}` | Folder of a new worktree                                                                     |
+| `kleio.worktree.copyFiles`       | `[]`                                  | Untracked files copied into a new worktree, e.g. local settings with secrets                 |
+| `kleio.codeLens.authors`         | `true`                                | The main author and the number of others above classes and methods                           |
+| `kleio.history.showDiffOnSelect` | `true`                                | Show the diff of the selected commit in a history tab                                        |
 
 ## Key bindings
 
-`F7` / `Shift+F7` in Grove diffs go through changes and continue into the next file. Keymap extensions (e.g.
+`F7` / `Shift+F7` in Kleio diffs go through changes and continue into the next file. Keymap extensions (e.g.
 IntelliJ IDEA Keybindings) bind the same keys in diff editors, and between two extensions VS Code picks one
 unpredictably. User key bindings always win, so add these to `keybindings.json` if F7 stays within one file:
 
@@ -98,13 +100,13 @@ unpredictably. User key bindings always win, so add these to `keybindings.json` 
 [
   {
     "key": "f7",
-    "command": "grove.diff.nextChange",
-    "when": "grove.inChangeSet && textCompareEditorVisible"
+    "command": "kleio.diff.nextChange",
+    "when": "kleio.inChangeSet && textCompareEditorVisible"
   },
   {
     "key": "shift+f7",
-    "command": "grove.diff.previousChange",
-    "when": "grove.inChangeSet && textCompareEditorVisible"
+    "command": "kleio.diff.previousChange",
+    "when": "kleio.inChangeSet && textCompareEditorVisible"
   }
 ]
 ```
@@ -120,9 +122,9 @@ npm install
 npm run build              # extension and webviews into dist/
 npm run watch              # rebuild on change; F5 in VS Code starts an Extension Development Host
 npm test                   # unit tests, against real git repositories in a temp folder
-npm run test:integration   # tests inside a real editor; GROVE_CODE=/path/to/codium
+npm run test:integration   # tests inside a real editor; KLEIO_CODE=/path/to/codium
 npm run preview -- <repo>  # the UI in a browser against a real repository; nothing is committed or pushed
-npm run package            # grove.vsix
+npm run package            # kleio.vsix
 ```
 
 On Linux the integration tests run the editor under `xvfb-run` in a throwaway profile.

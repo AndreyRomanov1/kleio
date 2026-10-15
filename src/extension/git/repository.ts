@@ -295,7 +295,7 @@ export class Repository {
         return selectHunks(patch, new Set(keys));
       }),
     );
-    const indexFile = path.join(this.gitDir, 'grove-commit-index');
+    const indexFile = path.join(this.gitDir, 'kleio-commit-index');
     const env = { GIT_INDEX_FILE: indexFile };
     await rm(indexFile, { force: true });
     try {
@@ -430,7 +430,7 @@ export class Repository {
   async interactiveRebase(base: string | undefined, entries: RebaseEntry[]): Promise<OperationOutcome> {
     const originals = new Map<string, string>();
     for (const entry of entries) originals.set(entry.hash, (await this.commitDetails(entry.hash)).message);
-    const dir = path.join(this.gitDir, 'grove-rebase');
+    const dir = path.join(this.gitDir, 'kleio-rebase');
     await rm(dir, { recursive: true, force: true });
     await mkdir(dir, { recursive: true });
     const { todo, messages } = buildRebaseTodo(entries, originals, (name) => path.join(dir, name));
@@ -558,7 +558,7 @@ export class Repository {
    * the caller looked at it.
    */
   async moveBranch(branch: string, to: string, from: string): Promise<void> {
-    await this.git.run(['update-ref', '-m', `grove: update ${branch}`, `refs/heads/${branch}`, to, from]);
+    await this.git.run(['update-ref', '-m', `kleio: update ${branch}`, `refs/heads/${branch}`, to, from]);
   }
 
   async reset(revision: string, mode: 'soft' | 'mixed' | 'hard'): Promise<void> {

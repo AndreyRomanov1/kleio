@@ -61,9 +61,9 @@
     {#if current.loading && !card}
       <div class="muted"><i class="codicon codicon-loading codicon-modifier-spin"></i> Загрузка…</div>
     {:else if current.needsAuth}
-      <p>Чтобы показать детали MR и пайплайн, Grove нужен доступ к GitLab.</p>
+      <p>Чтобы показать детали MR и пайплайн, Kleio нужен доступ к GitLab.</p>
       <p class="muted">
-        Если стоит расширение GitLab Workflow с аккаунтом этого сервера, Grove возьмёт доступ оттуда; иначе
+        Если стоит расширение GitLab Workflow с аккаунтом этого сервера, Kleio возьмёт доступ оттуда; иначе
         попросит личный токен.
       </p>
       <div class="actions">

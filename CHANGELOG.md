@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.0
+
+- The project is named Kleio (it was developed as Grove): commands and settings are `kleio.*` now.
+
 ## 0.12.0
 
 - Merged merge requests down the whole history: loaded page by page from the GitLab API as the log is

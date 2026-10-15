@@ -49,6 +49,6 @@ jobs:
           gh release download --repo VSCodium/vscodium --pattern 'VSCodium-linux-x64-*.tar.gz' --dir "$RUNNER_TEMP"
           mkdir "$RUNNER_TEMP/codium"
           tar -xzf "$RUNNER_TEMP"/VSCodium-linux-x64-*.tar.gz -C "$RUNNER_TEMP/codium"
-          echo "GROVE_CODE=$RUNNER_TEMP/codium/codium" >> "$GITHUB_ENV"
+          echo "KLEIO_CODE=$RUNNER_TEMP/codium/codium" >> "$GITHUB_ENV"
       - run: npm ci
       - run: npm run test:integration

@@ -153,7 +153,7 @@
             <span class="badge warn" title="На сервере есть коммиты, которых нет локально">↓{row.behind}</span
             >
             {#if row.protected}
-              <span class="badge bad" title="grove.push.protectedBranches">force запрещён</span>
+              <span class="badge bad" title="kleio.push.protectedBranches">force запрещён</span>
             {:else}
               <label class="force">
                 <input type="checkbox" bind:checked={row.force} /> force-with-lease

@@ -13,7 +13,7 @@ import type { RepositoryManager } from '../git/repositoryManager';
 import { renderHtml, webviewOptions } from '../webviewHtml';
 import { matchesBranchPattern, pushArgs, readPushState } from './pushState';
 
-const PANEL_TYPE = 'grove.push';
+const PANEL_TYPE = 'kleio.push';
 const PUSH_TIMEOUT_MS = 120_000;
 
 /**
@@ -106,7 +106,7 @@ export class PushDialog implements vscode.Disposable {
       if (request.force && isProtected(request.target)) {
         this.post({
           type: 'error',
-          message: `Force push в ${request.target} запрещён настройкой grove.push.protectedBranches.`,
+          message: `Force push в ${request.target} запрещён настройкой kleio.push.protectedBranches.`,
         });
         return;
       }
@@ -118,7 +118,7 @@ export class PushDialog implements vscode.Disposable {
         const output = await vscode.window.withProgress(
           {
             location: vscode.ProgressLocation.Notification,
-            title: `Grove: push ${request.branch} → ${request.remote}/${request.target}`,
+            title: `Kleio: push ${request.branch} → ${request.remote}/${request.target}`,
           },
           () => repository.git.runWithOutput(this.pushArgs(request), { timeoutMs: PUSH_TIMEOUT_MS }),
         );
@@ -146,7 +146,7 @@ export class PushDialog implements vscode.Disposable {
     const summary = requests.map((r) => r.branch).join(', ');
     const url = messages.map((m) => /https?:\/\/\S+/.exec(m)?.[0]).find((u) => u !== undefined);
     if (!url) {
-      vscode.window.setStatusBarMessage(`Grove: push ${summary} — готово`, 5000);
+      vscode.window.setStatusBarMessage(`Kleio: push ${summary} — готово`, 5000);
       return;
     }
     const open = /merge_requests\/new/.test(url) ? 'Создать MR' : 'Открыть ссылку';
@@ -168,7 +168,7 @@ export class PushDialog implements vscode.Disposable {
 
 export function isProtected(branch: string): boolean {
   const patterns = vscode.workspace
-    .getConfiguration('grove')
+    .getConfiguration('kleio')
     .get<string[]>('push.protectedBranches', ['master', 'main']);
   return matchesBranchPattern(patterns, branch);
 }

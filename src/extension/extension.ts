@@ -21,7 +21,7 @@ import { PushDialog } from './push/pushDialog';
 import { RebaseDialog } from './rebase/rebaseDialog';
 import { ConflictsWindow } from './conflicts/conflictsWindow';
 
-export interface GroveApi {
+export interface KleioApi {
   repositories: RepositoryManager;
   navigator: ChangeSetNavigator;
   logs: LogWebviews;
@@ -32,7 +32,7 @@ export interface GroveApi {
   actions: GitActions;
 }
 
-export async function activate(context: vscode.ExtensionContext): Promise<GroveApi> {
+export async function activate(context: vscode.ExtensionContext): Promise<KleioApi> {
   const repositories = new RepositoryManager();
   const navigator = new ChangeSetNavigator();
   const sync = new SyncActions(repositories);
@@ -88,18 +88,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<GroveA
       REVISION_SCHEME,
       new RevisionContentProvider(repositories),
     ),
-    vscode.commands.registerCommand('grove.log.openInEditor', () => logs.openInEditor()),
-    vscode.commands.registerCommand('grove.log.openInNewWindow', () => logs.openInNewWindow()),
-    vscode.commands.registerCommand('grove.git.updateProject', async () => {
+    vscode.commands.registerCommand('kleio.log.openInEditor', () => logs.openInEditor()),
+    vscode.commands.registerCommand('kleio.log.openInNewWindow', () => logs.openInNewWindow()),
+    vscode.commands.registerCommand('kleio.git.updateProject', async () => {
       const repository = await pickRepository(repositories);
       if (repository) await sync.updateProject(repository);
     }),
-    vscode.commands.registerCommand('grove.git.push', async () => {
+    vscode.commands.registerCommand('kleio.git.push', async () => {
       const repository = await pickRepository(repositories);
       if (repository) await push.open(repository);
     }),
-    vscode.commands.registerCommand('grove.log.focusView', () =>
-      vscode.commands.executeCommand('grove.log.focus'),
+    vscode.commands.registerCommand('kleio.log.focusView', () =>
+      vscode.commands.executeCommand('kleio.log.focus'),
     ),
   );
 

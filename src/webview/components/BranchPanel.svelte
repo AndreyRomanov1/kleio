@@ -152,7 +152,7 @@
 
 <div class="panel">
   <input
-    id="grove-branch-search"
+    id="kleio-branch-search"
     class="search"
     placeholder="Поиск веток"
     bind:value={query}

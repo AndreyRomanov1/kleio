@@ -1,5 +1,5 @@
 /**
- * Development preview of the Grove webviews in a regular browser, backed by a real repository.
+ * Development preview of the Kleio webviews in a regular browser, backed by a real repository.
  * Serves dist/webview.* with a fake VS Code API and answers webview messages over HTTP.
  * The log is at `/`, the commit view at `/commit`, the push and rebase dialogs at `/push` and `/rebase`; they
  * never commit, push or rebase, only record the request (`GET /last-commit`, `/last-push`, `/last-rebase`), so the
@@ -30,7 +30,7 @@ import {
 } from '../../src/extension/hosting/hosting';
 
 /**
- * GitLab API for the preview without handling tokens: with GROVE_PREVIEW_GLAB=1 read-only requests go through the
+ * GitLab API for the preview without handling tokens: with KLEIO_PREVIEW_GLAB=1 read-only requests go through the
  * glab CLI, which uses its own login. The extension itself talks to the API directly.
  */
 function glabFetch(host: string): typeof fetch {
@@ -55,7 +55,7 @@ function glabFetch(host: string): typeof fetch {
 }
 
 function previewApi(links: HostingLinks | undefined): GitLabApi | undefined {
-  if (process.env.GROVE_PREVIEW_GLAB !== '1' || links?.kind !== 'gitlab') return undefined;
+  if (process.env.KLEIO_PREVIEW_GLAB !== '1' || links?.kind !== 'gitlab') return undefined;
   return new GitLabApi(links.remote.host, links.remote.project, 'via-glab', glabFetch(links.remote.host));
 }
 
@@ -67,8 +67,8 @@ const mergedInfo: Record<
   { title: string; state: 'opened' | 'closed' | 'locked' | 'merged'; draft: boolean }
 > = {};
 
-/** Extra autolink rules for the preview, as JSON in GROVE_PREVIEW_AUTOLINKS (the extension reads settings). */
-const previewAutolinks: Autolink[] = JSON.parse(process.env.GROVE_PREVIEW_AUTOLINKS ?? '[]') as Autolink[];
+/** Extra autolink rules for the preview, as JSON in KLEIO_PREVIEW_AUTOLINKS (the extension reads settings). */
+const previewAutolinks: Autolink[] = JSON.parse(process.env.KLEIO_PREVIEW_AUTOLINKS ?? '[]') as Autolink[];
 
 async function hostingMessage(repository: Repository): Promise<HostMessage> {
   const url = (
@@ -153,14 +153,14 @@ async function handleConflicts(
   ];
 }
 
-/** The rebase dialog from GROVE_PREVIEW_REBASE_FROM (default HEAD~3) to HEAD; starting it only records the plan. */
+/** The rebase dialog from KLEIO_PREVIEW_REBASE_FROM (default HEAD~3) to HEAD; starting it only records the plan. */
 async function handleRebase(
   repository: Repository,
   message: RebaseWebviewMessage,
 ): Promise<RebaseHostMessage[]> {
   switch (message.type) {
     case 'ready': {
-      const from = await repository.revParse(process.env.GROVE_PREVIEW_REBASE_FROM ?? 'HEAD~3');
+      const from = await repository.revParse(process.env.KLEIO_PREVIEW_REBASE_FROM ?? 'HEAD~3');
       if (!from) return [{ type: 'error', message: 'нет такого коммита' }];
       const base = (await repository.commitDetails(from)).parents[0];
       const range = await repository.rebaseRange(base);
@@ -198,7 +198,7 @@ async function handleRebase(
 async function handlePush(repository: Repository, message: PushWebviewMessage): Promise<PushHostMessage[]> {
   switch (message.type) {
     case 'ready': {
-      const state = await readPushState(repository, process.env.GROVE_PREVIEW_PUSH_BRANCH, (b) =>
+      const state = await readPushState(repository, process.env.KLEIO_PREVIEW_PUSH_BRANCH, (b) =>
         matchesBranchPattern(['master', 'main'], b),
       );
       return [{ type: 'state', remotes: state.remotes, branches: state.branches }];

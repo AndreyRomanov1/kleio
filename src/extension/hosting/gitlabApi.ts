@@ -1,4 +1,4 @@
-/** A small GitLab REST v4 client: only what Grove shows, every call scoped to one project. */
+/** A small GitLab REST v4 client: only what Kleio shows, every call scoped to one project. */
 
 export type PipelineStatus =
   | 'created'
@@ -131,8 +131,8 @@ export class GitLabApiError extends Error {
 type Fetch = typeof fetch;
 
 /**
- * The client for a project. Integration tests point it to a fake server with GROVE_TEST_GITLAB_ORIGIN (and give a
- * token with GROVE_TEST_GITLAB_TOKEN); otherwise it is `https://<host>`.
+ * The client for a project. Integration tests point it to a fake server with KLEIO_TEST_GITLAB_ORIGIN (and give a
+ * token with KLEIO_TEST_GITLAB_TOKEN); otherwise it is `https://<host>`.
  */
 export function createGitLabApi(host: string, project: string, token: string): GitLabApi {
   return new GitLabApi(
@@ -140,7 +140,7 @@ export function createGitLabApi(host: string, project: string, token: string): G
     project,
     token,
     fetch,
-    process.env.GROVE_TEST_GITLAB_ORIGIN ?? `https://${host}`,
+    process.env.KLEIO_TEST_GITLAB_ORIGIN ?? `https://${host}`,
   );
 }
 

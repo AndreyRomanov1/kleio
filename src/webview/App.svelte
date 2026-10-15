@@ -70,7 +70,7 @@
     const target = event.target as HTMLElement;
     if (target.closest('input, select, textarea')) return;
     if (event.ctrlKey || event.metaKey || event.altKey || event.key.length !== 1 || event.key === ' ') return;
-    const field = target.closest('.branches') ? 'grove-branch-search' : 'grove-filter';
+    const field = target.closest('.branches') ? 'kleio-branch-search' : 'kleio-filter';
     document.getElementById(field)?.focus();
   }
 
@@ -86,7 +86,7 @@
   onkeydown={(e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
       e.preventDefault();
-      document.getElementById('grove-filter')?.focus();
+      document.getElementById('kleio-filter')?.focus();
       return;
     }
     speedSearch(e);
@@ -117,7 +117,7 @@
       >
     {/if}
     <input
-      id="grove-filter"
+      id="kleio-filter"
       class="filter"
       placeholder="Текст, автор или хэш (Ctrl+F)"
       bind:value={store.filterText}
@@ -158,7 +158,7 @@
     {#if store.hosting?.api === 'needsAuth' && !store.history}
       <button
         class="tool"
-        title="Дать Grove доступ к {store.hosting.name ?? 'GitLab'}: статусы MR, пайплайны"
+        title="Дать Kleio доступ к {store.hosting.name ?? 'GitLab'}: статусы MR, пайплайны"
         onclick={() => post({ type: 'connectHosting' })}
         ><i class="codicon codicon-plug"></i> Подключить GitLab</button
       >

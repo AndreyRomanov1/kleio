@@ -1,18 +1,18 @@
 {
-  "name": "grove",
-  "displayName": "Grove",
+  "name": "kleio",
+  "displayName": "Kleio",
   "description": "Git the JetBrains way: commit graph, one diff viewer for any changes, history, blame, interactive rebase, conflicts, GitLab merge requests and review",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "publisher": "aroma",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/AndreyRomanov1/grove.git"
+    "url": "https://github.com/AndreyRomanov1/kleio.git"
   },
   "bugs": {
-    "url": "https://github.com/AndreyRomanov1/grove/issues"
+    "url": "https://github.com/AndreyRomanov1/kleio/issues"
   },
-  "homepage": "https://github.com/AndreyRomanov1/grove#readme",
+  "homepage": "https://github.com/AndreyRomanov1/kleio#readme",
   "private": true,
   "type": "commonjs",
   "engines": {
@@ -26,37 +26,37 @@
   "main": "./dist/extension.js",
   "activationEvents": [
     "workspaceContains:.git",
-    "onWebviewPanel:grove.logPanel"
+    "onWebviewPanel:kleio.logPanel"
   ],
   "contributes": {
     "viewsContainers": {
       "panel": [
         {
-          "id": "grove",
+          "id": "kleio",
           "title": "Git Log",
-          "icon": "media/grove.svg"
+          "icon": "media/kleio.svg"
         }
       ],
       "activitybar": [
         {
-          "id": "grove-commit",
+          "id": "kleio-commit",
           "title": "Коммит",
           "icon": "media/commit.svg"
         }
       ]
     },
     "views": {
-      "grove": [
+      "kleio": [
         {
-          "id": "grove.log",
+          "id": "kleio.log",
           "type": "webview",
           "name": "Log",
-          "icon": "media/grove.svg"
+          "icon": "media/kleio.svg"
         }
       ],
-      "grove-commit": [
+      "kleio-commit": [
         {
-          "id": "grove.commit",
+          "id": "kleio.commit",
           "type": "webview",
           "name": "Коммит",
           "icon": "media/commit.svg"
@@ -65,542 +65,542 @@
     },
     "commands": [
       {
-        "command": "grove.log.focusView",
+        "command": "kleio.log.focusView",
         "title": "Показать лог",
-        "category": "Grove"
+        "category": "Kleio"
       },
       {
-        "command": "grove.log.openInEditor",
+        "command": "kleio.log.openInEditor",
         "title": "Открыть лог во вкладке",
-        "category": "Grove",
+        "category": "Kleio",
         "icon": "$(link-external)"
       },
       {
-        "command": "grove.log.openInNewWindow",
+        "command": "kleio.log.openInNewWindow",
         "title": "Открыть лог в отдельном окне",
-        "category": "Grove",
+        "category": "Kleio",
         "icon": "$(empty-window)"
       },
       {
-        "command": "grove.diff.previousChange",
+        "command": "kleio.diff.previousChange",
         "title": "Предыдущее изменение (с переходом в предыдущий файл)",
-        "category": "Grove",
+        "category": "Kleio",
         "icon": "$(chevron-up)",
-        "enablement": "grove.inChangeSet"
+        "enablement": "kleio.inChangeSet"
       },
       {
-        "command": "grove.diff.nextChange",
+        "command": "kleio.diff.nextChange",
         "title": "Следующее изменение (с переходом в следующий файл)",
-        "category": "Grove",
+        "category": "Kleio",
         "icon": "$(chevron-down)",
-        "enablement": "grove.inChangeSet"
+        "enablement": "kleio.inChangeSet"
       },
       {
-        "command": "grove.diff.previousFile",
+        "command": "kleio.diff.previousFile",
         "title": "Предыдущий файл",
-        "category": "Grove",
+        "category": "Kleio",
         "icon": "$(arrow-left)",
-        "enablement": "grove.inChangeSet"
+        "enablement": "kleio.inChangeSet"
       },
       {
-        "command": "grove.diff.nextFile",
+        "command": "kleio.diff.nextFile",
         "title": "Следующий файл",
-        "category": "Grove",
+        "category": "Kleio",
         "icon": "$(arrow-right)",
-        "enablement": "grove.inChangeSet"
+        "enablement": "kleio.inChangeSet"
       },
       {
-        "command": "grove.diff.selectFile",
+        "command": "kleio.diff.selectFile",
         "title": "Файлы набора изменений…",
-        "category": "Grove",
+        "category": "Kleio",
         "icon": "$(list-tree)",
-        "enablement": "grove.inChangeSet"
+        "enablement": "kleio.inChangeSet"
       },
       {
-        "command": "grove.diff.openCurrent",
+        "command": "kleio.diff.openCurrent",
         "title": "Открыть текущую версию для правки",
-        "category": "Grove",
+        "category": "Kleio",
         "icon": "$(edit)",
-        "enablement": "grove.inChangeSet"
+        "enablement": "kleio.inChangeSet"
       },
       {
-        "command": "grove.blame.show",
+        "command": "kleio.blame.show",
         "title": "Аннотации Git (blame)",
-        "category": "Grove",
+        "category": "Kleio",
         "icon": "$(person)"
       },
       {
-        "command": "grove.blame.hide",
+        "command": "kleio.blame.hide",
         "title": "Скрыть аннотации Git",
-        "category": "Grove"
+        "category": "Kleio"
       },
       {
-        "command": "grove.blame.lineInLog",
+        "command": "kleio.blame.lineInLog",
         "title": "Показать коммит строки в логе",
-        "category": "Grove"
+        "category": "Kleio"
       },
       {
-        "command": "grove.history.file",
+        "command": "kleio.history.file",
         "title": "История файла",
-        "category": "Grove",
+        "category": "Kleio",
         "icon": "$(history)"
       },
       {
-        "command": "grove.history.selection",
+        "command": "kleio.history.selection",
         "title": "История выделенного фрагмента",
-        "category": "Grove"
+        "category": "Kleio"
       },
       {
-        "command": "grove.compare.withRevision",
+        "command": "kleio.compare.withRevision",
         "title": "Сравнить с веткой или ревизией…",
-        "category": "Grove"
+        "category": "Kleio"
       },
       {
-        "command": "grove.blame.toggle",
+        "command": "kleio.blame.toggle",
         "title": "Переключить аннотации Git (blame)",
-        "category": "Grove"
+        "category": "Kleio"
       },
       {
-        "command": "grove.hosting.openFile",
+        "command": "kleio.hosting.openFile",
         "title": "Открыть в GitLab/GitHub",
-        "category": "Grove",
+        "category": "Kleio",
         "icon": "$(link-external)"
       },
       {
-        "command": "grove.hosting.copyFileLink",
+        "command": "kleio.hosting.copyFileLink",
         "title": "Копировать ссылку на GitLab/GitHub",
-        "category": "Grove"
+        "category": "Kleio"
       },
       {
-        "command": "grove.gitlab.connect",
+        "command": "kleio.gitlab.connect",
         "title": "Подключить GitLab…",
-        "category": "Grove"
+        "category": "Kleio"
       },
       {
-        "command": "grove.gitlab.disconnect",
-        "title": "Удалить токен GitLab из Grove…",
-        "category": "Grove"
+        "command": "kleio.gitlab.disconnect",
+        "title": "Удалить токен GitLab из Kleio…",
+        "category": "Kleio"
       },
       {
-        "command": "grove.review.publish",
+        "command": "kleio.review.publish",
         "title": "Опубликовать",
-        "category": "Grove"
+        "category": "Kleio"
       },
       {
-        "command": "grove.review.draft",
+        "command": "kleio.review.draft",
         "title": "В черновик",
-        "category": "Grove"
+        "category": "Kleio"
       },
       {
-        "command": "grove.review.resolve",
+        "command": "kleio.review.resolve",
         "title": "Решено",
-        "category": "Grove",
+        "category": "Kleio",
         "icon": "$(check)"
       },
       {
-        "command": "grove.review.unresolve",
+        "command": "kleio.review.unresolve",
         "title": "Открыть снова",
-        "category": "Grove",
+        "category": "Kleio",
         "icon": "$(issue-reopened)"
       },
       {
-        "command": "grove.review.deleteDraft",
+        "command": "kleio.review.deleteDraft",
         "title": "Удалить черновик",
-        "category": "Grove",
+        "category": "Kleio",
         "icon": "$(trash)"
       },
       {
-        "command": "grove.review.publishDrafts",
+        "command": "kleio.review.publishDrafts",
         "title": "Опубликовать черновики ревью",
-        "category": "Grove",
+        "category": "Kleio",
         "icon": "$(cloud-upload)"
       },
       {
-        "command": "grove.review.refresh",
+        "command": "kleio.review.refresh",
         "title": "Обновить обсуждения ревью",
-        "category": "Grove",
+        "category": "Kleio",
         "icon": "$(refresh)"
       },
       {
-        "command": "grove.review.end",
+        "command": "kleio.review.end",
         "title": "Закончить ревью",
-        "category": "Grove",
+        "category": "Kleio",
         "icon": "$(close-all)"
       },
       {
-        "command": "grove.review.openJournal",
+        "command": "kleio.review.openJournal",
         "title": "Журнал комментариев ревью",
-        "category": "Grove"
+        "category": "Kleio"
       },
       {
-        "command": "grove.review.previousComment",
+        "command": "kleio.review.previousComment",
         "title": "Предыдущее замечание ревью",
-        "category": "Grove",
+        "category": "Kleio",
         "icon": "$(arrow-circle-up)"
       },
       {
-        "command": "grove.review.nextComment",
+        "command": "kleio.review.nextComment",
         "title": "Следующее замечание ревью",
-        "category": "Grove",
+        "category": "Kleio",
         "icon": "$(arrow-circle-down)"
       },
       {
-        "command": "grove.git.updateProject",
+        "command": "kleio.git.updateProject",
         "title": "Обновить проект",
-        "category": "Grove",
+        "category": "Kleio",
         "icon": "$(repo-pull)"
       },
       {
-        "command": "grove.git.push",
+        "command": "kleio.git.push",
         "title": "Push…",
-        "category": "Grove",
+        "category": "Kleio",
         "icon": "$(repo-push)"
       },
       {
-        "command": "grove.conflicts.show",
+        "command": "kleio.conflicts.show",
         "title": "Конфликты",
-        "category": "Grove",
+        "category": "Kleio",
         "icon": "$(warning)"
       },
       {
-        "command": "grove.conflicts.markResolved",
+        "command": "kleio.conflicts.markResolved",
         "title": "Завершить слияние и отметить как разрешённый",
-        "category": "Grove",
+        "category": "Kleio",
         "icon": "$(check)"
       }
     ],
     "menus": {
       "view/title": [
         {
-          "command": "grove.log.openInEditor",
-          "when": "view == grove.log",
+          "command": "kleio.log.openInEditor",
+          "when": "view == kleio.log",
           "group": "navigation@1"
         },
         {
-          "command": "grove.log.openInNewWindow",
-          "when": "view == grove.log",
+          "command": "kleio.log.openInNewWindow",
+          "when": "view == kleio.log",
           "group": "navigation@2"
         },
         {
-          "command": "grove.git.updateProject",
-          "when": "view == grove.commit",
+          "command": "kleio.git.updateProject",
+          "when": "view == kleio.commit",
           "group": "navigation@1"
         },
         {
-          "command": "grove.git.push",
-          "when": "view == grove.commit",
+          "command": "kleio.git.push",
+          "when": "view == kleio.commit",
           "group": "navigation@2"
         }
       ],
       "editor/title": [
         {
-          "command": "grove.diff.previousFile",
-          "when": "grove.inChangeSet",
+          "command": "kleio.diff.previousFile",
+          "when": "kleio.inChangeSet",
           "group": "navigation@-20"
         },
         {
-          "command": "grove.diff.selectFile",
-          "when": "grove.inChangeSet",
+          "command": "kleio.diff.selectFile",
+          "when": "kleio.inChangeSet",
           "group": "navigation@-19"
         },
         {
-          "command": "grove.diff.nextFile",
-          "when": "grove.inChangeSet",
+          "command": "kleio.diff.nextFile",
+          "when": "kleio.inChangeSet",
           "group": "navigation@-18"
         },
         {
-          "command": "grove.diff.previousChange",
-          "when": "grove.inChangeSet",
+          "command": "kleio.diff.previousChange",
+          "when": "kleio.inChangeSet",
           "group": "navigation@-17"
         },
         {
-          "command": "grove.diff.nextChange",
-          "when": "grove.inChangeSet",
+          "command": "kleio.diff.nextChange",
+          "when": "kleio.inChangeSet",
           "group": "navigation@-16"
         },
         {
-          "command": "grove.diff.openCurrent",
-          "when": "grove.inChangeSet && !grove.reviewActive",
+          "command": "kleio.diff.openCurrent",
+          "when": "kleio.inChangeSet && !kleio.reviewActive",
           "group": "navigation@-15"
         },
         {
-          "command": "grove.diff.openCurrent",
-          "when": "grove.inChangeSet && grove.reviewActive",
-          "group": "1_grove_review@1"
+          "command": "kleio.diff.openCurrent",
+          "when": "kleio.inChangeSet && kleio.reviewActive",
+          "group": "1_kleio_review@1"
         },
         {
-          "command": "grove.review.publishDrafts",
-          "when": "grove.reviewActive && grove.inChangeSet",
-          "group": "1_grove_review@2"
+          "command": "kleio.review.publishDrafts",
+          "when": "kleio.reviewActive && kleio.inChangeSet",
+          "group": "1_kleio_review@2"
         },
         {
-          "command": "grove.review.refresh",
-          "when": "grove.reviewActive && grove.inChangeSet",
-          "group": "1_grove_review@3"
+          "command": "kleio.review.refresh",
+          "when": "kleio.reviewActive && kleio.inChangeSet",
+          "group": "1_kleio_review@3"
         },
         {
-          "command": "grove.review.previousComment",
-          "when": "grove.reviewActive && grove.inChangeSet",
+          "command": "kleio.review.previousComment",
+          "when": "kleio.reviewActive && kleio.inChangeSet",
           "group": "navigation@-5"
         },
         {
-          "command": "grove.review.nextComment",
-          "when": "grove.reviewActive && grove.inChangeSet",
+          "command": "kleio.review.nextComment",
+          "when": "kleio.reviewActive && kleio.inChangeSet",
           "group": "navigation@-4"
         },
         {
-          "command": "grove.conflicts.markResolved",
-          "when": "isMergeEditor && mergeEditorBaseUri =~ /^grove:/",
+          "command": "kleio.conflicts.markResolved",
+          "when": "isMergeEditor && mergeEditorBaseUri =~ /^kleio:/",
           "group": "navigation@-30"
         }
       ],
       "commandPalette": [
         {
-          "command": "grove.diff.previousChange",
-          "when": "grove.inChangeSet"
+          "command": "kleio.diff.previousChange",
+          "when": "kleio.inChangeSet"
         },
         {
-          "command": "grove.diff.nextChange",
-          "when": "grove.inChangeSet"
+          "command": "kleio.diff.nextChange",
+          "when": "kleio.inChangeSet"
         },
         {
-          "command": "grove.diff.previousFile",
-          "when": "grove.inChangeSet"
+          "command": "kleio.diff.previousFile",
+          "when": "kleio.inChangeSet"
         },
         {
-          "command": "grove.diff.nextFile",
-          "when": "grove.inChangeSet"
+          "command": "kleio.diff.nextFile",
+          "when": "kleio.inChangeSet"
         },
         {
-          "command": "grove.diff.selectFile",
-          "when": "grove.inChangeSet"
+          "command": "kleio.diff.selectFile",
+          "when": "kleio.inChangeSet"
         },
         {
-          "command": "grove.diff.openCurrent",
-          "when": "grove.inChangeSet"
+          "command": "kleio.diff.openCurrent",
+          "when": "kleio.inChangeSet"
         },
         {
-          "command": "grove.blame.show",
-          "when": "editorIsOpen && !grove.blameActive"
+          "command": "kleio.blame.show",
+          "when": "editorIsOpen && !kleio.blameActive"
         },
         {
-          "command": "grove.blame.hide",
-          "when": "grove.blameActive"
+          "command": "kleio.blame.hide",
+          "when": "kleio.blameActive"
         },
         {
-          "command": "grove.history.selection",
+          "command": "kleio.history.selection",
           "when": "editorHasSelection"
         },
         {
-          "command": "grove.review.publish",
+          "command": "kleio.review.publish",
           "when": "false"
         },
         {
-          "command": "grove.review.draft",
+          "command": "kleio.review.draft",
           "when": "false"
         },
         {
-          "command": "grove.review.resolve",
+          "command": "kleio.review.resolve",
           "when": "false"
         },
         {
-          "command": "grove.review.unresolve",
+          "command": "kleio.review.unresolve",
           "when": "false"
         },
         {
-          "command": "grove.review.deleteDraft",
+          "command": "kleio.review.deleteDraft",
           "when": "false"
         },
         {
-          "command": "grove.review.publishDrafts",
-          "when": "grove.reviewActive"
+          "command": "kleio.review.publishDrafts",
+          "when": "kleio.reviewActive"
         },
         {
-          "command": "grove.review.refresh",
-          "when": "grove.reviewActive"
+          "command": "kleio.review.refresh",
+          "when": "kleio.reviewActive"
         },
         {
-          "command": "grove.review.end",
-          "when": "grove.reviewActive"
+          "command": "kleio.review.end",
+          "when": "kleio.reviewActive"
         },
         {
-          "command": "grove.review.previousComment",
-          "when": "grove.reviewActive"
+          "command": "kleio.review.previousComment",
+          "when": "kleio.reviewActive"
         },
         {
-          "command": "grove.review.nextComment",
-          "when": "grove.reviewActive"
+          "command": "kleio.review.nextComment",
+          "when": "kleio.reviewActive"
         },
         {
-          "command": "grove.conflicts.markResolved",
+          "command": "kleio.conflicts.markResolved",
           "when": "isMergeEditor || editorTextFocus"
         }
       ],
       "editor/lineNumber/context": [
         {
-          "command": "grove.blame.show",
-          "when": "!grove.blameActive",
-          "group": "grove@1"
+          "command": "kleio.blame.show",
+          "when": "!kleio.blameActive",
+          "group": "kleio@1"
         },
         {
-          "command": "grove.blame.hide",
-          "when": "grove.blameActive",
-          "group": "grove@1"
+          "command": "kleio.blame.hide",
+          "when": "kleio.blameActive",
+          "group": "kleio@1"
         },
         {
-          "command": "grove.blame.lineInLog",
-          "group": "grove@2"
+          "command": "kleio.blame.lineInLog",
+          "group": "kleio@2"
         }
       ],
       "editor/context": [
         {
-          "submenu": "grove.editorGit",
-          "group": "grove@1"
+          "submenu": "kleio.editorGit",
+          "group": "kleio@1"
         }
       ],
-      "grove.editorGit": [
+      "kleio.editorGit": [
         {
-          "command": "grove.blame.show",
-          "when": "!grove.blameActive",
+          "command": "kleio.blame.show",
+          "when": "!kleio.blameActive",
           "group": "1_blame@1"
         },
         {
-          "command": "grove.blame.hide",
-          "when": "grove.blameActive",
+          "command": "kleio.blame.hide",
+          "when": "kleio.blameActive",
           "group": "1_blame@1"
         },
         {
-          "command": "grove.blame.lineInLog",
+          "command": "kleio.blame.lineInLog",
           "group": "1_blame@2"
         },
         {
-          "command": "grove.history.file",
+          "command": "kleio.history.file",
           "group": "2_history@1"
         },
         {
-          "command": "grove.history.selection",
+          "command": "kleio.history.selection",
           "when": "editorHasSelection",
           "group": "2_history@2"
         },
         {
-          "command": "grove.compare.withRevision",
+          "command": "kleio.compare.withRevision",
           "group": "3_compare@1"
         },
         {
-          "command": "grove.hosting.openFile",
+          "command": "kleio.hosting.openFile",
           "group": "4_hosting@1"
         },
         {
-          "command": "grove.hosting.copyFileLink",
+          "command": "kleio.hosting.copyFileLink",
           "group": "4_hosting@2"
         }
       ],
       "explorer/context": [
         {
-          "command": "grove.history.file",
+          "command": "kleio.history.file",
           "when": "!explorerResourceIsFolder",
-          "group": "7_grove@1"
+          "group": "7_kleio@1"
         },
         {
-          "command": "grove.compare.withRevision",
+          "command": "kleio.compare.withRevision",
           "when": "!explorerResourceIsFolder",
-          "group": "7_grove@2"
+          "group": "7_kleio@2"
         },
         {
-          "command": "grove.hosting.openFile",
+          "command": "kleio.hosting.openFile",
           "when": "!explorerResourceIsFolder",
-          "group": "7_grove@3"
+          "group": "7_kleio@3"
         }
       ],
       "editor/title/context": [
         {
-          "command": "grove.history.file",
-          "group": "7_grove@1"
+          "command": "kleio.history.file",
+          "group": "7_kleio@1"
         },
         {
-          "command": "grove.compare.withRevision",
-          "group": "7_grove@2"
+          "command": "kleio.compare.withRevision",
+          "group": "7_kleio@2"
         },
         {
-          "command": "grove.hosting.openFile",
-          "group": "7_grove@3"
+          "command": "kleio.hosting.openFile",
+          "group": "7_kleio@3"
         }
       ],
       "comments/commentThread/context": [
         {
-          "command": "grove.review.publish",
+          "command": "kleio.review.publish",
           "group": "inline@1",
-          "when": "commentController == grove.review"
+          "when": "commentController == kleio.review"
         },
         {
-          "command": "grove.review.draft",
+          "command": "kleio.review.draft",
           "group": "inline@2",
-          "when": "commentController == grove.review && commentThread != draft"
+          "when": "commentController == kleio.review && commentThread != draft"
         }
       ],
       "comments/commentThread/title": [
         {
-          "command": "grove.review.resolve",
+          "command": "kleio.review.resolve",
           "group": "inline@1",
-          "when": "commentController == grove.review && commentThread == unresolved"
+          "when": "commentController == kleio.review && commentThread == unresolved"
         },
         {
-          "command": "grove.review.unresolve",
+          "command": "kleio.review.unresolve",
           "group": "inline@1",
-          "when": "commentController == grove.review && commentThread == resolved"
+          "when": "commentController == kleio.review && commentThread == resolved"
         }
       ],
       "comments/comment/title": [
         {
-          "command": "grove.review.deleteDraft",
+          "command": "kleio.review.deleteDraft",
           "group": "inline@1",
-          "when": "commentController == grove.review && comment == draft"
+          "when": "commentController == kleio.review && comment == draft"
         }
       ]
     },
     "keybindings": [
       {
-        "command": "grove.diff.nextChange",
+        "command": "kleio.diff.nextChange",
         "key": "f7",
-        "when": "grove.inChangeSet && textCompareEditorVisible"
+        "when": "kleio.inChangeSet && textCompareEditorVisible"
       },
       {
-        "command": "grove.diff.previousChange",
+        "command": "kleio.diff.previousChange",
         "key": "shift+f7",
-        "when": "grove.inChangeSet && textCompareEditorVisible"
+        "when": "kleio.inChangeSet && textCompareEditorVisible"
       },
       {
-        "command": "grove.diff.openCurrent",
+        "command": "kleio.diff.openCurrent",
         "key": "f4",
-        "when": "grove.inChangeSet && textCompareEditorVisible"
+        "when": "kleio.inChangeSet && textCompareEditorVisible"
       },
       {
         "key": "ctrl+enter",
         "mac": "cmd+enter",
-        "command": "grove.conflicts.markResolved",
-        "when": "isMergeEditor && mergeEditorBaseUri =~ /^grove:/"
+        "command": "kleio.conflicts.markResolved",
+        "when": "isMergeEditor && mergeEditorBaseUri =~ /^kleio:/"
       }
     ],
     "submenus": [
       {
-        "id": "grove.editorGit",
+        "id": "kleio.editorGit",
         "label": "Git"
       }
     ],
     "configuration": {
-      "title": "Grove",
+      "title": "Kleio",
       "properties": {
-        "grove.codeLens.authors": {
+        "kleio.codeLens.authors": {
           "type": "boolean",
           "default": true,
           "description": "Показывать над классами и методами автора большинства строк и число других авторов (как code vision в Rider)."
         },
-        "grove.history.showDiffOnSelect": {
+        "kleio.history.showDiffOnSelect": {
           "type": "boolean",
           "default": true,
           "description": "Во вкладке истории сразу показывать diff выбранного коммита в соседней группе редактора."
         },
-        "grove.autolinks": {
+        "kleio.autolinks": {
           "type": "array",
           "default": [],
           "markdownDescription": "Правила, превращающие текст сообщений коммитов в ссылки: регулярное выражение и адрес с `$0` (всё совпадение), `$1`… (группы). Например, `{\"pattern\": \"PROJ-\\\\d+\", \"url\": \"https://youtrack.example.com/issue/$0\"}`. Удобно задать в `.vscode/settings.json` репозитория — правило будет у всей команды. Ссылки на MR (`!12`) и issues (`#12`) GitLab и GitHub добавляются сами.",
@@ -622,7 +622,7 @@
             }
           }
         },
-        "grove.hosting.instances": {
+        "kleio.hosting.instances": {
           "type": "object",
           "default": {},
           "additionalProperties": {
@@ -632,9 +632,9 @@
               "github"
             ]
           },
-          "markdownDescription": "Тип хостинга для своих серверов, если Grove не определил его сам: `{\"git.example.com\": \"gitlab\"}`. github.com и gitlab.com известны; сервер GitLab обычно определяется сам по ссылкам на merge requests."
+          "markdownDescription": "Тип хостинга для своих серверов, если Kleio не определил его сам: `{\"git.example.com\": \"gitlab\"}`. github.com и gitlab.com известны; сервер GitLab обычно определяется сам по ссылкам на merge requests."
         },
-        "grove.update.method": {
+        "kleio.update.method": {
           "type": "string",
           "enum": [
             "rebase",
@@ -647,7 +647,7 @@
           ],
           "markdownDescription": "Как «Обновить проект» подтягивает текущую ветку из upstream, когда в ней есть свои коммиты. Без своих коммитов ветка просто переезжает вперёд (fast-forward)."
         },
-        "grove.push.protectedBranches": {
+        "kleio.push.protectedBranches": {
           "type": "array",
           "items": {
             "type": "string"
@@ -658,12 +658,12 @@
           ],
           "markdownDescription": "Ветки на сервере, в которые push с force запрещён. Можно использовать `*`, например `release/*`."
         },
-        "grove.worktree.path": {
+        "kleio.worktree.path": {
           "type": "string",
           "default": "${repoParent}/${repoName}-${branch}",
           "markdownDescription": "Папка нового worktree при «Checkout в новый worktree…». `${repoParent}` — папка, где лежит основная папка репозитория, `${repoName}` — её имя, `${branch}` — имя ветки (`/` заменяется на `-`). Путь можно поправить перед созданием."
         },
-        "grove.worktree.copyFiles": {
+        "kleio.worktree.copyFiles": {
           "type": "array",
           "items": {
             "type": "string"
@@ -683,7 +683,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "preview": "node scripts/build.mjs && esbuild scripts/preview/server.ts --bundle --platform=node --target=node20 --log-level=warning --outfile=dist/preview/server.js && node dist/preview/server.js",
-    "package": "node scripts/build.mjs --production && vsce package --no-dependencies --allow-missing-repository -o grove.vsix"
+    "package": "node scripts/build.mjs --production && vsce package --no-dependencies --allow-missing-repository -o kleio.vsix"
   },
   "devDependencies": {
     "@types/node": "^20.19.43",

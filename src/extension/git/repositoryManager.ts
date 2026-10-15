@@ -63,7 +63,7 @@ export class RepositoryManager implements vscode.Disposable {
     return best;
   }
 
-  /** Forces listeners to reload, e.g. after a git command run by Grove itself. */
+  /** Forces listeners to reload, e.g. after a git command run by Kleio itself. */
   notifyChanged(repository: Repository): void {
     this.scheduleRefresh(repository);
   }

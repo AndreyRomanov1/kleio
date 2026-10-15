@@ -22,9 +22,9 @@ export class HistoryCommands implements vscode.Disposable {
     private readonly navigator: ChangeSetNavigator,
   ) {
     this.disposables = [
-      vscode.commands.registerCommand('grove.history.file', (uri?: vscode.Uri) => this.fileHistory(uri)),
-      vscode.commands.registerCommand('grove.history.selection', () => this.selectionHistory()),
-      vscode.commands.registerCommand('grove.compare.withRevision', (uri?: vscode.Uri) =>
+      vscode.commands.registerCommand('kleio.history.file', (uri?: vscode.Uri) => this.fileHistory(uri)),
+      vscode.commands.registerCommand('kleio.history.selection', () => this.selectionHistory()),
+      vscode.commands.registerCommand('kleio.compare.withRevision', (uri?: vscode.Uri) =>
         this.compareWithRevision(uri),
       ),
     ];

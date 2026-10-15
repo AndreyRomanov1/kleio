@@ -2,7 +2,7 @@ import type { Uri } from 'vscode';
 import type { FileChange } from '../../shared/model';
 import { WORKTREE, type Repository } from '../git/repository';
 
-/** A list of changed files between two revisions; every diff in Grove is shown through one. */
+/** A list of changed files between two revisions; every diff in Kleio is shown through one. */
 export interface ChangeSet {
   repository: Repository;
   title: string;

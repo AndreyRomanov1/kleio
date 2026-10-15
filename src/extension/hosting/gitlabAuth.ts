@@ -4,19 +4,19 @@ import { createGitLabApi, GitLabApiError } from './gitlabApi';
 /** Provider registered by the GitLab Workflow extension; it shares its accounts with scope `api`. */
 const WORKFLOW_PROVIDER = 'gitlab';
 const SCOPES = ['api'];
-const SECRET_PREFIX = 'grove.gitlab.token:';
+const SECRET_PREFIX = 'kleio.gitlab.token:';
 const WORKFLOW_EXTENSION = 'gitlab.gitlab-workflow';
 const WORKFLOW_ACTIVATION_TIMEOUT_MS = 20_000;
 
 export interface TokenSource {
   token: string;
   /** Where the token comes from, shown to the user. */
-  origin: 'workflow' | 'grove';
+  origin: 'workflow' | 'kleio';
 }
 
 /**
  * Finds a token for a GitLab host: an account of the GitLab Workflow extension, so nothing has to be set up
- * twice, or a personal access token stored by Grove. Each repository asks for its own host, so several
+ * twice, or a personal access token stored by Kleio. Each repository asks for its own host, so several
  * GitLab instances on one machine work side by side.
  */
 export class GitLabAuth implements vscode.Disposable {
@@ -33,30 +33,30 @@ export class GitLabAuth implements vscode.Disposable {
       vscode.authentication.onDidChangeSessions((e) => {
         if (e.provider.id === WORKFLOW_PROVIDER) this.changed.fire();
       }),
-      vscode.commands.registerCommand('grove.gitlab.connect', (host?: string) => this.connect(host)),
-      vscode.commands.registerCommand('grove.gitlab.disconnect', () => this.disconnect()),
+      vscode.commands.registerCommand('kleio.gitlab.connect', (host?: string) => this.connect(host)),
+      vscode.commands.registerCommand('kleio.gitlab.disconnect', () => this.disconnect()),
     ];
   }
 
   /**
-   * A token without asking anything: Grove's own token, or a GitLab Workflow account the user already allowed
-   * Grove to use. `interactive` may show VS Code's consent dialog for the GitLab Workflow account.
+   * A token without asking anything: Kleio's own token, or a GitLab Workflow account the user already allowed
+   * Kleio to use. `interactive` may show VS Code's consent dialog for the GitLab Workflow account.
    */
   async token(host: string, interactive = false): Promise<TokenSource | undefined> {
-    const forTests = process.env.GROVE_TEST_GITLAB_TOKEN;
-    if (forTests) return { token: forTests, origin: 'grove' };
+    const forTests = process.env.KLEIO_TEST_GITLAB_TOKEN;
+    if (forTests) return { token: forTests, origin: 'kleio' };
     const own = await this.secrets.get(SECRET_PREFIX + host);
-    if (own) return { token: own, origin: 'grove' };
+    if (own) return { token: own, origin: 'kleio' };
     const session = await this.workflowSession(host, interactive);
     return session ? { token: session.accessToken, origin: 'workflow' } : undefined;
   }
 
-  /** Whether the GitLab Workflow extension has an account for the host, even if Grove may not use it yet. */
+  /** Whether the GitLab Workflow extension has an account for the host, even if Kleio may not use it yet. */
   async hasWorkflowAccount(host: string): Promise<boolean> {
     return (await this.workflowAccount(host)) !== undefined;
   }
 
-  /** Asks for access: first the GitLab Workflow account, then Grove's own token. */
+  /** Asks for access: first the GitLab Workflow account, then Kleio's own token. */
   async connect(host?: string): Promise<boolean> {
     host ??= await vscode.window.showInputBox({
       title: 'Подключить GitLab',
@@ -84,14 +84,14 @@ export class GitLabAuth implements vscode.Disposable {
       {
         modal: true,
         detail:
-          'Grove использует личный токен GitLab со scope api. Если стоит расширение GitLab Workflow и в нём есть аккаунт этого сервера, Grove возьмёт доступ оттуда — тогда токен не нужен.',
+          'Kleio использует личный токен GitLab со scope api. Если стоит расширение GitLab Workflow и в нём есть аккаунт этого сервера, Kleio возьмёт доступ оттуда — тогда токен не нужен.',
       },
       create,
       paste,
     );
     if (!choice) return false;
     if (choice === create) {
-      const page = `https://${host}/-/user_settings/personal_access_tokens?name=Grove&scopes=api`;
+      const page = `https://${host}/-/user_settings/personal_access_tokens?name=Kleio&scopes=api`;
       await vscode.env.openExternal(vscode.Uri.parse(page, true));
     }
     const token = await vscode.window.showInputBox({
@@ -105,21 +105,21 @@ export class GitLabAuth implements vscode.Disposable {
       const user = await createGitLabApi(host, '', token.trim()).currentUser();
       await this.secrets.store(SECRET_PREFIX + host, token.trim());
       this.changed.fire();
-      void vscode.window.showInformationMessage(`Grove: подключено к ${host} как ${user.username}.`);
+      void vscode.window.showInformationMessage(`Kleio: подключено к ${host} как ${user.username}.`);
       return true;
     } catch (error) {
       const message =
         error instanceof GitLabApiError && error.unauthorized
           ? 'GitLab не принял токен.'
           : `Не удалось проверить токен: ${error instanceof Error ? error.message : String(error)}`;
-      void vscode.window.showErrorMessage(`Grove: ${message}`);
+      void vscode.window.showErrorMessage(`Kleio: ${message}`);
       return false;
     }
   }
 
   private async disconnect(): Promise<void> {
     const host = await vscode.window.showInputBox({
-      title: 'Удалить токен GitLab из Grove',
+      title: 'Удалить токен GitLab из Kleio',
       prompt: 'Адрес сервера GitLab',
     });
     if (!host) return;
@@ -163,7 +163,7 @@ export class GitLabAuth implements vscode.Disposable {
   }
 
   /**
-   * After a reload Grove may start before GitLab Workflow, whose authentication provider is then not registered
+   * After a reload Kleio may start before GitLab Workflow, whose authentication provider is then not registered
    * yet and its accounts look missing. Activating it first (or waiting for it) avoids that race.
    */
   private workflowReady(): Promise<void> {

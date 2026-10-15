@@ -6,7 +6,7 @@ import type { ChangeSetNavigator } from '../changes/changeSetNavigator';
 import type { Repository } from '../git/repository';
 import { renderHtml, webviewOptions } from '../webviewHtml';
 
-const PANEL_TYPE = 'grove.rebase';
+const PANEL_TYPE = 'kleio.rebase';
 
 export type RebaseRequest =
   /** Everything from this commit up to HEAD, as is. */
@@ -173,7 +173,7 @@ export class RebaseDialog implements vscode.Disposable {
 
   /**
    * The commits from `oldest` up to HEAD, or why they cannot be rebased: HEAD without a branch, a commit
-   * outside the current branch, merges in between (Grove does not rebuild merges).
+   * outside the current branch, merges in between (Kleio does not rebuild merges).
    */
   private async rangeFor(repository: Repository, oldest: string): Promise<Range | string> {
     const head = await repository.head();
@@ -185,7 +185,7 @@ export class RebaseDialog implements vscode.Disposable {
     const base = (await repository.commitDetails(oldest)).parents[0];
     const range = await repository.rebaseRange(base);
     if (range.merges > 0)
-      return 'Между выбранным коммитом и HEAD есть merge-коммиты — interactive rebase с ними Grove не делает.';
+      return 'Между выбранным коммитом и HEAD есть merge-коммиты — interactive rebase с ними Kleio не делает.';
     return { branch: head.branch, base, hashes: range.commits.map((c) => c.hash) };
   }
 

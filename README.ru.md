@@ -1,4 +1,6 @@
-# Grove
+# Kleio
+
+_Клио — муза истории._
 
 Git для VS Code и VSCodium в духе JetBrains IDE: граф коммитов, из которого можно работать, один просмотрщик
 diff для любого набора изменений, история и blame в один клик, interactive rebase и конфликты в нормальных
@@ -67,7 +69,7 @@ diff для любого набора изменений, история и blam
 ## Установка
 
 Пока расширение не опубликовано, собери его из исходников (ниже) и поставь пакет:
-`codium --install-extension grove.vsix` (или `code …`).
+`codium --install-extension kleio.vsix` (или `code …`).
 
 Доступ к GitLab берётся из расширения [GitLab Workflow](https://open-vsx.org/extension/GitLab/gitlab-workflow),
 если в нём выполнен вход, или из личного токена (команда «Подключить GitLab…», scope `api`) — он хранится в
@@ -77,18 +79,18 @@ diff для любого набора изменений, история и blam
 
 | Настройка                        | По умолчанию                          | Что делает                                                                              |
 | -------------------------------- | ------------------------------------- | --------------------------------------------------------------------------------------- |
-| `grove.autolinks`                | `[]`                                  | Правила ссылок из текста: `{"pattern": "\\bPROJ-\\d+\\b", "url": "https://tracker/$0"}` |
-| `grove.hosting.instances`        | `{}`                                  | Тип хостинга для своих серверов, например `{"git.example.com": "gitlab"}`               |
-| `grove.update.method`            | `rebase`                              | Как «Обновить проект» подтягивает ветку со своими коммитами: `rebase` или `merge`       |
-| `grove.push.protectedBranches`   | `["master", "main"]`                  | Ветки, куда никогда не идёт force push; работает `*`, например `release/*`              |
-| `grove.worktree.path`            | `${repoParent}/${repoName}-${branch}` | Папка нового worktree                                                                   |
-| `grove.worktree.copyFiles`       | `[]`                                  | Неотслеживаемые файлы, которые копируются в новый worktree, например локальные секреты  |
-| `grove.codeLens.authors`         | `true`                                | Основной автор и число остальных над классами и методами                                |
-| `grove.history.showDiffOnSelect` | `true`                                | Во вкладке истории сразу показывать diff выбранного коммита                             |
+| `kleio.autolinks`                | `[]`                                  | Правила ссылок из текста: `{"pattern": "\\bPROJ-\\d+\\b", "url": "https://tracker/$0"}` |
+| `kleio.hosting.instances`        | `{}`                                  | Тип хостинга для своих серверов, например `{"git.example.com": "gitlab"}`               |
+| `kleio.update.method`            | `rebase`                              | Как «Обновить проект» подтягивает ветку со своими коммитами: `rebase` или `merge`       |
+| `kleio.push.protectedBranches`   | `["master", "main"]`                  | Ветки, куда никогда не идёт force push; работает `*`, например `release/*`              |
+| `kleio.worktree.path`            | `${repoParent}/${repoName}-${branch}` | Папка нового worktree                                                                   |
+| `kleio.worktree.copyFiles`       | `[]`                                  | Неотслеживаемые файлы, которые копируются в новый worktree, например локальные секреты  |
+| `kleio.codeLens.authors`         | `true`                                | Основной автор и число остальных над классами и методами                                |
+| `kleio.history.showDiffOnSelect` | `true`                                | Во вкладке истории сразу показывать diff выбранного коммита                             |
 
 ## Клавиши
 
-`F7` / `Shift+F7` в diff Grove идут по изменениям и переходят в следующий файл. Расширения с раскладками
+`F7` / `Shift+F7` в diff Kleio идут по изменениям и переходят в следующий файл. Расширения с раскладками
 (например, IntelliJ IDEA Keybindings) вешают те же клавиши на diff-редактор, и между двумя расширениями VS
 Code выбирает непредсказуемо. Пользовательские привязки всегда главнее — если F7 не уходит дальше файла,
 добавь в `keybindings.json`:
@@ -97,13 +99,13 @@ Code выбирает непредсказуемо. Пользовательск
 [
   {
     "key": "f7",
-    "command": "grove.diff.nextChange",
-    "when": "grove.inChangeSet && textCompareEditorVisible"
+    "command": "kleio.diff.nextChange",
+    "when": "kleio.inChangeSet && textCompareEditorVisible"
   },
   {
     "key": "shift+f7",
-    "command": "grove.diff.previousChange",
-    "when": "grove.inChangeSet && textCompareEditorVisible"
+    "command": "kleio.diff.previousChange",
+    "when": "kleio.inChangeSet && textCompareEditorVisible"
   }
 ]
 ```
@@ -119,9 +121,9 @@ npm install
 npm run build              # расширение и webview в dist/
 npm run watch              # пересборка на лету; F5 в VS Code запускает Extension Development Host
 npm test                   # юнит-тесты на настоящих git-репозиториях во временной папке
-npm run test:integration   # тесты внутри настоящего редактора; GROVE_CODE=/путь/к/codium
+npm run test:integration   # тесты внутри настоящего редактора; KLEIO_CODE=/путь/к/codium
 npm run preview -- <репо>  # интерфейс в браузере на настоящем репозитории; ничего не коммитит и не пушит
-npm run package            # grove.vsix
+npm run package            # kleio.vsix
 ```
 
 На Linux интеграционные тесты запускают редактор под `xvfb-run` в одноразовом профиле.

@@ -84,7 +84,7 @@ export class SyncActions {
     if (!ok) return;
     try {
       await repository.abortOperation(kind);
-      vscode.window.setStatusBarMessage(`Grove: ${operationNames[kind]} прерван`, 4000);
+      vscode.window.setStatusBarMessage(`Kleio: ${operationNames[kind]} прерван`, 4000);
     } catch (error) {
       report(error);
     } finally {
@@ -97,7 +97,7 @@ export class SyncActions {
    * upstream — fast-forward when it has no own commits, otherwise rebase or merge as configured.
    */
   async updateProject(repository: Repository): Promise<void> {
-    const fetched = await this.withProgress('Grove: обновление проекта', async (progress) => {
+    const fetched = await this.withProgress('Kleio: обновление проекта', async (progress) => {
       progress.report({ message: 'fetch' });
       await repository.git.run(['fetch', '--all', '--prune'], { timeoutMs: FETCH_TIMEOUT_MS });
       return true;
@@ -119,11 +119,11 @@ export class SyncActions {
     }
     const { ahead, behind } = await repository.aheadBehind(head.branch, upstream);
     if (behind === 0) {
-      vscode.window.setStatusBarMessage(`Grove: ${head.branch} актуальна`, 4000);
+      vscode.window.setStatusBarMessage(`Kleio: ${head.branch} актуальна`, 4000);
       return;
     }
     const method = vscode.workspace
-      .getConfiguration('grove')
+      .getConfiguration('kleio')
       .get<'rebase' | 'merge'>('update.method', 'rebase');
     const title = `Обновление ${head.branch} из ${upstream}: ${behind} новых`;
     if (ahead === 0) {
@@ -159,7 +159,7 @@ export class SyncActions {
     const slash = upstreamRef.name.indexOf('/');
     const remote = upstreamRef.name.slice(0, slash);
     const remoteBranch = upstreamRef.name.slice(slash + 1);
-    const fetched = await this.withProgress(`Grove: fetch ${upstreamRef.name}`, async () => {
+    const fetched = await this.withProgress(`Kleio: fetch ${upstreamRef.name}`, async () => {
       await repository.git.run(['fetch', remote, remoteBranch], { timeoutMs: FETCH_TIMEOUT_MS });
       return true;
     });
@@ -171,7 +171,7 @@ export class SyncActions {
     if (!local || !upstream) return;
     const { ahead, behind } = await repository.aheadBehind(local, upstream);
     if (behind === 0) {
-      vscode.window.setStatusBarMessage(`Grove: ${ref.name} актуальна`, 4000);
+      vscode.window.setStatusBarMessage(`Kleio: ${ref.name} актуальна`, 4000);
     } else if (ahead > 0) {
       void vscode.window.showWarningMessage(
         `Ветка ${ref.name} разошлась с ${upstreamRef.name}: ${ahead} своих коммитов, ${behind} новых. Без переключения её можно обновить, только если своих коммитов нет — переключитесь на неё и обновите проект.`,
@@ -179,7 +179,7 @@ export class SyncActions {
     } else {
       try {
         await repository.moveBranch(ref.name, upstream, local);
-        vscode.window.setStatusBarMessage(`Grove: ${ref.name} +${behind} из ${upstreamRef.name}`, 4000);
+        vscode.window.setStatusBarMessage(`Kleio: ${ref.name} +${behind} из ${upstreamRef.name}`, 4000);
       } catch (error) {
         report(error);
       }
@@ -224,7 +224,7 @@ export class SyncActions {
     }
     try {
       await repository.reset(hash, picked.mode);
-      vscode.window.setStatusBarMessage(`Grove: reset ${branch} на ${shorten(hash)}`, 4000);
+      vscode.window.setStatusBarMessage(`Kleio: reset ${branch} на ${shorten(hash)}`, 4000);
     } catch (error) {
       report(error);
     } finally {
@@ -238,11 +238,11 @@ export class SyncActions {
     kind: OperationKind,
     run: () => Promise<OperationOutcome>,
   ): Promise<void> {
-    const outcome = await this.withProgress(`Grove: ${title}`, run);
+    const outcome = await this.withProgress(`Kleio: ${title}`, run);
     this.repositories.notifyChanged(repository);
     if (outcome === undefined) return;
     if (outcome === 'done') {
-      vscode.window.setStatusBarMessage(`Grove: ${title} — готово`, 4000);
+      vscode.window.setStatusBarMessage(`Kleio: ${title} — готово`, 4000);
       return;
     }
     const state = await repository.operation();

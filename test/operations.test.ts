@@ -39,7 +39,7 @@ function diverged(name: string): string {
 }
 
 beforeAll(() => {
-  work = mkdtempSync(path.join(tmpdir(), 'grove-ops-'));
+  work = mkdtempSync(path.join(tmpdir(), 'kleio-ops-'));
 });
 
 afterAll(() => {

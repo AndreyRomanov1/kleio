@@ -31,7 +31,7 @@ function repo(name: string): { dir: string; hashes: Record<string, string> } {
 const subjects = (dir: string) => git(dir, 'log', '--format=%s', 'main').trim().split('\n');
 
 beforeAll(() => {
-  work = mkdtempSync(path.join(tmpdir(), 'grove-rebase-'));
+  work = mkdtempSync(path.join(tmpdir(), 'kleio-rebase-'));
 });
 
 afterAll(() => {

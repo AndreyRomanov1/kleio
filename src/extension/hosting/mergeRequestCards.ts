@@ -8,7 +8,7 @@ const MAX_CHILD_PIPELINES = 10;
 import type { HostingService } from './hostingService';
 import { cleanLog } from './jobLogText';
 
-const LOG_SCHEME = 'grove-job-log';
+const LOG_SCHEME = 'kleio-job-log';
 
 export type CardResult = { card: MergeRequestCardView } | { needsAuth: true } | { error: string };
 
@@ -44,7 +44,7 @@ export class MergeRequestCards implements vscode.TextDocumentContentProvider, vs
     const api = await this.hosting.gitlab(repository, true);
     if (!api) return;
     const text = await vscode.window.withProgress(
-      { location: vscode.ProgressLocation.Window, title: `Grove: лог джобы ${name}` },
+      { location: vscode.ProgressLocation.Window, title: `Kleio: лог джобы ${name}` },
       () => api.jobLog(jobId, projectId),
     );
     const uri = vscode.Uri.from({ scheme: LOG_SCHEME, path: `/${jobId}/${name.replace(/[/\\]/g, '_')}.log` });
@@ -119,7 +119,7 @@ export class MergeRequestCards implements vscode.TextDocumentContentProvider, vs
   private async report(action: () => Promise<void>, done: string): Promise<void> {
     try {
       await action();
-      vscode.window.setStatusBarMessage(`Grove: ${done}`, 4000);
+      vscode.window.setStatusBarMessage(`Kleio: ${done}`, 4000);
     } catch (error) {
       void vscode.window.showErrorMessage(
         `GitLab: ${error instanceof Error ? error.message : String(error)}`,
@@ -131,7 +131,7 @@ export class MergeRequestCards implements vscode.TextDocumentContentProvider, vs
     const api = await this.hosting.gitlab(repository, true);
     if (!api) return;
     await api.retryPipeline(pipelineId);
-    vscode.window.setStatusBarMessage('Grove: упавшие джобы перезапущены', 4000);
+    vscode.window.setStatusBarMessage('Kleio: упавшие джобы перезапущены', 4000);
   }
 
   provideTextDocumentContent(uri: vscode.Uri): string {
@@ -171,7 +171,7 @@ export class MergeRequestCards implements vscode.TextDocumentContentProvider, vs
     return withDiscussions(buildCard(details, approvals, jobs, bridges, children));
   }
 
-  /** Username of the GitLab user Grove acts as, once per host. */
+  /** Username of the GitLab user Kleio acts as, once per host. */
   private currentUser(api: GitLabApi): Promise<string | undefined> {
     let user = this.users.get(api.host);
     if (!user) {

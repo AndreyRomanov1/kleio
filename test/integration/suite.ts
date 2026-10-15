@@ -3,10 +3,10 @@ import { execFileSync } from 'node:child_process';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { commitChangeSet } from '../../src/extension/changes/changeSet';
-import type { GroveApi } from '../../src/extension/extension';
+import type { KleioApi } from '../../src/extension/extension';
 import { REVISION_SCHEME, revisionUri } from '../../src/extension/content/revisionUri';
 
-type Test = [name: string, body: (api: GroveApi) => Promise<void>];
+type Test = [name: string, body: (api: KleioApi) => Promise<void>];
 
 const root = () => vscode.workspace.workspaceFolders![0].uri.fsPath;
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -30,7 +30,7 @@ function activeDiff(): vscode.TabInputTextDiff | undefined {
   return input instanceof vscode.TabInputTextDiff ? input : undefined;
 }
 
-async function headChangeSet(api: GroveApi) {
+async function headChangeSet(api: KleioApi) {
   const repository = await api.repositories.get(root());
   assert.ok(repository, 'repository is found');
   const head = await repository.commitDetails('HEAD');
@@ -87,13 +87,13 @@ const tests: Test[] = [
       await waitFor(activeDiff, 'diff editor');
       const diffIndex = () => vscode.window.tabGroups.activeTabGroup.tabs.findIndex((t) => t.isActive);
       const initialIndex = diffIndex();
-      await vscode.commands.executeCommand('grove.diff.nextChange');
+      await vscode.commands.executeCommand('kleio.diff.nextChange');
       assert.equal(vscode.window.activeTextEditor?.selection.active.line, 24, 'second change of a.txt');
 
-      await vscode.commands.executeCommand('grove.diff.nextChange');
+      await vscode.commands.executeCommand('kleio.diff.nextChange');
       await wait(300);
       assert.ok(diffOf('a.txt')(), 'the first press at the last change stays in the file');
-      await vscode.commands.executeCommand('grove.diff.nextChange');
+      await vscode.commands.executeCommand('kleio.diff.nextChange');
       await waitFor(diffOf('b.txt'), 'diff of b.txt after the second press');
 
       const diffTabs = vscode.window.tabGroups.all
@@ -102,8 +102,8 @@ const tests: Test[] = [
       assert.equal(diffTabs.length, 1, 'the diff of a.txt is replaced, not kept in another tab');
       assert.equal(diffIndex(), initialIndex, 'the new diff takes the place of the old one');
 
-      await vscode.commands.executeCommand('grove.diff.previousChange');
-      await vscode.commands.executeCommand('grove.diff.previousChange');
+      await vscode.commands.executeCommand('kleio.diff.previousChange');
+      await vscode.commands.executeCommand('kleio.diff.previousChange');
       await waitFor(diffOf('a.txt'), 'back to a.txt');
       await waitFor(
         () => vscode.window.activeTextEditor?.selection.active.line === 24 || undefined,
@@ -125,7 +125,7 @@ const tests: Test[] = [
     async (api) => {
       const uri = vscode.Uri.file(path.join(root(), 'a.txt'));
       const editor = await vscode.window.showTextDocument(uri);
-      await vscode.commands.executeCommand('grove.blame.show');
+      await vscode.commands.executeCommand('kleio.blame.show');
       const lines = await waitFor(() => api.blame.linesOf(uri), 'blame annotations');
       assert.equal(lines.length, 30);
       assert.equal(lines[4].commit.summary, 'second');
@@ -135,24 +135,24 @@ const tests: Test[] = [
       await waitFor(() => (api.blame.linesOf(uri)?.length === 31 ? true : undefined), 'blame after an edit');
       assert.equal(api.blame.linesOf(uri)![0].commit.hash, '0'.repeat(40));
       await vscode.commands.executeCommand('workbench.action.files.revert');
-      await vscode.commands.executeCommand('grove.blame.hide');
+      await vscode.commands.executeCommand('kleio.blame.hide');
       assert.equal(api.blame.linesOf(uri), undefined);
     },
   ],
   [
     'opens the history of a file in a tab and the diff of a file from a blame link',
     async () => {
-      await vscode.commands.executeCommand('grove.history.file', vscode.Uri.file(path.join(root(), 'b.txt')));
+      await vscode.commands.executeCommand('kleio.history.file', vscode.Uri.file(path.join(root(), 'b.txt')));
       const tab = await waitFor(() => {
         const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
-        return input instanceof vscode.TabInputWebview && input.viewType.endsWith('grove.history')
+        return input instanceof vscode.TabInputWebview && input.viewType.endsWith('kleio.history')
           ? input
           : undefined;
       }, 'history tab');
       assert.ok(tab);
 
       const hash = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root(), encoding: 'utf8' }).trim();
-      await vscode.commands.executeCommand('grove.blame.showCommit', { root: root(), hash, path: 'b.txt' });
+      await vscode.commands.executeCommand('kleio.blame.showCommit', { root: root(), hash, path: 'b.txt' });
       await waitFor(() => {
         const diff = activeDiff();
         return diff && path.basename(diff.modified.fsPath) === 'b.txt' ? diff : undefined;
@@ -172,14 +172,14 @@ const tests: Test[] = [
             10,
           );
           const own = lenses
-            .filter((l) => l.command?.command === 'grove.blame.toggle')
+            .filter((l) => l.command?.command === 'kleio.blame.toggle')
             .map((l) => l.command!.title);
           return own.length >= 2 ? own : undefined;
         },
         'author lenses',
         20000,
       );
-      assert.deepEqual(titles, ['$(person) Grove Test +1', '$(person) Grove Test +1']);
+      assert.deepEqual(titles, ['$(person) Kleio Test +1', '$(person) Kleio Test +1']);
     },
   ],
   [
@@ -187,7 +187,7 @@ const tests: Test[] = [
     async (api) => {
       const repository = await api.repositories.get(root());
       assert.ok(repository);
-      const origin = process.env.GROVE_TEST_GITLAB_ORIGIN!;
+      const origin = process.env.KLEIO_TEST_GITLAB_ORIGIN!;
       const requests = async () =>
         (await (await fetch(`${origin}/__requests`)).json()) as { method: string; url: string; body?: any }[];
 
@@ -206,7 +206,7 @@ const tests: Test[] = [
         (e) => e.document.uri.toString() === diff.modified.toString(),
       )!;
       modified.selection = new vscode.Selection(0, 0, 0, 0);
-      await vscode.commands.executeCommand('grove.review.nextComment');
+      await vscode.commands.executeCommand('kleio.review.nextComment');
       assert.equal(modified.selection.active.line, 24, 'next review comment is the thread on line 25');
 
       // A comment typed on a changed line and on an unchanged one: GitLab needs one or both line numbers.
@@ -216,11 +216,11 @@ const tests: Test[] = [
         comments: [],
         dispose() {},
       });
-      await vscode.commands.executeCommand('grove.review.publish', {
+      await vscode.commands.executeCommand('kleio.review.publish', {
         thread: thread(diff.modified, 5),
         text: 'Изменённая строка',
       });
-      await vscode.commands.executeCommand('grove.review.draft', {
+      await vscode.commands.executeCommand('kleio.review.draft', {
         thread: thread(diff.modified, 10),
         text: 'Черновик',
       });
@@ -235,7 +235,7 @@ const tests: Test[] = [
         'draft thread',
       );
 
-      await vscode.commands.executeCommand('grove.review.publishDrafts');
+      await vscode.commands.executeCommand('kleio.review.publishDrafts');
       sent = (await requests()).filter((r) => r.method === 'POST');
       assert.ok(sent.at(-1)!.url.endsWith('/draft_notes/bulk_publish'));
       await waitFor(
@@ -243,20 +243,20 @@ const tests: Test[] = [
         'three published threads',
       );
 
-      await vscode.commands.executeCommand('grove.review.openJournal');
+      await vscode.commands.executeCommand('kleio.review.openJournal');
       const journal = vscode.window.activeTextEditor!.document.getText();
       assert.match(journal, /"text":"Изменённая строка"/);
       assert.match(journal, /"status":"sent"/);
-      await vscode.commands.executeCommand('grove.review.end');
+      await vscode.commands.executeCommand('kleio.review.end');
     },
   ],
   [
     'opens the push dialog for the current branch',
     async () => {
-      await vscode.commands.executeCommand('grove.git.push');
+      await vscode.commands.executeCommand('kleio.git.push');
       const tab = await waitFor(() => {
         const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
-        return input instanceof vscode.TabInputWebview && input.viewType.endsWith('grove.push')
+        return input instanceof vscode.TabInputWebview && input.viewType.endsWith('kleio.push')
           ? input
           : undefined;
       }, 'push dialog tab');
@@ -272,7 +272,7 @@ const tests: Test[] = [
       await api.rebase.open(repository, { kind: 'reword', hash: head.hash });
       await waitFor(() => {
         const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
-        return input instanceof vscode.TabInputWebview && input.viewType.endsWith('grove.rebase')
+        return input instanceof vscode.TabInputWebview && input.viewType.endsWith('kleio.rebase')
           ? input
           : undefined;
       }, 'rebase dialog tab');
@@ -322,7 +322,7 @@ const tests: Test[] = [
         assert.equal((await repository.conflicts()).length, 1, 'saving in the merge editor does not resolve');
 
         await vscode.commands.executeCommand('mergeEditor.acceptAllCombination');
-        await vscode.commands.executeCommand('grove.conflicts.markResolved');
+        await vscode.commands.executeCommand('kleio.conflicts.markResolved');
         await waitFor(
           async () => ((await repository.conflicts()).length === 0 ? true : undefined),
           'resolved',
@@ -372,7 +372,7 @@ const tests: Test[] = [
       git('branch', 'feature/wt');
       fs.writeFileSync(path.join(root(), 'local.json'), '{"secret": 1}\n');
       await vscode.workspace
-        .getConfiguration('grove')
+        .getConfiguration('kleio')
         .update('worktree.copyFiles', ['local.json', 'missing.json'], vscode.ConfigurationTarget.Global);
       try {
         const repository = (await api.repositories.get(root()))!;
@@ -388,7 +388,7 @@ const tests: Test[] = [
         );
       } finally {
         await vscode.workspace
-          .getConfiguration('grove')
+          .getConfiguration('kleio')
           .update('worktree.copyFiles', undefined, vscode.ConfigurationTarget.Global);
         if (fs.existsSync(target)) git('worktree', 'remove', '--force', target);
         git('branch', '-q', '-D', 'feature/wt');
@@ -400,7 +400,7 @@ const tests: Test[] = [
     'opens the log in an editor tab',
     async (api) => {
       const panel = api.logs.openInEditor();
-      assert.equal(panel.viewType, 'grove.logPanel');
+      assert.equal(panel.viewType, 'kleio.logPanel');
       await wait(500);
       panel.dispose();
     },
@@ -408,7 +408,7 @@ const tests: Test[] = [
 ];
 
 export async function run(): Promise<void> {
-  const extension = vscode.extensions.getExtension<GroveApi>('aroma.grove');
+  const extension = vscode.extensions.getExtension<KleioApi>('aroma.kleio');
   assert.ok(extension, 'extension is installed');
   const api = await extension.activate();
 

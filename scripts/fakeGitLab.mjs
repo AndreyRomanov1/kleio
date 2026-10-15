@@ -1,5 +1,5 @@
 // A fake GitLab for the integration tests: one merge request (!1) of the test repository, its discussions and
-// drafts. It keeps what Grove sends, and GET /__requests returns the recorded requests for assertions.
+// drafts. It keeps what Kleio sends, and GET /__requests returns the recorded requests for assertions.
 import { createServer } from 'node:http';
 
 export async function startFakeGitLab({ baseSha, headSha }) {
@@ -66,7 +66,7 @@ export async function startFakeGitLab({ baseSha, headSha }) {
           {
             id: nextId++,
             body: body.body,
-            author: { name: 'Grove Test', username: 'grove' },
+            author: { name: 'Kleio Test', username: 'kleio' },
             created_at: '2026-01-03T10:00:00Z',
             resolvable: !!body.position,
             resolved: false,
@@ -109,7 +109,7 @@ export async function startFakeGitLab({ baseSha, headSha }) {
     requests.push({ method: req.method, url: req.url, body });
     const route = routes[`${req.method} ${req.url}`];
     res.setHeader('Content-Type', 'application/json');
-    // Lists Grove asks for in the background (pipelines, merge requests by iids) are simply empty.
+    // Lists Kleio asks for in the background (pipelines, merge requests by iids) are simply empty.
     res.end(JSON.stringify(route ? route(body) : []));
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));

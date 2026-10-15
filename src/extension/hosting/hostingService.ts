@@ -139,7 +139,7 @@ export class HostingService implements vscode.Disposable {
   }
 
   autolinks(hosting: RepositoryHosting | undefined): Autolink[] {
-    const configured = vscode.workspace.getConfiguration('grove').get<Autolink[]>('autolinks', []);
+    const configured = vscode.workspace.getConfiguration('kleio').get<Autolink[]>('autolinks', []);
     const valid = configured.filter((l) => typeof l?.pattern === 'string' && typeof l?.url === 'string');
     return [...(hosting?.links?.builtinAutolinks() ?? []), ...valid];
   }
@@ -161,7 +161,7 @@ export class HostingService implements vscode.Disposable {
     ]);
     const reviews = parseReviewRefs(refsOutput);
     const configured = vscode.workspace
-      .getConfiguration('grove')
+      .getConfiguration('kleio')
       .get<Record<string, string>>('hosting.instances', {});
     const kind = remote ? detectHosting(remote, configured, reviews) : undefined;
     const links = remote && kind ? new HostingLinks(kind, remote) : undefined;

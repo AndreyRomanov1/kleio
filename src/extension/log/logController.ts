@@ -14,8 +14,8 @@ import type { RebaseDialog } from '../rebase/rebaseDialog';
 import type { MergeRequestCards } from '../hosting/mergeRequestCards';
 import type { ReviewController } from '../review/reviewController';
 
-const FOCUS_KEY = 'grove.focus';
-const FAVORITES_KEY = 'grove.favorites';
+const FOCUS_KEY = 'kleio.focus';
+const FAVORITES_KEY = 'kleio.favorites';
 
 export interface HistoryTarget {
   repository: Repository;
@@ -71,7 +71,7 @@ export class LogController implements vscode.Disposable {
       }),
       services.hosting.onDidChange(() => void this.loadHosting(true)),
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration('grove.autolinks') || e.affectsConfiguration('grove.hosting')) {
+        if (e.affectsConfiguration('kleio.autolinks') || e.affectsConfiguration('kleio.hosting')) {
           void this.loadHosting(true);
         }
       }),
@@ -89,7 +89,7 @@ export class LogController implements vscode.Disposable {
       await this.dispatch(message);
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error);
-      void vscode.window.showErrorMessage(`Grove: ${text}`);
+      void vscode.window.showErrorMessage(`Kleio: ${text}`);
     }
   }
 
@@ -234,7 +234,7 @@ export class LogController implements vscode.Disposable {
         return sync.abort(repository, state.kind);
       case 'resolve':
         if (sync.showConflicts) return sync.showConflicts(repository);
-        await vscode.commands.executeCommand('grove.commit.focus');
+        await vscode.commands.executeCommand('kleio.commit.focus');
         return;
     }
   }
@@ -373,7 +373,7 @@ export class LogController implements vscode.Disposable {
    * list, so arrow keys walk through the history. Debounced for fast scrolling.
    */
   private showHistoryDiff(changeSet: ChangeSet, index: number, hash: string): void {
-    if (!vscode.workspace.getConfiguration('grove').get<boolean>('history.showDiffOnSelect', true)) return;
+    if (!vscode.workspace.getConfiguration('kleio').get<boolean>('history.showDiffOnSelect', true)) return;
     clearTimeout(this.historyDiffTimer);
     this.historyDiffTimer = setTimeout(() => {
       const line = this.historyLines[hash];

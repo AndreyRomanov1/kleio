@@ -5,7 +5,7 @@ import { UNCOMMITTED, type BlameLine } from '../git/parse';
 import type { Repository } from '../git/repository';
 import type { RepositoryManager } from '../git/repositoryManager';
 
-const CONTEXT_KEY = 'grove.blameActive';
+const CONTEXT_KEY = 'kleio.blameActive';
 const REFRESH_DELAY_MS = 600;
 const LABEL_WIDTH = 20;
 const MAX_AUTHOR = 10;
@@ -28,7 +28,7 @@ export interface BlameLinkHandlers {
   showCommit(repository: Repository, hash: string, filePath: string): Promise<void>;
 }
 
-const LINK_COMMANDS = ['grove.blame.revealInLog', 'grove.blame.showCommit', 'grove.blame.annotatePrevious'];
+const LINK_COMMANDS = ['kleio.blame.revealInLog', 'kleio.blame.showCommit', 'kleio.blame.annotatePrevious'];
 
 /** Rider-style "Annotate with Git Blame": author and date next to every line, details and links on hover. */
 export class BlameAnnotations implements vscode.Disposable {
@@ -48,21 +48,21 @@ export class BlameAnnotations implements vscode.Disposable {
   ) {
     this.disposables.push(
       this.decoration,
-      vscode.commands.registerCommand('grove.blame.show', (uri?: vscode.Uri) => this.show(uri)),
-      vscode.commands.registerCommand('grove.blame.hide', (uri?: vscode.Uri) => this.hide(uri)),
-      vscode.commands.registerCommand('grove.blame.toggle', (uri?: vscode.Uri) => this.toggle(uri)),
-      vscode.commands.registerCommand('grove.blame.revealInLog', (hash: string) =>
+      vscode.commands.registerCommand('kleio.blame.show', (uri?: vscode.Uri) => this.show(uri)),
+      vscode.commands.registerCommand('kleio.blame.hide', (uri?: vscode.Uri) => this.hide(uri)),
+      vscode.commands.registerCommand('kleio.blame.toggle', (uri?: vscode.Uri) => this.toggle(uri)),
+      vscode.commands.registerCommand('kleio.blame.revealInLog', (hash: string) =>
         this.links.revealInLog(hash),
       ),
       vscode.commands.registerCommand(
-        'grove.blame.showCommit',
+        'kleio.blame.showCommit',
         (args: { root: string; hash: string; path: string }) => this.showCommit(args),
       ),
       vscode.commands.registerCommand(
-        'grove.blame.annotatePrevious',
+        'kleio.blame.annotatePrevious',
         (args: { root: string; hash: string; path: string; line: number }) => this.annotatePrevious(args),
       ),
-      vscode.commands.registerCommand('grove.blame.lineInLog', () => this.lineInLog()),
+      vscode.commands.registerCommand('kleio.blame.lineInLog', () => this.lineInLog()),
       vscode.window.onDidChangeVisibleTextEditors(() => this.renderVisible()),
       vscode.window.onDidChangeActiveTextEditor(() => this.updateContext()),
       vscode.workspace.onDidChangeTextDocument((e) => this.scheduleRefresh(e.document)),
@@ -122,7 +122,7 @@ export class BlameAnnotations implements vscode.Disposable {
     const blame = known ? [known] : await this.blame(target, editor.document).catch(() => []);
     const hit = blame.find((l) => l.line === line);
     if (!hit || hit.commit.hash === UNCOMMITTED) {
-      vscode.window.setStatusBarMessage('Grove: строка ещё не закоммичена', 3000);
+      vscode.window.setStatusBarMessage('Kleio: строка ещё не закоммичена', 3000);
       return;
     }
     await this.links.revealInLog(hit.commit.hash);
@@ -243,14 +243,14 @@ export class BlameAnnotations implements vscode.Disposable {
       markdown.appendMarkdown(`Тогда файл назывался \`${commit.filename.replace(/`/g, "'")}\`\n\n`);
     markdown.appendMarkdown(
       [
-        link('$(git-commit) Показать в логе', 'grove.blame.revealInLog', commit.hash),
-        link('$(diff) Diff коммита', 'grove.blame.showCommit', {
+        link('$(git-commit) Показать в логе', 'kleio.blame.revealInLog', commit.hash),
+        link('$(diff) Diff коммита', 'kleio.blame.showCommit', {
           root,
           hash: commit.hash,
           path: commit.filename,
         }),
         commit.previous
-          ? link('$(history) Предыдущая ревизия', 'grove.blame.annotatePrevious', {
+          ? link('$(history) Предыдущая ревизия', 'kleio.blame.annotatePrevious', {
               root,
               hash: commit.hash,
               path: commit.filename,

@@ -37,7 +37,7 @@ export class AuthorLens implements vscode.CodeLensProvider, vscode.Disposable {
       this.changed,
       vscode.languages.registerCodeLensProvider({ scheme: 'file' }, this),
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration('grove.codeLens.authors')) this.changed.fire();
+        if (e.affectsConfiguration('kleio.codeLens.authors')) this.changed.fire();
       }),
       vscode.workspace.onDidChangeTextDocument(() => this.scheduleRefresh()),
       vscode.workspace.onDidCloseTextDocument((d) => this.blames.delete(d.uri.toString())),
@@ -52,7 +52,7 @@ export class AuthorLens implements vscode.CodeLensProvider, vscode.Disposable {
     document: vscode.TextDocument,
     token: vscode.CancellationToken,
   ): Promise<vscode.CodeLens[]> {
-    if (!vscode.workspace.getConfiguration('grove').get<boolean>('codeLens.authors', true)) return [];
+    if (!vscode.workspace.getConfiguration('kleio').get<boolean>('codeLens.authors', true)) return [];
     const repository = this.repositories.repositoryFor(document.uri);
     if (!repository) return [];
 
@@ -84,7 +84,7 @@ export class AuthorLens implements vscode.CodeLensProvider, vscode.Disposable {
       return new vscode.CodeLens(new vscode.Range(declaration.anchor, declaration.anchor), {
         title,
         tooltip: `${tooltip}\n\nНажмите, чтобы показать авторов по строкам`,
-        command: 'grove.blame.toggle',
+        command: 'kleio.blame.toggle',
         arguments: [document.uri],
       });
     });

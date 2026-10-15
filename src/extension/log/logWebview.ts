@@ -2,9 +2,9 @@ import * as vscode from 'vscode';
 import { renderHtml, webviewOptions } from '../webviewHtml';
 import { LogController, type HistoryTarget, type LogServices } from './logController';
 
-const VIEW_TYPE = 'grove.log';
-const PANEL_TYPE = 'grove.logPanel';
-const HISTORY_TYPE = 'grove.history';
+const VIEW_TYPE = 'kleio.log';
+const PANEL_TYPE = 'kleio.logPanel';
+const HISTORY_TYPE = 'kleio.history';
 
 /** Owns every place where the log can be shown: the movable view and editor tabs. */
 export class LogWebviews implements vscode.WebviewViewProvider, vscode.Disposable {
@@ -52,7 +52,7 @@ export class LogWebviews implements vscode.WebviewViewProvider, vscode.Disposabl
     const [first] = this.controllers;
     if (!first) {
       this.pendingReveal = hash;
-      await vscode.commands.executeCommand('grove.log.focus');
+      await vscode.commands.executeCommand('kleio.log.focus');
       return;
     }
     for (const controller of this.controllers.keys()) controller.revealCommit(hash);
@@ -75,7 +75,7 @@ export class LogWebviews implements vscode.WebviewViewProvider, vscode.Disposabl
   }
 
   private attachPanel(panel: vscode.WebviewPanel): void {
-    panel.iconPath = vscode.Uri.joinPath(this.services.context.extensionUri, 'media', 'grove.svg');
+    panel.iconPath = vscode.Uri.joinPath(this.services.context.extensionUri, 'media', 'kleio.svg');
     panel.webview.options = webviewOptions(this.services.context.extensionUri);
     panel.webview.html = renderHtml(panel.webview, this.services.context.extensionUri, 'log');
     const controller = this.track(new LogController(panel.webview, this.services), () =>

@@ -34,7 +34,7 @@ interface EdgeHint {
   line: number;
 }
 
-const CONTEXT_KEY = 'grove.inChangeSet';
+const CONTEXT_KEY = 'kleio.inChangeSet';
 const EDGE_HINT_MS = 4000;
 
 /**
@@ -69,12 +69,12 @@ export class ChangeSetNavigator implements vscode.Disposable {
       this.hintDecoration,
       this.renameDecoration,
       vscode.window.onDidChangeVisibleTextEditors(() => this.markRename()),
-      vscode.commands.registerCommand('grove.diff.nextChange', () => this.moveChange(1)),
-      vscode.commands.registerCommand('grove.diff.previousChange', () => this.moveChange(-1)),
-      vscode.commands.registerCommand('grove.diff.nextFile', () => this.moveFile(1)),
-      vscode.commands.registerCommand('grove.diff.previousFile', () => this.moveFile(-1)),
-      vscode.commands.registerCommand('grove.diff.selectFile', () => this.selectFile()),
-      vscode.commands.registerCommand('grove.diff.openCurrent', () => this.openCurrentFromDiff()),
+      vscode.commands.registerCommand('kleio.diff.nextChange', () => this.moveChange(1)),
+      vscode.commands.registerCommand('kleio.diff.previousChange', () => this.moveChange(-1)),
+      vscode.commands.registerCommand('kleio.diff.nextFile', () => this.moveFile(1)),
+      vscode.commands.registerCommand('kleio.diff.previousFile', () => this.moveFile(-1)),
+      vscode.commands.registerCommand('kleio.diff.selectFile', () => this.selectFile()),
+      vscode.commands.registerCommand('kleio.diff.openCurrent', () => this.openCurrentFromDiff()),
     );
   }
 
@@ -110,7 +110,7 @@ export class ChangeSetNavigator implements vscode.Disposable {
       selection: new vscode.Range(line, 0, line, 0),
     };
 
-    // Grove keeps one diff tab, as Rider's diff window, even with editor previews turned off. The old tab is
+    // Kleio keeps one diff tab, as Rider's diff window, even with editor previews turned off. The old tab is
     // closed first and the new one takes its place, so the tab bar does not grow and shift for a moment.
     // A tab that is alone in its group is closed afterwards instead: closing it first would close the group.
     if (previous && previous.group.tabs.length > 1) {
@@ -338,7 +338,7 @@ export class ChangeSetNavigator implements vscode.Disposable {
     const index = current.index + direction;
     if (index < 0 || index >= current.changeSet.files.length) {
       vscode.window.setStatusBarMessage(
-        direction === 1 ? 'Grove: это последнее изменение набора' : 'Grove: это первое изменение набора',
+        direction === 1 ? 'Kleio: это последнее изменение набора' : 'Kleio: это первое изменение набора',
         3000,
       );
       return;

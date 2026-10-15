@@ -140,7 +140,7 @@ export class GitActions {
     const busy = snapshot.worktrees.find((w) => w.branch === branch);
     if (busy) return this.offerWorktree(branch, busy.path);
     const main = snapshot.worktrees.find((w) => w.isMain)?.path ?? repository.root;
-    const config = vscode.workspace.getConfiguration('grove');
+    const config = vscode.workspace.getConfiguration('kleio');
     const template = config.get<string>('worktree.path', '${repoParent}/${repoName}-${branch}');
     const suggested = path.normalize(
       template
@@ -361,13 +361,13 @@ export class GitActions {
     try {
       if (showProgress) {
         await vscode.window.withProgress(
-          { location: vscode.ProgressLocation.Notification, title: `Grove: ${title}` },
+          { location: vscode.ProgressLocation.Notification, title: `Kleio: ${title}` },
           task,
         );
       } else {
         await task();
       }
-      vscode.window.setStatusBarMessage(`Grove: ${title} — готово`, 3000);
+      vscode.window.setStatusBarMessage(`Kleio: ${title} — готово`, 3000);
       return true;
     } catch (error) {
       if (args[0] === 'checkout' && error instanceof GitError && OVERWRITTEN.test(error.stderr)) {
@@ -399,7 +399,7 @@ export class GitActions {
         'push',
         '--include-untracked',
         '-m',
-        `grove: smart checkout (${title})`,
+        `kleio: smart checkout (${title})`,
       ]);
     } catch (error) {
       this.report(error);
@@ -415,7 +415,7 @@ export class GitActions {
     }
     try {
       await repository.git.run(['stash', 'pop']);
-      vscode.window.setStatusBarMessage(`Grove: ${title} — изменения перенесены`, 4000);
+      vscode.window.setStatusBarMessage(`Kleio: ${title} — изменения перенесены`, 4000);
     } catch {
       void vscode.window.showWarningMessage(
         `${title}: изменения вернулись с конфликтами. Разрешите их; спрятанная копия осталась в stash.`,

@@ -16,10 +16,10 @@ export class HostingActions implements vscode.Disposable {
     private readonly hosting: HostingService,
   ) {
     this.disposables = [
-      vscode.commands.registerCommand('grove.hosting.openFile', (uri?: vscode.Uri) =>
+      vscode.commands.registerCommand('kleio.hosting.openFile', (uri?: vscode.Uri) =>
         this.fileLink(uri, 'open'),
       ),
-      vscode.commands.registerCommand('grove.hosting.copyFileLink', (uri?: vscode.Uri) =>
+      vscode.commands.registerCommand('kleio.hosting.copyFileLink', (uri?: vscode.Uri) =>
         this.fileLink(uri, 'copy'),
       ),
     ];
@@ -90,7 +90,7 @@ export class HostingActions implements vscode.Disposable {
     if (links.kind === 'gitlab')
       args.push('-o', 'merge_request.create', '-o', `merge_request.target=${target}`);
     const output = await vscode.window.withProgress(
-      { location: vscode.ProgressLocation.Notification, title: `Grove: push ${source}` },
+      { location: vscode.ProgressLocation.Notification, title: `Kleio: push ${source}` },
       () => repository.git.runWithOutput(args),
     );
     this.repositories.notifyChanged(repository);
@@ -158,12 +158,12 @@ export class HostingActions implements vscode.Disposable {
   private async deliver(url: string, mode: 'open' | 'copy'): Promise<void> {
     if (mode === 'open') return this.openUrl(url);
     await vscode.env.clipboard.writeText(url);
-    vscode.window.setStatusBarMessage('Grove: ссылка скопирована', 3000);
+    vscode.window.setStatusBarMessage('Kleio: ссылка скопирована', 3000);
   }
 
   private noHosting(): void {
     void vscode.window.showInformationMessage(
-      'Не удалось определить GitLab или GitHub по адресу remote. Для своего сервера укажите его в настройке grove.hosting.instances.',
+      'Не удалось определить GitLab или GitHub по адресу remote. Для своего сервера укажите его в настройке kleio.hosting.instances.',
     );
   }
 

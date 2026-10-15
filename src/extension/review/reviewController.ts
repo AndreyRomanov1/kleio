@@ -12,8 +12,8 @@ import type { HostingService } from '../hosting/hostingService';
 import { linePair, type Side } from './positions';
 import type { ReviewJournal } from './reviewJournal';
 
-const CONTROLLER_ID = 'grove.review';
-const CONTEXT_KEY = 'grove.reviewActive';
+const CONTROLLER_ID = 'kleio.review';
+const CONTEXT_KEY = 'kleio.reviewActive';
 
 interface ReviewFile {
   change: FileChange;
@@ -82,27 +82,27 @@ export class ReviewController implements vscode.Disposable {
     };
     this.disposables = [
       this.comments,
-      vscode.commands.registerCommand('grove.review.publish', (reply: vscode.CommentReply) =>
+      vscode.commands.registerCommand('kleio.review.publish', (reply: vscode.CommentReply) =>
         this.send(reply, 'publish'),
       ),
-      vscode.commands.registerCommand('grove.review.draft', (reply: vscode.CommentReply) =>
+      vscode.commands.registerCommand('kleio.review.draft', (reply: vscode.CommentReply) =>
         this.send(reply, 'draft'),
       ),
-      vscode.commands.registerCommand('grove.review.resolve', (thread: vscode.CommentThread) =>
+      vscode.commands.registerCommand('kleio.review.resolve', (thread: vscode.CommentThread) =>
         this.resolve(thread, true),
       ),
-      vscode.commands.registerCommand('grove.review.unresolve', (thread: vscode.CommentThread) =>
+      vscode.commands.registerCommand('kleio.review.unresolve', (thread: vscode.CommentThread) =>
         this.resolve(thread, false),
       ),
-      vscode.commands.registerCommand('grove.review.deleteDraft', (comment: ReviewComment) =>
+      vscode.commands.registerCommand('kleio.review.deleteDraft', (comment: ReviewComment) =>
         this.deleteDraft(comment),
       ),
-      vscode.commands.registerCommand('grove.review.publishDrafts', () => this.publishDrafts()),
-      vscode.commands.registerCommand('grove.review.refresh', () => this.reload()),
-      vscode.commands.registerCommand('grove.review.end', () => this.end()),
-      vscode.commands.registerCommand('grove.review.openJournal', () => this.journal.open()),
-      vscode.commands.registerCommand('grove.review.nextComment', () => this.moveToComment(1)),
-      vscode.commands.registerCommand('grove.review.previousComment', () => this.moveToComment(-1)),
+      vscode.commands.registerCommand('kleio.review.publishDrafts', () => this.publishDrafts()),
+      vscode.commands.registerCommand('kleio.review.refresh', () => this.reload()),
+      vscode.commands.registerCommand('kleio.review.end', () => this.end()),
+      vscode.commands.registerCommand('kleio.review.openJournal', () => this.journal.open()),
+      vscode.commands.registerCommand('kleio.review.nextComment', () => this.moveToComment(1)),
+      vscode.commands.registerCommand('kleio.review.previousComment', () => this.moveToComment(-1)),
     ];
   }
 
@@ -124,7 +124,7 @@ export class ReviewController implements vscode.Disposable {
   async start(repository: Repository, iid: number, filePath?: string, line?: number): Promise<void> {
     if (this.session?.iid !== iid || this.session.repository !== repository) {
       const session = await vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Notification, title: `Grove: ревью MR !${iid}` },
+        { location: vscode.ProgressLocation.Notification, title: `Kleio: ревью MR !${iid}` },
         () => this.createSession(repository, iid),
       );
       if (!session) return;
@@ -165,7 +165,7 @@ export class ReviewController implements vscode.Disposable {
     const api = await this.hosting.gitlab(repository, true);
     if (!api) return;
     await api.publishDraftNotes(iid);
-    vscode.window.setStatusBarMessage(`Grove: черновики MR !${iid} опубликованы`, 4000);
+    vscode.window.setStatusBarMessage(`Kleio: черновики MR !${iid} опубликованы`, 4000);
     if (this.session?.iid === iid) await this.reload();
   }
 
@@ -266,7 +266,7 @@ export class ReviewController implements vscode.Disposable {
         session.api.draftNotes(session.iid),
       ]);
     } catch (error) {
-      void vscode.window.showErrorMessage(`Grove: обсуждения MR не загрузились: ${message(error)}`);
+      void vscode.window.showErrorMessage(`Kleio: обсуждения MR не загрузились: ${message(error)}`);
       return;
     }
     if (session !== this.session) return;
@@ -389,7 +389,7 @@ export class ReviewController implements vscode.Disposable {
       await request();
       await done('sent');
       vscode.window.setStatusBarMessage(
-        entry.kind === 'publish' ? 'Grove: комментарий опубликован' : 'Grove: черновик сохранён в GitLab',
+        entry.kind === 'publish' ? 'Kleio: комментарий опубликован' : 'Kleio: черновик сохранён в GitLab',
         3000,
       );
       return true;
@@ -422,7 +422,7 @@ export class ReviewController implements vscode.Disposable {
       .filter((t) => t.file >= 0)
       .sort((a, b) => a.file - b.file || a.line - b.line);
     if (targets.length === 0) {
-      vscode.window.setStatusBarMessage('Grove: в MR нет замечаний к текущей версии', 3000);
+      vscode.window.setStatusBarMessage('Kleio: в MR нет замечаний к текущей версии', 3000);
       return;
     }
     const editor = vscode.window.activeTextEditor;
@@ -433,7 +433,7 @@ export class ReviewController implements vscode.Disposable {
     const target = direction === 1 ? targets.find(after) : [...targets].reverse().find(before);
     if (!target) {
       vscode.window.setStatusBarMessage(
-        direction === 1 ? 'Grove: это последнее замечание' : 'Grove: это первое замечание',
+        direction === 1 ? 'Kleio: это последнее замечание' : 'Kleio: это первое замечание',
         3000,
       );
       return;

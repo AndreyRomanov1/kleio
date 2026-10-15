@@ -1,7 +1,7 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 
-export const REVISION_SCHEME = 'grove';
+export const REVISION_SCHEME = 'kleio';
 
 interface RevisionQuery {
   root: string;

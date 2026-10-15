@@ -9,7 +9,7 @@ import type { RepositoryManager } from '../git/repositoryManager';
 import { hunkViews } from '../git/patch';
 import { renderHtml, webviewOptions } from '../webviewHtml';
 
-const VIEW_TYPE = 'grove.commit';
+const VIEW_TYPE = 'kleio.commit';
 const REFRESH_DELAY_MS = 500;
 
 /** Rider's Commit tool window: changes with checkboxes, amend, message, commit and push, stashes. */
@@ -246,7 +246,7 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
       this.post({ type: 'committed' });
       this.repositories.notifyChanged(repository);
       const parts = partial.length ? `, частично ещё ${partial.length}` : '';
-      vscode.window.setStatusBarMessage(`Grove: закоммичено ${selected.length} файл(ов)${parts}`, 4000);
+      vscode.window.setStatusBarMessage(`Kleio: закоммичено ${selected.length} файл(ов)${parts}`, 4000);
       if (message.push) await this.dialogs.push(repository);
     } finally {
       this.post({ type: 'busy', value: false });

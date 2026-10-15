@@ -5,7 +5,7 @@ export function webviewOptions(extensionUri: vscode.Uri): vscode.WebviewOptions 
   return { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'dist')] };
 }
 
-/** One bundle serves every Grove webview; `view` picks the interface it mounts. */
+/** One bundle serves every Kleio webview; `view` picks the interface it mounts. */
 export function renderHtml(
   webview: vscode.Webview,
   extensionUri: vscode.Uri,

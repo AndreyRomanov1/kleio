@@ -1,6 +1,6 @@
 // Runs test/integration in a real VS Code-compatible editor against a throwaway repository.
 //
-//   GROVE_CODE=/path/to/codium npm run test:integration
+//   KLEIO_CODE=/path/to/codium npm run test:integration
 //
 // On Linux without a display the editor is started under xvfb-run. The editor gets its own profile and
 // extension directories, so a running editor of the user is not touched.
@@ -11,7 +11,7 @@ import * as path from 'node:path';
 import * as esbuild from 'esbuild';
 import { startFakeGitLab } from './fakeGitLab.mjs';
 
-const code = process.env.GROVE_CODE ?? 'codium';
+const code = process.env.KLEIO_CODE ?? 'codium';
 const projectRoot = path.resolve(import.meta.dirname, '..');
 
 await esbuild.build({
@@ -25,7 +25,7 @@ await esbuild.build({
   logLevel: 'warning',
 });
 
-const work = mkdtempSync(path.join(tmpdir(), 'grove-it-'));
+const work = mkdtempSync(path.join(tmpdir(), 'kleio-it-'));
 const repo = path.join(work, 'repo');
 mkdirSync(repo);
 const git = (...args) =>
@@ -41,7 +41,7 @@ const lines = (n, change = {}) =>
   Array.from({ length: n }, (_, i) => change[i + 1] ?? `line ${i + 1}`).join('\n') + '\n';
 
 git('init', '-q', '-b', 'main');
-git('config', 'user.name', 'Grove Test');
+git('config', 'user.name', 'Kleio Test');
 git('config', 'user.email', 'test@example.com');
 writeFileSync(path.join(repo, 'a.txt'), lines(30));
 writeFileSync(path.join(repo, 'b.txt'), lines(5));
@@ -62,7 +62,7 @@ const gitlab = await startFakeGitLab({ baseSha: sha('HEAD~1'), headSha: sha('HEA
 mkdirSync(path.join(work, 'user-data', 'User'), { recursive: true });
 writeFileSync(
   path.join(work, 'user-data', 'User', 'settings.json'),
-  JSON.stringify({ 'grove.hosting.instances': { 'gitlab.test': 'gitlab' } }),
+  JSON.stringify({ 'kleio.hosting.instances': { 'gitlab.test': 'gitlab' } }),
 );
 
 const editorArgs = [
@@ -79,15 +79,15 @@ const editorArgs = [
 if (process.platform === 'linux') editorArgs.push('--ozone-platform=x11');
 // CI runners cannot set up Chromium's sandbox for an unpacked editor.
 if (process.env.CI) editorArgs.push('--no-sandbox');
-const headless = process.platform === 'linux' && process.env.GROVE_HEADLESS !== '0';
+const headless = process.platform === 'linux' && process.env.KLEIO_HEADLESS !== '0';
 const [command, args] = headless ? ['xvfb-run', ['-a', code, ...editorArgs]] : [code, editorArgs];
 
 // Without this Electron prefers the Wayland session and shows the window on the real desktop.
 const env = {
   ...process.env,
   ELECTRON_RUN_AS_NODE: undefined,
-  GROVE_TEST_GITLAB_ORIGIN: gitlab.origin,
-  GROVE_TEST_GITLAB_TOKEN: 'test-token',
+  KLEIO_TEST_GITLAB_ORIGIN: gitlab.origin,
+  KLEIO_TEST_GITLAB_TOKEN: 'test-token',
   ...(headless ? { WAYLAND_DISPLAY: undefined } : {}),
 };
 const status = await new Promise((resolve) => {
