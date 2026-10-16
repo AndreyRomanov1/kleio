@@ -320,8 +320,8 @@ const tests: Test[] = [
       sent = (await requests()).filter((r) => r.method === 'POST');
       assert.ok(sent.at(-1)!.url.endsWith('/draft_notes/bulk_publish'));
       await waitFor(
-        () => (api.review.openThreads().length === 5 ? true : undefined),
-        'four published threads and one more',
+        () => (api.review.openThreads().length === 4 ? true : undefined),
+        'four published threads',
       );
 
       // A reload of the window: Kleio forgets the review and the diff, as when the window closes.
@@ -331,7 +331,7 @@ const tests: Test[] = [
       assert.equal(api.review.openThreads().length, 0);
       await api.review.restore(api.repositories);
       await waitFor(
-        () => (api.review.openThreads().length === 5 ? true : undefined),
+        () => (api.review.openThreads().length === 4 ? true : undefined),
         'threads of the restored review',
       );
       assert.ok(
@@ -350,49 +350,11 @@ const tests: Test[] = [
         () => (activeDiff()?.original.toString().includes(earlier) ? activeDiff() : undefined),
         'diff since the last review',
       );
-      const old = await waitFor(
-        () => api.review.openThreads().find((t) => t.uri === since.original.toString()),
-        'the earlier comment on the left side',
-      );
+      const old = api.review.openThreads().find((t) => t.uri === since.original.toString());
+      assert.ok(old, 'the earlier comment is on the left side');
       assert.equal(old.line, 5);
       assert.deepEqual(old.comments, ['Поменяй пятую строку']);
       assert.equal(old.label, 'On the earlier version');
-      assert.ok(
-        !api.review
-          .openThreads()
-          .some((t) => t.uri === since.modified.toString() && t.line === 25 && t.label),
-        'a comment made on this version stays on the right',
-      );
-
-      // A comment made before this version on an unchanged line is on the left too; the next comment goes
-      // through the files of this diff, not of the merge request.
-      const sinceRight = vscode.window.visibleTextEditors.find(
-        (e) => e.document.uri.toString() === since.modified.toString(),
-      )!;
-      sinceRight.selection = new vscode.Selection(29, 0, 29, 0);
-      await vscode.commands.executeCommand('kleio.review.nextComment');
-      const next = await waitFor(
-        () => (activeDiff()?.original.path.endsWith('b.txt') ? activeDiff() : undefined),
-        'next file with a comment',
-      );
-      assert.ok(next.original.toString().includes(earlier), 'still the changes since the last review');
-      const moved = api.review.openThreads().find((t) => t.comments[0] === 'Здесь тоже')!;
-      assert.equal(moved.uri, next.original.toString());
-      assert.equal(moved.line, 4);
-      await api.review.start(repository, 1, 'b.txt');
-      const shown = () => (api.navigator as unknown as { shown?: { title: string } }).shown?.title;
-      const back = await waitFor(
-        () => (shown() === 'MR !1' ? activeDiff() : undefined),
-        'the merge request diff again',
-      );
-      await waitFor(
-        () =>
-          api.review.openThreads().find((t) => t.comments[0] === 'Здесь тоже')?.uri ===
-          back.modified.toString()
-            ? true
-            : undefined,
-        'the comment on the right of the merge request diff',
-      );
 
       await vscode.commands.executeCommand('kleio.review.openJournal');
       const journal = vscode.window.activeTextEditor!.document.getText();

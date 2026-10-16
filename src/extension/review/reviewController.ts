@@ -62,14 +62,6 @@ interface Session {
   changed: boolean;
   /** What changed since the last review, worked out once. */
   since?: Promise<SinceLastReview | undefined>;
-  /** The changes since the last review are shown: the comments made before this version go on their left. */
-  sinceShown: boolean;
-  /** When GitLab got the version under review, to tell the comments made before it. */
-  versionTime?: Promise<number | undefined>;
-  /** Discussions and drafts loaded last, to place them again when the other diff is shown. */
-  loaded?: { discussions: Discussion[]; drafts: DraftNote[] };
-  /** Counts placings: a slower one started earlier does not replace the threads of a later one. */
-  placing: number;
 }
 
 interface Version {
@@ -79,7 +71,6 @@ interface Version {
 
 /** The view of what changed since the last review: the earlier version, moved onto the new base if rebased. */
 interface SinceLastReview {
-  set: ChangeSet;
   left: string;
   files: FileChange[];
   /** The earlier version did not move onto the new base, and the diff has the changes of the rebase. */
@@ -180,7 +171,6 @@ export class ReviewController implements vscode.Disposable {
       vscode.commands.registerCommand('kleio.review.openJournal', () => this.journal.open()),
       vscode.commands.registerCommand('kleio.review.nextComment', () => this.moveToComment(1)),
       vscode.commands.registerCommand('kleio.review.previousComment', () => this.moveToComment(-1)),
-      navigator.onDidOpen((file) => this.follow(file.changeSet)),
     ];
   }
 
@@ -324,7 +314,17 @@ export class ReviewController implements vscode.Disposable {
       );
       return;
     }
-    await this.navigator.open(since.set, 0);
+    await this.navigator.open(
+      {
+        repository: session.repository,
+        title: t('!{0} since the last review', session.iid),
+        left: since.left,
+        right: session.refs.headSha,
+        files: since.files,
+        rightUris: session.changeSet.rightUris,
+      },
+      0,
+    );
   }
 
   private sinceOf(session: Session): Promise<SinceLastReview | undefined> {
@@ -344,38 +344,7 @@ export class ReviewController implements vscode.Disposable {
       if (tree) left = tree;
       else conflicted = true;
     }
-    const files = await repository.changes(left, refs.headSha);
-    const set: ChangeSet = {
-      repository,
-      title: t('!{0} since the last review', session.iid),
-      left,
-      right: refs.headSha,
-      files,
-      rightUris: session.changeSet.rightUris,
-    };
-    return { set, left, files, conflicted };
-  }
-
-  /** The comments go where the diff shown has them: on the left of the changes since the last review. */
-  private async follow(changeSet: ChangeSet): Promise<void> {
-    const session = this.session;
-    if (!session?.previous) return;
-    const since = await this.sinceOf(session);
-    const shown = !!since && since.set === changeSet;
-    if (session !== this.session || shown === session.sinceShown) return;
-    session.sinceShown = shown;
-    await this.place(session);
-  }
-
-  private versionTime(session: Session): Promise<number | undefined> {
-    session.versionTime ??= session.api
-      .versions(session.iid)
-      .then((versions) => {
-        const created = versions.find((v) => v.headSha === session.refs.headSha)?.createdAt;
-        return created ? Date.parse(created) : undefined;
-      })
-      .catch(() => undefined);
-    return session.versionTime;
+    return { left, files: await repository.changes(left, refs.headSha), conflicted };
   }
 
   /**
@@ -445,8 +414,7 @@ export class ReviewController implements vscode.Disposable {
     if (!session || this.session) return;
     this.begin(session);
     await this.reload();
-    const since = session.previous && (await this.sinceOf(session));
-    await this.navigator.restore(repositories, since ? [session.changeSet, since.set] : [session.changeSet]);
+    await this.navigator.restore(repositories, session.changeSet);
   }
 
   private async createSession(
@@ -510,8 +478,6 @@ export class ReviewController implements vscode.Disposable {
         .then((p) => p.username)
         .catch(() => undefined),
       sending: new WeakSet(),
-      sinceShown: false,
-      placing: 0,
       iid,
       label,
       ...(await this.remember(label, refs)),
@@ -562,34 +528,14 @@ export class ReviewController implements vscode.Disposable {
       void vscode.window.showErrorMessage(t('Kleio: the discussions did not load: {0}', message(error)));
       return;
     }
-    if (session !== this.session) return;
-    session.loaded = { discussions, drafts };
-    await this.place(session);
-  }
-
-  /**
-   * Threads in the code for the discussions and drafts loaded. In the changes since the last review the
-   * discussions started before this version stand on the left, by their line in the version reviewed then.
-   */
-  private async place(session: Session): Promise<void> {
-    const { loaded } = session;
-    if (!loaded) return;
-    const placing = ++session.placing;
-    const { discussions, drafts } = loaded;
     const earlier = new Map<string, { uri: vscode.Uri; range: vscode.Range }>();
-    if (session.sinceShown) {
-      const version = await this.versionTime(session);
-      for (const discussion of discussions) {
-        const first = discussion.notes.find((n) => !n.system);
-        if (!first?.position) continue;
-        const before =
-          first.position.headSha !== session.refs.headSha ||
-          (version !== undefined && Date.parse(first.createdAt) < version);
-        const place = before && (await this.earlierPlaceOf(session, first.position));
-        if (place) earlier.set(discussion.id, place);
-      }
+    for (const discussion of discussions) {
+      const position = discussion.notes.find((n) => !n.system)?.position;
+      if (!position || position.headSha === session.refs.headSha) continue;
+      const place = await this.earlierPlaceOf(session, position);
+      if (place) earlier.set(discussion.id, place);
     }
-    if (session !== this.session || placing !== session.placing) return;
+    if (session !== this.session) return;
     for (const thread of session.threads) thread.dispose();
     session.threads = [];
 
@@ -602,10 +548,8 @@ export class ReviewController implements vscode.Disposable {
       const notes = discussion.notes.filter((n) => !n.system);
       const first = notes[0];
       if (!first?.position) continue;
-      const onEarlier = earlier.get(discussion.id);
-      const place =
-        onEarlier ??
-        (first.position.headSha === session.refs.headSha ? this.placeOf(session, first.position) : undefined);
+      const onEarlier = first.position.headSha !== session.refs.headSha;
+      const place = onEarlier ? earlier.get(discussion.id) : this.placeOf(session, first.position);
       if (!place) continue;
       const comments = [
         ...notes.map(
@@ -659,9 +603,9 @@ export class ReviewController implements vscode.Disposable {
   }
 
   /**
-   * A discussion started before the version under review goes on the left side of the changes since the last
-   * review, by its line in the version reviewed then, so that the comment stands next to how it was dealt
-   * with. Its line is followed from the version GitLab keeps it on; a line changed on the way is lost.
+   * A discussion of an earlier version of the merge request, whose line has changed since: it goes on the left
+   * side of the changes since the last review, by its line in the version reviewed then, so that the comment
+   * stands next to how it was dealt with.
    */
   private async earlierPlaceOf(
     session: Session,
@@ -669,23 +613,20 @@ export class ReviewController implements vscode.Disposable {
   ): Promise<{ uri: vscode.Uri; range: vscode.Range } | undefined> {
     if (position.newLine === undefined) return undefined;
     const since = await this.sinceOf(session);
-    const change = since?.files.find(
-      (f) => f.path === position.newPath || (f.oldPath ?? f.path) === position.newPath,
-    );
+    const change = since?.files.find((f) => (f.oldPath ?? f.path) === position.newPath);
     if (!since || !change || change.status === 'A') return undefined;
-    const leftPath = change.oldPath ?? change.path;
     const hunks =
       position.headSha === since.left
         ? []
         : await session.repository
-            .hunks(position.headSha, since.left, { status: 'R', path: leftPath, oldPath: position.newPath })
+            .hunks(position.headSha, since.left, { status: 'M', path: position.newPath })
             .catch(() => undefined);
     const line = hunks && followLine(hunks, position.newLine);
     if (!line) return undefined;
     const start = position.lineRange?.start.newLine;
     const first = (start !== undefined && followLine(hunks, start)) || line;
     return {
-      uri: revisionUri(session.repository.root, since.left, leftPath),
+      uri: revisionUri(session.repository.root, since.left, change.oldPath ?? change.path),
       range: new vscode.Range(Math.min(first, line) - 1, 0, line - 1, 0),
     };
   }
@@ -818,10 +759,10 @@ export class ReviewController implements vscode.Disposable {
   private async moveToComment(direction: 1 | -1): Promise<void> {
     const session = this.session;
     if (!session) return;
-    // Within the diff shown: the merge request, or the changes since the last review.
-    const set = (session.sinceShown && (await this.sinceOf(session))?.set) || session.changeSet;
-    const sides = sidesOf(set);
-    const order = (uri: vscode.Uri) => sides.get(uri.toString())?.index ?? -1;
+    const order = (uri: vscode.Uri) => {
+      const placed = session.documents.get(uri.toString());
+      return placed ? session.files.indexOf(placed.file) : -1;
+    };
     const targets = session.threads
       .filter((t) => t.range)
       .map((thread) => ({ thread, file: order(thread.uri), line: thread.range!.start.line }))
@@ -857,9 +798,10 @@ export class ReviewController implements vscode.Disposable {
       visible.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
       return;
     }
-    const placed = sides.get(target.thread.uri.toString())!;
-    // The diff reveals lines of its new side; a thread on the old side is shown at its place there.
-    await this.navigator.open(set, placed.index, 'first', {
+    const placed = session.documents.get(target.thread.uri.toString())!;
+    const index = session.changeSet.files.findIndex((f) => f.path === placed.file.change.path);
+    // The diff reveals lines of its new side; a thread on a removed line is shown at its place on the old side.
+    await this.navigator.open(session.changeSet, index, 'first', {
       line: placed.side === 'new' ? target.line : undefined,
     });
     if (placed.side === 'old') {
@@ -966,24 +908,6 @@ export class ReviewController implements vscode.Disposable {
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-/** The documents of both sides of each file of a change set, as the diff viewer opens them. */
-function sidesOf(set: ChangeSet): Map<string, { index: number; side: Side }> {
-  const sides = new Map<string, { index: number; side: Side }>();
-  const root = set.repository.root;
-  set.files.forEach((change, index) => {
-    if (change.status !== 'A' && set.left !== undefined)
-      sides.set(revisionUri(root, set.left, change.oldPath ?? change.path).toString(), {
-        index,
-        side: 'old',
-      });
-    if (change.status !== 'D') {
-      const right = set.rightUris?.get(change.path) ?? revisionUri(root, set.right, change.path);
-      sides.set(right.toString(), { index, side: 'new' });
-    }
-  });
-  return sides;
 }
 
 function formatTime(iso: string): string {
