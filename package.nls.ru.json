@@ -61,5 +61,11 @@
   "config.blame.ignoreWhitespaceAndMoves": "Blame и авторы над объявлениями не учитывают изменения пробелов и строки, перемещённые внутри файла (`git blame -w -M`): переформатирование не забирает авторство строки.",
   "command.git.applyPatch": "Применить патч…",
   "config.rebase.updateRefs": "Rebase переносит вместе с коммитами и ветки стопки, стоящие на них, как `git rebase --update-refs`: ветка, сделанная поверх другой, остаётся поверх неё. Ветки, открытые в других worktree, остаются на месте. Нужен git 2.38 или новее.",
-  "command.hosting.selectRemote": "Выбрать remote для merge requests и пайплайнов…"
+  "command.hosting.selectRemote": "Выбрать remote для merge requests и пайплайнов…",
+  "config.review.ctrlEnter": "Что делает `Ctrl+Enter` в комментарии ревью; второе действие остаётся кнопкой. `Enter` и `Shift+Enter` переводят строку.",
+  "config.review.ctrlEnter.publish": "Сразу опубликовать комментарий",
+  "config.review.ctrlEnter.draft": "Сохранить черновиком, чтобы опубликовать все черновики вместе",
+  "command.navigate.back": "Назад (файлы и diff ревью)",
+  "command.navigate.forward": "Вперёд (файлы и diff ревью)",
+  "config.navigation.history": "Клавиши «Назад» и «Вперёд» (`Ctrl+Alt+-` и `Ctrl+Shift+-`, на Windows `Alt+←/→`) ходят по одной истории файлов и файлов diff ревью. Собственная история редактора теряет diff, когда Kleio показывает на его месте следующий файл набора."
 }

@@ -36,6 +36,12 @@ interface EdgeHint {
 }
 
 const CONTEXT_KEY = 'kleio.inChangeSet';
+
+/** A file of a change set, as the navigation history keeps it. */
+export interface ChangeSetFile {
+  changeSet: ChangeSet;
+  index: number;
+}
 const EDGE_HINT_MS = 4000;
 
 /**
@@ -45,6 +51,12 @@ const EDGE_HINT_MS = 4000;
 export class ChangeSetNavigator implements vscode.Disposable {
   private current?: OpenedFile;
   private edgeHint?: EdgeHint;
+  private readonly opened = new vscode.EventEmitter<ChangeSetFile & { line: number }>();
+  /** True while a file is being opened: tabs come and go for a moment then. */
+  opening = false;
+
+  /** Fires once a file of a change set is shown, with the line revealed. */
+  readonly onDidOpen = this.opened.event;
   private readonly hintDecoration = vscode.window.createTextEditorDecorationType({
     after: {
       color: new vscode.ThemeColor('editorInfo.foreground'),
@@ -75,6 +87,7 @@ export class ChangeSetNavigator implements vscode.Disposable {
       vscode.commands.registerCommand('kleio.diff.nextFile', () => this.moveFile(1)),
       vscode.commands.registerCommand('kleio.diff.previousFile', () => this.moveFile(-1)),
       vscode.commands.registerCommand('kleio.diff.selectFile', () => this.selectFile()),
+      this.opened,
       vscode.commands.registerCommand('kleio.diff.openCurrent', () => this.openCurrentFromDiff()),
     );
   }
@@ -85,6 +98,23 @@ export class ChangeSetNavigator implements vscode.Disposable {
     edge: Edge = 'first',
     show: ShowOptions = {},
   ): Promise<void> {
+    this.opening = true;
+    try {
+      await this.show(changeSet, index, edge, show);
+    } finally {
+      this.opening = false;
+    }
+  }
+
+  /** The file of a change set an editor shows, on either side of the diff. */
+  fileOf(uri: vscode.Uri): ChangeSetFile | undefined {
+    const current = this.current;
+    const key = uri.toString();
+    if (!current || (key !== current.right.toString() && key !== current.left.toString())) return undefined;
+    return { changeSet: current.changeSet, index: current.index };
+  }
+
+  private async show(changeSet: ChangeSet, index: number, edge: Edge, show: ShowOptions): Promise<void> {
     const change = changeSet.files[index];
     if (!change) return;
     const { repository, left, right } = changeSet;
@@ -126,10 +156,12 @@ export class ChangeSetNavigator implements vscode.Disposable {
         ...options,
         viewColumn: previous?.group.viewColumn ?? show.viewColumn,
       });
-      if (previous) await vscode.window.tabGroups.close(previous.tab, true);
+      // With editor previews on, the new diff may have taken the preview tab of the old one already.
+      if (previous) await vscode.window.tabGroups.close(previous.tab, true).then(undefined, () => undefined);
     }
     this.markRename();
     this.updateContext();
+    this.opened.fire({ changeSet, index, line });
   }
 
   /** A moved file looks unchanged inside the diff, so its old and new paths are shown on the first line. */
@@ -350,21 +382,32 @@ export class ChangeSetNavigator implements vscode.Disposable {
     await this.open(current.changeSet, index, direction === 1 ? 'first' : 'last');
   }
 
+  /** The files numbered as in the title of the diff, opened at the current one. */
   private async selectFile(): Promise<void> {
     const current = this.current;
     if (!current) return;
-    const items = current.changeSet.files.map((file, index) => ({
-      label: path.basename(file.path),
-      description: path.dirname(file.path) === '.' ? '' : path.dirname(file.path),
-      detail: file.oldPath ? `${file.status}  ← ${file.oldPath}` : file.status,
-      index,
-      picked: index === current.index,
-    }));
-    const picked = await vscode.window.showQuickPick(items, {
-      title: `${current.changeSet.title}: ${describeRange(current.changeSet)}`,
-      matchOnDescription: true,
-      placeHolder: t('File of the change set'),
+    const items = current.changeSet.files.map((file, index) => {
+      const dir = path.dirname(file.path) === '.' ? '' : path.dirname(file.path);
+      return {
+        label: `${index + 1}. ${path.basename(file.path)}`,
+        description: [file.status, file.oldPath ? `${dir}  ← ${file.oldPath}` : dir]
+          .filter(Boolean)
+          .join('  '),
+        index,
+      };
     });
+    const pick = vscode.window.createQuickPick<(typeof items)[number]>();
+    pick.title = `${current.changeSet.title}: ${describeRange(current.changeSet)} — ${current.index + 1}/${items.length}`;
+    pick.placeholder = t('File of the change set: name, folder or number');
+    pick.matchOnDescription = true;
+    pick.items = items;
+    pick.activeItems = [items[current.index]];
+    const picked = await new Promise<(typeof items)[number] | undefined>((resolve) => {
+      pick.onDidAccept(() => resolve(pick.selectedItems[0]));
+      pick.onDidHide(() => resolve(undefined));
+      pick.show();
+    });
+    pick.dispose();
     if (picked) await this.open(current.changeSet, picked.index);
   }
 

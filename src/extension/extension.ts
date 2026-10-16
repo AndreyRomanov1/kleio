@@ -3,6 +3,7 @@ import { GitActions } from './actions/gitActions';
 import { SyncActions } from './actions/syncActions';
 import { AuthorLens } from './blame/authorLens';
 import { BlameAnnotations } from './blame/blameAnnotations';
+import { NavigationHistory } from './changes/navigationHistory';
 import { ChangeSetNavigator } from './changes/changeSetNavigator';
 import { CommitView } from './commit/commitView';
 import { RevisionContentProvider } from './content/revisionContentProvider';
@@ -90,6 +91,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<KleioA
     review,
     new AuthorLens(repositories),
     new BranchStatus(repositories, actions),
+    new NavigationHistory(navigator),
     push,
     rebase,
     conflicts,

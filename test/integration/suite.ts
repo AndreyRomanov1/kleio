@@ -39,6 +39,63 @@ async function headChangeSet(api: KleioApi) {
 
 const tests: Test[] = [
   [
+    'goes back and forward through review diffs and files in one history',
+    async (api) => {
+      const at = () => {
+        const editor = vscode.window.activeTextEditor;
+        const diff = activeDiff();
+        const name = diff
+          ? `diff ${path.basename(diff.modified.fsPath)}`
+          : path.basename(editor?.document.uri.fsPath ?? '');
+        return `${name}@${editor?.selection.active.line}`;
+      };
+      const step = async (command: string, expected: string) => {
+        await vscode.commands.executeCommand(command);
+        await waitFor(() => at() === expected || undefined, `${command} → ${expected}, at ${at()}`);
+        await wait(450);
+      };
+      const changeSet = await headChangeSet(api);
+      await api.navigator.open(changeSet, 0);
+      await waitFor(() => at().startsWith('diff a.txt') || undefined, 'diff of a.txt');
+      await vscode.commands.executeCommand('kleio.diff.nextChange');
+      await waitFor(() => at() === 'diff a.txt@24' || undefined, 'second change of a.txt');
+      for (const name of ['b.txt', 'c.txt']) {
+        await wait(450);
+        await vscode.commands.executeCommand('kleio.diff.nextFile');
+        await waitFor(() => at().startsWith(`diff ${name}`) || undefined, `diff of ${name}`);
+      }
+      const reviewEnd = at();
+      await wait(450);
+      const editor = await vscode.window.showTextDocument(vscode.Uri.file(path.join(root(), 'a.txt')), {
+        preview: false,
+      });
+      await wait(450);
+      editor.selection = new vscode.Selection(30, 0, 30, 0);
+      await wait(450);
+      editor.selection = new vscode.Selection(5, 0, 5, 0);
+      await wait(450);
+
+      await step('kleio.navigate.back', 'a.txt@30');
+      await step('kleio.navigate.back', 'a.txt@0');
+      await step('kleio.navigate.back', reviewEnd);
+      await vscode.commands.executeCommand('kleio.navigate.back');
+      await waitFor(() => at().startsWith('diff b.txt') || undefined, 'back in b.txt');
+      await wait(450);
+      await step('kleio.navigate.back', 'diff a.txt@24');
+      await vscode.commands.executeCommand('kleio.navigate.back');
+      await wait(450);
+      assert.equal(at(), 'diff a.txt@24', 'nothing before the first place');
+
+      await vscode.commands.executeCommand('kleio.navigate.forward');
+      await waitFor(() => at().startsWith('diff b.txt') || undefined, 'forward to b.txt');
+      await wait(450);
+      await step('kleio.navigate.forward', reviewEnd);
+      await step('kleio.navigate.forward', 'a.txt@0');
+      await step('kleio.navigate.forward', 'a.txt@30');
+      await step('kleio.navigate.forward', 'a.txt@5');
+    },
+  ],
+  [
     'finds the workspace repository',
     async (api) => {
       assert.deepEqual(
@@ -437,7 +494,9 @@ export async function run(): Promise<void> {
   const api = await extension.activate();
 
   const failures: string[] = [];
-  for (const [name, body] of tests) {
+  const only = process.env.KLEIO_TEST_ONLY;
+  const chosen = only ? tests.filter(([name]) => name.includes(only)) : tests;
+  for (const [name, body] of chosen) {
     try {
       await body(api);
       console.log(`  ✓ ${name}`);
@@ -450,6 +509,6 @@ export async function run(): Promise<void> {
       await vscode.commands.executeCommand('workbench.action.closeAllEditors');
     }
   }
-  console.log(`\n${tests.length - failures.length}/${tests.length} passed`);
+  console.log(`\n${chosen.length - failures.length}/${chosen.length} passed`);
   if (failures.length) throw new Error(`${failures.length} integration test(s) failed`);
 }

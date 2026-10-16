@@ -226,7 +226,6 @@
   "Once more for the previous file: {0}": "Ещё раз — предыдущий файл: {0}",
   "Kleio: this is the last change of the set": "Kleio: это последнее изменение набора",
   "Kleio: this is the first change of the set": "Kleio: это первое изменение набора",
-  "File of the change set": "Файл набора изменений",
   "{0} is the default branch: merge requests are not created from it.": "{0} — основная ветка, MR из неё не создают.",
   "{0} already has merge request !{1}.": "Для {0} уже есть MR !{1}.",
   "Open merge request": "Открыть MR",
@@ -678,5 +677,8 @@
   "blocked: reviews or checks are missing": "заблокирован: не хватает ревью или проверок",
   "behind the target branch": "отстаёт от целевой ветки",
   "Pull request #{0}: changes": "Pull request #{0}: изменения",
-  "Open pull request #{0}": "Открыть pull request #{0}"
+  "Open pull request #{0}": "Открыть pull request #{0}",
+  "File of the change set: name, folder or number": "Файл набора изменений: имя, папка или номер",
+  "Kleio: nothing to go back to": "Kleio: дальше назад некуда",
+  "Kleio: nothing to go forward to": "Kleio: дальше вперёд некуда"
 }

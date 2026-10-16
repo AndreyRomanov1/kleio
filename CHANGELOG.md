@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.19.0
+
+- Go Back / Go Forward through one history of files and of the files of review diffs (`kleio.navigation.history`):
+  the editor's own history lost a diff once Kleio showed the next file in its place.
+- The file list of a diff is numbered and opens at the current file.
+- `Ctrl+Enter` in a review comment publishes it, or saves a draft (`kleio.review.ctrlEnter`).
+- Opening the next file of a diff no longer fails with editor previews on.
+
 ## 0.18.1
 
 - A merged merge request is marked in the log on its merge commit only, not also on the head of its

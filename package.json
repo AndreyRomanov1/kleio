@@ -2,7 +2,7 @@
   "name": "kleio",
   "displayName": "Kleio",
   "description": "Git the JetBrains way: commit graph, one diff viewer for any changes, history, blame, interactive rebase, conflicts, GitLab merge requests and review",
-  "version": "0.18.1",
+  "version": "0.19.0",
   "publisher": "aroma",
   "license": "MIT",
   "repository": {
@@ -119,6 +119,16 @@
         "category": "Kleio",
         "icon": "$(arrow-right)",
         "enablement": "kleio.inChangeSet"
+      },
+      {
+        "command": "kleio.navigate.back",
+        "title": "%command.navigate.back%",
+        "category": "Kleio"
+      },
+      {
+        "command": "kleio.navigate.forward",
+        "title": "%command.navigate.forward%",
+        "category": "Kleio"
       },
       {
         "command": "kleio.diff.selectFile",
@@ -617,12 +627,22 @@
         {
           "command": "kleio.review.publish",
           "group": "inline@1",
-          "when": "commentController == kleio.review"
+          "when": "commentController == kleio.review && config.kleio.review.ctrlEnter != draft"
         },
         {
           "command": "kleio.review.draft",
           "group": "inline@2",
-          "when": "commentController == kleio.review && commentThread != draft"
+          "when": "commentController == kleio.review && commentThread != draft && config.kleio.review.ctrlEnter != draft"
+        },
+        {
+          "command": "kleio.review.draft",
+          "group": "inline@1",
+          "when": "commentController == kleio.review && commentThread != draft && config.kleio.review.ctrlEnter == draft"
+        },
+        {
+          "command": "kleio.review.publish",
+          "group": "inline@2",
+          "when": "commentController == kleio.review && (commentThread == draft || config.kleio.review.ctrlEnter == draft)"
         }
       ],
       "comments/commentThread/title": [
@@ -646,6 +666,26 @@
       ]
     },
     "keybindings": [
+      {
+        "command": "workbench.action.submitComment",
+        "key": "ctrl+enter",
+        "mac": "cmd+enter",
+        "when": "commentEditorFocused"
+      },
+      {
+        "command": "kleio.navigate.back",
+        "key": "ctrl+alt+-",
+        "win": "alt+left",
+        "mac": "ctrl+-",
+        "when": "config.kleio.navigation.history"
+      },
+      {
+        "command": "kleio.navigate.forward",
+        "key": "ctrl+shift+-",
+        "win": "alt+right",
+        "mac": "ctrl+shift+-",
+        "when": "config.kleio.navigation.history"
+      },
       {
         "command": "kleio.diff.nextChange",
         "key": "f7",
@@ -720,6 +760,24 @@
             ]
           },
           "markdownDescription": "%config.hosting.instances%"
+        },
+        "kleio.navigation.history": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.navigation.history%"
+        },
+        "kleio.review.ctrlEnter": {
+          "type": "string",
+          "enum": [
+            "publish",
+            "draft"
+          ],
+          "default": "publish",
+          "enumDescriptions": [
+            "%config.review.ctrlEnter.publish%",
+            "%config.review.ctrlEnter.draft%"
+          ],
+          "markdownDescription": "%config.review.ctrlEnter%"
         },
         "kleio.rebase.updateRefs": {
           "type": "boolean",

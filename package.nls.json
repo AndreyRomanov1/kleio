@@ -61,5 +61,11 @@
   "config.blame.ignoreWhitespaceAndMoves": "Blame and the authors above declarations ignore whitespace changes and lines moved within a file (`git blame -w -M`): reformatting does not take the authorship of a line.",
   "command.git.applyPatch": "Apply Patch…",
   "config.rebase.updateRefs": "Rebase moves the branches stacked on the rebased commits along with them, as `git rebase --update-refs` does: a branch made on top of another one stays on top of it. Branches checked out in other worktrees stay where they are. Needs git 2.38 or newer.",
-  "command.hosting.selectRemote": "Choose the Remote of Merge Requests and Pipelines…"
+  "command.hosting.selectRemote": "Choose the Remote of Merge Requests and Pipelines…",
+  "config.review.ctrlEnter": "What `Ctrl+Enter` does in a review comment; the other one stays a button. `Enter` and `Shift+Enter` start a new line.",
+  "config.review.ctrlEnter.publish": "Publish the comment at once",
+  "config.review.ctrlEnter.draft": "Save it as a draft, to publish all drafts together",
+  "command.navigate.back": "Go Back (Files and Review Diffs)",
+  "command.navigate.forward": "Go Forward (Files and Review Diffs)",
+  "config.navigation.history": "Go Back and Go Forward keys (`Ctrl+Alt+-` and `Ctrl+Shift+-`, `Alt+←/→` on Windows) go through one history of files and of the files of review diffs. The editor's own history loses a diff once Kleio shows the next file of the set in its place."
 }

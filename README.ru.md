@@ -117,6 +117,8 @@ VSIX. Kleio работает только в доверенных локальн
 | `kleio.statusBar.branch`               | `true`                                | Текущая ветка с ↑↓ в строке состояния                                                    |
 | `kleio.blame.ignoreWhitespaceAndMoves` | `false`                               | Blame не учитывает изменения пробелов и перемещённые строки                              |
 | `kleio.rebase.updateRefs`              | `true`                                | Rebase переносит ветки стопки (`--update-refs`, git 2.38+)                               |
+| `kleio.review.ctrlEnter`               | `publish`                             | `Ctrl+Enter` в комментарии ревью: опубликовать (`publish`) или черновик (`draft`)        |
+| `kleio.navigation.history`             | `true`                                | «Назад» / «Вперёд» по одной истории файлов и diff ревью                                  |
 
 ## Клавиши
 
@@ -136,9 +138,18 @@ Code выбирает непредсказуемо. Пользовательск
     "key": "shift+f7",
     "command": "kleio.diff.previousChange",
     "when": "kleio.inChangeSet && textCompareEditorVisible"
-  }
+  },
+  { "key": "ctrl+alt+left", "command": "kleio.navigate.back", "when": "config.kleio.navigation.history" },
+  { "key": "ctrl+alt+right", "command": "kleio.navigate.forward", "when": "config.kleio.navigation.history" },
+  { "key": "ctrl+enter", "command": "workbench.action.submitComment", "when": "commentEditorFocused" }
 ]
 ```
+
+**Назад / Вперёд** (`Ctrl+Alt+-` / `Ctrl+Shift+-`, на Windows `Alt+←/→`) ходят по одной истории файлов и
+файлов diff ревью: собственная история редактора теряет diff, когда Kleio показывает на его месте следующий
+файл. Последние строки выше вешают их на `Ctrl+Alt+←/→`, как в раскладке IntelliJ, и возвращают `Ctrl+Enter`
+отправку комментария ревью (эта раскладка отдаёт его переходу к объявлению). `Ctrl+Enter` публикует
+комментарий, а с `kleio.review.ctrlEnter: "draft"` сохраняет черновик; `Enter` переводит строку.
 
 В merge editor `Ctrl+Enter` завершает слияние и отмечает файл разрешённым.
 
