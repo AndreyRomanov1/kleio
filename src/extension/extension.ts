@@ -38,9 +38,16 @@ export interface KleioApi {
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<KleioApi> {
-  context.subscriptions.push(await loadLanguage(context), watchGitPath());
   const repositories = new RepositoryManager();
-  const navigator = new ChangeSetNavigator();
+  // First of all: after a reload the editor restores diffs of revisions and waits for their contents.
+  context.subscriptions.push(
+    vscode.workspace.registerTextDocumentContentProvider(
+      REVISION_SCHEME,
+      new RevisionContentProvider(repositories),
+    ),
+  );
+  context.subscriptions.push(await loadLanguage(context), watchGitPath());
+  const navigator = new ChangeSetNavigator(context.workspaceState);
   const sync = new SyncActions(repositories);
   const actions = new GitActions(repositories, sync);
   const push = new PushDialog(context, repositories, navigator);
@@ -57,6 +64,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<KleioA
     navigator,
     new ReviewJournal(context.globalStorageUri),
     context.globalState,
+    context.workspaceState,
   );
   const logs = new LogWebviews({
     context,
@@ -99,10 +107,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<KleioA
       push: (repository) => push.open(repository),
       merge: (repository, filePath) => conflicts.openMerge(repository, filePath),
     }),
-    vscode.workspace.registerTextDocumentContentProvider(
-      REVISION_SCHEME,
-      new RevisionContentProvider(repositories),
-    ),
     vscode.commands.registerCommand('kleio.log.openInEditor', () => logs.openInEditor()),
     vscode.commands.registerCommand('kleio.log.openInNewWindow', () => logs.openInNewWindow()),
     vscode.commands.registerCommand('kleio.git.updateProject', async () => {
@@ -127,6 +131,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<KleioA
   );
 
   await repositories.scan();
+  // Diff tabs the editor restored after a reload: the review they belong to, or the change set shown last.
+  void review
+    .restore(repositories)
+    .catch(() => undefined)
+    .then(() => navigator.restore(repositories));
   return { repositories, navigator, logs, blame, review, rebase, conflicts, actions };
 }
 

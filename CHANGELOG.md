@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.19.1
+
+- After a reload of the window the diff tab stays, and the review comes back with its comments in the code;
+  F7 and the file list work on in the restored diff. A review ends with "End review" only.
+
 ## 0.19.0
 
 - Go Back / Go Forward through one history of files and of the files of review diffs (`kleio.navigation.history`):

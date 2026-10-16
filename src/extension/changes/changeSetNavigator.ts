@@ -5,6 +5,7 @@ import type { FileChange } from '../../shared/model';
 import type { Hunk } from '../git/parse';
 import { WORKTREE } from '../git/repository';
 import { emptyUri, revisionUri, workingFileUri } from '../content/revisionUri';
+import type { RepositoryManager } from '../git/repositoryManager';
 import { describeRange, shortRevision, type ChangeSet } from './changeSet';
 import { t } from '../../shared/l10n';
 
@@ -36,6 +37,18 @@ interface EdgeHint {
 }
 
 const CONTEXT_KEY = 'kleio.inChangeSet';
+/** The change set and file shown last, to pick up the diff tab the editor restores after a reload. */
+const SHOWN_KEY = 'kleio.navigator.shown';
+
+interface SavedChangeSet {
+  root: string;
+  title: string;
+  left?: string;
+  right: string;
+  files: FileChange[];
+  rightUris?: [string, string][];
+  index: number;
+}
 
 /** A file of a change set, as the navigation history keeps it. */
 export interface ChangeSetFile {
@@ -52,6 +65,7 @@ export class ChangeSetNavigator implements vscode.Disposable {
   private current?: OpenedFile;
   private edgeHint?: EdgeHint;
   private readonly opened = new vscode.EventEmitter<ChangeSetFile & { line: number }>();
+  private waitingForTabs = false;
   /** True while a file is being opened: tabs come and go for a moment then. */
   opening = false;
 
@@ -74,7 +88,7 @@ export class ChangeSetNavigator implements vscode.Disposable {
   });
   private readonly disposables: vscode.Disposable[] = [];
 
-  constructor() {
+  constructor(private readonly state?: vscode.Memento) {
     this.disposables.push(
       vscode.window.tabGroups.onDidChangeTabs(() => this.updateContext()),
       vscode.window.onDidChangeActiveTextEditor(() => this.updateContext()),
@@ -104,6 +118,58 @@ export class ChangeSetNavigator implements vscode.Disposable {
     } finally {
       this.opening = false;
     }
+  }
+
+  /**
+   * After a reload the editor brings the diff tab back, but Kleio has forgotten what it belongs to: the saved
+   * change set is taken up again when the restored tab is its file, so F7 and the file list work on.
+   * `changeSet` is the same set known again by its owner, e.g. a review restored with its comments.
+   */
+  async restore(repositories: RepositoryManager, changeSet?: ChangeSet): Promise<void> {
+    const saved = this.state?.get<SavedChangeSet>(SHOWN_KEY);
+    if (!saved || this.current) return;
+    const repository = await repositories.get(saved.root);
+    if (!repository) return;
+    const set: ChangeSet = changeSet ?? {
+      repository,
+      title: saved.title,
+      left: saved.left,
+      right: saved.right,
+      files: saved.files,
+      rightUris: saved.rightUris && new Map(saved.rightUris.map(([p, u]) => [p, vscode.Uri.parse(u)])),
+    };
+    const change = set.files[saved.index];
+    if (!change) return;
+    const left =
+      change.status === 'A' || set.left === undefined
+        ? emptyUri(repository.root, change.path)
+        : revisionUri(repository.root, set.left, change.oldPath ?? change.path);
+    const right =
+      change.status === 'D' ? emptyUri(repository.root, change.path) : await this.rightSideUri(set, change);
+    const restored = vscode.window.tabGroups.all
+      .flatMap((g) => g.tabs)
+      .some(
+        (tab) =>
+          tab.input instanceof vscode.TabInputTextDiff &&
+          tab.input.original.toString() === left.toString() &&
+          tab.input.modified.toString() === right.toString(),
+      );
+    if (!restored) {
+      // The editor may bring its tabs back after Kleio has started: one more look when they come.
+      if (!this.waitingForTabs) {
+        this.waitingForTabs = true;
+        const listener = vscode.window.tabGroups.onDidChangeTabs(() => {
+          listener.dispose();
+          void this.restore(repositories, changeSet);
+        });
+        setTimeout(() => listener.dispose(), 30_000);
+      }
+      return;
+    }
+    const hunks = await repository.hunks(set.left, set.right, change).catch(() => []);
+    this.current = { changeSet: set, index: saved.index, left, right, hunks };
+    this.markRename();
+    this.updateContext();
   }
 
   /** The file of a change set an editor shows, on either side of the diff. */
@@ -162,6 +228,15 @@ export class ChangeSetNavigator implements vscode.Disposable {
     this.markRename();
     this.updateContext();
     this.opened.fire({ changeSet, index, line });
+    void this.state?.update(SHOWN_KEY, {
+      root,
+      title: changeSet.title,
+      left,
+      right,
+      files: changeSet.files,
+      rightUris: changeSet.rightUris && [...changeSet.rightUris].map(([p, u]) => [p, u.toString()]),
+      index,
+    } satisfies SavedChangeSet);
   }
 
   /** A moved file looks unchanged inside the diff, so its old and new paths are shown on the first line. */

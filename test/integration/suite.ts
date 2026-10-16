@@ -324,6 +324,21 @@ const tests: Test[] = [
         'four published threads',
       );
 
+      // A reload of the window: Kleio forgets the review and the diff, as when the window closes.
+      const internals = api.review as unknown as { end(forget: boolean): void };
+      internals.end(false);
+      (api.navigator as unknown as { current?: unknown }).current = undefined;
+      assert.equal(api.review.openThreads().length, 0);
+      await api.review.restore(api.repositories);
+      await waitFor(
+        () => (api.review.openThreads().length === 4 ? true : undefined),
+        'threads of the restored review',
+      );
+      assert.ok(
+        (api.navigator as unknown as { current?: unknown }).current,
+        'the diff tab belongs to the review again',
+      );
+
       await vscode.commands.executeCommand('kleio.review.openJournal');
       const journal = vscode.window.activeTextEditor!.document.getText();
       assert.match(journal, /"text":"Изменённая строка"/);

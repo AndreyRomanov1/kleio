@@ -7,6 +7,7 @@ import type { ChangeSetNavigator } from '../changes/changeSetNavigator';
 import { revisionUri, workingFileUri } from '../content/revisionUri';
 import type { Hunk } from '../git/parse';
 import type { Repository } from '../git/repository';
+import type { RepositoryManager } from '../git/repositoryManager';
 import {
   GitLabApiError,
   type DiffPosition,
@@ -27,6 +28,8 @@ const CONTEXT_KEY = 'kleio.reviewActive';
 /** The version of each merge request reviewed last, to show what changed since then. */
 const SEEN_KEY = 'kleio.review.seen';
 const SEEN_LIMIT = 300;
+/** The review open in this workspace, to bring it back after a reload of the window. */
+const ACTIVE_KEY = 'kleio.review.active';
 
 interface ReviewFile {
   change: FileChange;
@@ -102,6 +105,7 @@ export class ReviewController implements vscode.Disposable {
     private readonly navigator: ChangeSetNavigator,
     private readonly journal: ReviewJournal,
     private readonly state: vscode.Memento,
+    private readonly workspaceState?: vscode.Memento,
   ) {
     this.comments = vscode.comments.createCommentController(CONTROLLER_ID, t('Merge request review'));
     this.comments.options = {
@@ -180,8 +184,7 @@ export class ReviewController implements vscode.Disposable {
       );
       if (!session) return;
       this.end();
-      this.session = session;
-      void vscode.commands.executeCommand('setContext', CONTEXT_KEY, true);
+      this.begin(session);
       await this.reload();
     }
     const session = this.session!;
@@ -359,10 +362,36 @@ export class ReviewController implements vscode.Disposable {
     if (this.session?.iid === iid) await this.reload();
   }
 
-  private async createSession(repository: Repository, iid: number): Promise<Session | undefined> {
-    const api = await this.hosting.gitlab(repository, true);
+  private begin(session: Session): void {
+    this.session = session;
+    void vscode.commands.executeCommand('setContext', CONTEXT_KEY, true);
+    void this.workspaceState?.update(ACTIVE_KEY, { root: session.repository.root, iid: session.iid });
+  }
+
+  /**
+   * The review that was open before the window was reloaded, with its comments in the code; quietly, without
+   * asking for access. The restored diff tab belongs to it again.
+   */
+  async restore(repositories: RepositoryManager): Promise<void> {
+    const saved = this.workspaceState?.get<{ root: string; iid: number }>(ACTIVE_KEY);
+    if (!saved || this.session) return;
+    const repository = await repositories.get(saved.root);
+    if (!repository) return;
+    const session = await this.createSession(repository, saved.iid, true).catch(() => undefined);
+    if (!session || this.session) return;
+    this.begin(session);
+    await this.reload();
+    await this.navigator.restore(repositories, session.changeSet);
+  }
+
+  private async createSession(
+    repository: Repository,
+    iid: number,
+    quiet = false,
+  ): Promise<Session | undefined> {
+    const api = await this.hosting.gitlab(repository, !quiet);
     if (!api) {
-      void vscode.window.showWarningMessage(t('The review needs access to GitLab.'));
+      if (!quiet) void vscode.window.showWarningMessage(t('The review needs access to GitLab.'));
       return undefined;
     }
     const details = await api.mergeRequest(iid);
@@ -787,10 +816,12 @@ export class ReviewController implements vscode.Disposable {
     if (session) await this.publishDraftsOf(session.repository, session.iid);
   }
 
-  private end(): void {
+  /** Ends the review; `forget` is false when only the window closes, so that it comes back after a reload. */
+  private end(forget = true): void {
     for (const thread of this.session?.threads ?? []) thread.dispose();
     this.session = undefined;
     void vscode.commands.executeCommand('setContext', CONTEXT_KEY, false);
+    if (forget) void this.workspaceState?.update(ACTIVE_KEY, undefined);
   }
 
   private async label(repository: Repository, iid: number): Promise<string> {
@@ -799,7 +830,7 @@ export class ReviewController implements vscode.Disposable {
   }
 
   dispose(): void {
-    this.end();
+    this.end(false);
     for (const d of this.disposables) d.dispose();
   }
 }
