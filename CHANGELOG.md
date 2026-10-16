@@ -7,6 +7,8 @@
 - The file list of a diff is numbered and opens at the current file.
 - `Ctrl+Enter` in a review comment publishes it, or saves a draft (`kleio.review.ctrlEnter`).
 - Opening the next file of a diff no longer fails with editor previews on.
+- A review comment is sent once: a second `Ctrl+Enter` or click while it was on its way sent it again.
+- Edit your review comments and drafts, delete your comments.
 
 ## 0.18.1
 

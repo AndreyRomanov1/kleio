@@ -38,6 +38,10 @@ interface ReviewFile {
 interface Session {
   repository: Repository;
   api: GitLabApi;
+  /** Username of the reviewer, to tell their own comments. */
+  me?: string;
+  /** Threads whose comment is on its way: a second Ctrl+Enter or click meanwhile would send it again. */
+  sending: WeakSet<vscode.CommentThread>;
   iid: number;
   /** `host/project!iid`, for the journal. */
   label: string;
@@ -53,23 +57,34 @@ interface Session {
   previous?: { baseSha: string; headSha: string };
 }
 
+/** Which comment it is on GitLab: a note of a discussion, or a draft. */
+type CommentSource = { draftId: number } | { discussionId: string; noteId: number; mine: boolean };
+
 class ReviewComment implements vscode.Comment {
   mode = vscode.CommentMode.Preview;
-  body: vscode.MarkdownString;
+  body: vscode.MarkdownString | string;
   author: vscode.CommentAuthorInformation;
   label?: string;
   contextValue: string;
+  /** Set once the comment is in a thread, to redraw it when editing starts or ends. */
+  thread?: vscode.CommentThread;
 
   constructor(
-    text: string,
+    readonly text: string,
     authorName: string,
-    readonly draftId?: number,
+    readonly source: CommentSource,
     createdAt?: string,
   ) {
     this.body = new vscode.MarkdownString(text);
     this.author = { name: authorName };
-    this.label = draftId !== undefined ? t('draft') : createdAt ? formatTime(createdAt) : undefined;
-    this.contextValue = draftId !== undefined ? 'draft' : 'note';
+    const draft = 'draftId' in source;
+    this.label = draft ? t('draft') : createdAt ? formatTime(createdAt) : undefined;
+    // Your own notes and drafts can be edited; your own notes and drafts can be deleted.
+    this.contextValue = draft ? 'draft' : source.mine ? 'mine' : 'note';
+  }
+
+  get draftId(): number | undefined {
+    return 'draftId' in this.source ? this.source.draftId : undefined;
   }
 }
 
@@ -115,6 +130,18 @@ export class ReviewController implements vscode.Disposable {
       ),
       vscode.commands.registerCommand('kleio.review.deleteDraft', (comment: ReviewComment) =>
         this.deleteDraft(comment),
+      ),
+      vscode.commands.registerCommand('kleio.review.editComment', (comment: ReviewComment) =>
+        this.editComment(comment),
+      ),
+      vscode.commands.registerCommand('kleio.review.saveComment', (comment: ReviewComment) =>
+        this.saveComment(comment),
+      ),
+      vscode.commands.registerCommand('kleio.review.cancelEdit', (comment: ReviewComment) =>
+        this.cancelEdit(comment),
+      ),
+      vscode.commands.registerCommand('kleio.review.deleteComment', (comment: ReviewComment) =>
+        this.deleteComment(comment),
       ),
       vscode.commands.registerCommand('kleio.review.publishDrafts', () => this.publishDrafts()),
       vscode.commands.registerCommand('kleio.review.refresh', () => this.reload()),
@@ -384,6 +411,11 @@ export class ReviewController implements vscode.Disposable {
     return {
       repository,
       api,
+      me: await api
+        .currentUser()
+        .then((p) => p.username)
+        .catch(() => undefined),
+      sending: new WeakSet(),
       iid,
       label,
       previous: await this.remember(label, refs),
@@ -450,10 +482,21 @@ export class ReviewController implements vscode.Disposable {
       const place = this.placeOf(session, first.position);
       if (!place) continue;
       const comments = [
-        ...notes.map((n) => new ReviewComment(n.body, n.author.name, undefined, n.createdAt)),
-        ...(draftReplies.get(discussion.id) ?? []).map((d) => new ReviewComment(d.body, t('You'), d.id)),
+        ...notes.map(
+          (n) =>
+            new ReviewComment(
+              n.body,
+              n.author.name,
+              { discussionId: discussion.id, noteId: n.id, mine: n.author.username === session.me },
+              n.createdAt,
+            ),
+        ),
+        ...(draftReplies.get(discussion.id) ?? []).map(
+          (d) => new ReviewComment(d.body, t('You'), { draftId: d.id }),
+        ),
       ];
       const thread = this.comments.createCommentThread(place.uri, place.range, comments);
+      for (const comment of comments) comment.thread = thread;
       this.decorate(thread, first);
       session.discussions.set(thread, discussion.id);
       session.threads.push(thread);
@@ -462,9 +505,9 @@ export class ReviewController implements vscode.Disposable {
       if (draft.discussionId || !draft.position) continue;
       const place = this.placeOf(session, draft.position);
       if (!place) continue;
-      const thread = this.comments.createCommentThread(place.uri, place.range, [
-        new ReviewComment(draft.body, t('You'), draft.id),
-      ]);
+      const comment = new ReviewComment(draft.body, t('You'), { draftId: draft.id });
+      const thread = this.comments.createCommentThread(place.uri, place.range, [comment]);
+      comment.thread = thread;
       thread.label = t('Draft');
       thread.contextValue = 'draft';
       thread.canReply = false;
@@ -509,6 +552,24 @@ export class ReviewController implements vscode.Disposable {
     const text = reply.text.trim();
     if (!session || !text) return;
     const thread = reply.thread;
+    if (session.sending.has(thread)) return;
+    session.sending.add(thread);
+    const label = thread.label;
+    thread.label = t('Sending…');
+    try {
+      await this.sendTo(session, thread, text, kind);
+    } finally {
+      session.sending.delete(thread);
+      thread.label = label;
+    }
+  }
+
+  private async sendTo(
+    session: Session,
+    thread: vscode.CommentThread,
+    text: string,
+    kind: 'publish' | 'draft',
+  ): Promise<void> {
     const discussionId = session.discussions.get(thread);
 
     let target: string;
@@ -658,6 +719,60 @@ export class ReviewController implements vscode.Disposable {
     if (!session || !id) return;
     await session.api.resolve(session.iid, id, resolved);
     await this.reload();
+  }
+
+  private editComment(comment: ReviewComment): void {
+    comment.mode = vscode.CommentMode.Editing;
+    this.redraw(comment);
+  }
+
+  private cancelEdit(comment: ReviewComment): void {
+    comment.mode = vscode.CommentMode.Preview;
+    comment.body = new vscode.MarkdownString(comment.text);
+    this.redraw(comment);
+  }
+
+  /** Saves the edited text of your note or draft on GitLab. */
+  private async saveComment(comment: ReviewComment): Promise<void> {
+    const session = this.session;
+    if (!session) return;
+    const text = (typeof comment.body === 'string' ? comment.body : comment.body.value).trim();
+    if (!text) return;
+    if (text === comment.text.trim()) return this.cancelEdit(comment);
+    const source = comment.source;
+    try {
+      if ('draftId' in source) await session.api.updateDraftNote(session.iid, source.draftId, text);
+      else await session.api.updateNote(session.iid, source.discussionId, source.noteId, text);
+    } catch (error) {
+      void vscode.window.showErrorMessage(t('Kleio: the comment is not saved: {0}', message(error)));
+      return;
+    }
+    vscode.window.setStatusBarMessage(t('Kleio: the comment is saved'), 3000);
+    await this.reload();
+  }
+
+  private async deleteComment(comment: ReviewComment): Promise<void> {
+    const session = this.session;
+    const source = comment.source;
+    if (!session || 'draftId' in source) return;
+    const ok = await vscode.window.showWarningMessage(
+      t('Delete your comment from GitLab?'),
+      { modal: true, detail: comment.text.slice(0, 200) },
+      t('Delete'),
+    );
+    if (!ok) return;
+    try {
+      await session.api.deleteNote(session.iid, source.discussionId, source.noteId);
+    } catch (error) {
+      void vscode.window.showErrorMessage(t('Kleio: the comment is not deleted: {0}', message(error)));
+      return;
+    }
+    await this.reload();
+  }
+
+  private redraw(comment: ReviewComment): void {
+    const thread = comment.thread;
+    if (thread) thread.comments = thread.comments.map((c) => c);
   }
 
   private async deleteDraft(comment: ReviewComment): Promise<void> {

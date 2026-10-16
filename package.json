@@ -252,6 +252,28 @@
         "icon": "$(trash)"
       },
       {
+        "command": "kleio.review.editComment",
+        "title": "%command.review.editComment%",
+        "category": "Kleio",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "kleio.review.deleteComment",
+        "title": "%command.review.deleteComment%",
+        "category": "Kleio",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "kleio.review.saveComment",
+        "title": "%command.review.saveComment%",
+        "category": "Kleio"
+      },
+      {
+        "command": "kleio.review.cancelEdit",
+        "title": "%command.review.cancelEdit%",
+        "category": "Kleio"
+      },
+      {
         "command": "kleio.review.publishDrafts",
         "title": "%command.review.publishDrafts%",
         "category": "Kleio",
@@ -496,6 +518,22 @@
           "when": "false"
         },
         {
+          "command": "kleio.review.editComment",
+          "when": "false"
+        },
+        {
+          "command": "kleio.review.deleteComment",
+          "when": "false"
+        },
+        {
+          "command": "kleio.review.saveComment",
+          "when": "false"
+        },
+        {
+          "command": "kleio.review.cancelEdit",
+          "when": "false"
+        },
+        {
           "command": "kleio.review.publishDrafts",
           "when": "kleio.reviewActive"
         },
@@ -659,9 +697,31 @@
       ],
       "comments/comment/title": [
         {
-          "command": "kleio.review.deleteDraft",
+          "command": "kleio.review.editComment",
           "group": "inline@1",
+          "when": "commentController == kleio.review && comment =~ /^(mine|draft)$/"
+        },
+        {
+          "command": "kleio.review.deleteDraft",
+          "group": "inline@2",
           "when": "commentController == kleio.review && comment == draft"
+        },
+        {
+          "command": "kleio.review.deleteComment",
+          "group": "inline@2",
+          "when": "commentController == kleio.review && comment == mine"
+        }
+      ],
+      "comments/comment/context": [
+        {
+          "command": "kleio.review.saveComment",
+          "group": "inline@1",
+          "when": "commentController == kleio.review"
+        },
+        {
+          "command": "kleio.review.cancelEdit",
+          "group": "inline@2",
+          "when": "commentController == kleio.review"
         }
       ]
     },

@@ -407,6 +407,25 @@ export class GitLabApi {
     });
   }
 
+  async updateNote(iid: number, discussionId: string, noteId: number, body: string): Promise<void> {
+    await this.request(
+      `${this.projectPath}/merge_requests/${iid}/discussions/${discussionId}/notes/${noteId}`,
+      'PUT',
+      { body },
+    );
+  }
+
+  async deleteNote(iid: number, discussionId: string, noteId: number): Promise<void> {
+    await this.request(
+      `${this.projectPath}/merge_requests/${iid}/discussions/${discussionId}/notes/${noteId}`,
+      'DELETE',
+    );
+  }
+
+  async updateDraftNote(iid: number, id: number, body: string): Promise<void> {
+    await this.request(`${this.projectPath}/merge_requests/${iid}/draft_notes/${id}`, 'PUT', { note: body });
+  }
+
   async deleteDraftNote(iid: number, id: number): Promise<void> {
     await this.request(`${this.projectPath}/merge_requests/${iid}/draft_notes/${id}`, 'DELETE');
   }

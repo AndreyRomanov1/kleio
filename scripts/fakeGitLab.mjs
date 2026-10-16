@@ -34,6 +34,7 @@ export async function startFakeGitLab({ baseSha, headSha }) {
   let nextId = 100;
 
   const routes = {
+    [`GET /api/v4/user`]: () => ({ name: 'Kleio Test', username: 'kleio' }),
     [`GET ${project}/merge_requests/1`]: () => ({
       iid: 1,
       title: 'Second',
@@ -107,6 +108,16 @@ export async function startFakeGitLab({ baseSha, headSha }) {
       return;
     }
     requests.push({ method: req.method, url: req.url, body });
+    const note = new RegExp(`^${project}/merge_requests/1/discussions/([^/]+)/notes/(\\d+)$`).exec(req.url);
+    if (note && (req.method === 'PUT' || req.method === 'DELETE')) {
+      const discussion = discussions.find((d) => d.id === note[1]);
+      const index = discussion?.notes.findIndex((n) => n.id === Number(note[2])) ?? -1;
+      if (index >= 0 && req.method === 'PUT') discussion.notes[index].body = body.body;
+      if (index >= 0 && req.method === 'DELETE') discussion.notes.splice(index, 1);
+      res.setHeader('Content-Type', 'application/json');
+      res.end('{}');
+      return;
+    }
     const route = routes[`${req.method} ${req.url}`];
     res.setHeader('Content-Type', 'application/json');
     // Lists Kleio asks for in the background (pipelines, merge requests by iids) are simply empty.

@@ -292,12 +292,36 @@ const tests: Test[] = [
         'draft thread',
       );
 
+      // A second Ctrl+Enter while the first one is on its way does not send the comment again.
+      const twice = thread(diff.modified, 7);
+      await Promise.all([
+        vscode.commands.executeCommand('kleio.review.publish', { thread: twice, text: 'Один раз' }),
+        vscode.commands.executeCommand('kleio.review.publish', { thread: twice, text: 'Один раз' }),
+      ]);
+      const once = (await requests()).filter((r) => r.method === 'POST' && r.body?.body === 'Один раз');
+      assert.equal(once.length, 1, 'the comment is sent once');
+
+      // Your own comment can be edited.
+      const discussions = (await (
+        await fetch(
+          `${origin}/api/v4/projects/group%2Fproject/merge_requests/1/discussions?per_page=100&page=1`,
+        )
+      ).json()) as { id: string; notes: { id: number; body: string }[] }[];
+      const own = discussions.find((d) => d.notes[0].body === 'Один раз')!;
+      await vscode.commands.executeCommand('kleio.review.saveComment', {
+        source: { discussionId: own.id, noteId: own.notes[0].id, mine: true },
+        text: 'Один раз',
+        body: 'Один раз, исправлено',
+      });
+      const put = (await requests()).filter((r) => r.method === 'PUT' && r.url.includes('/notes/'));
+      assert.equal(put.at(-1)!.body.body, 'Один раз, исправлено');
+
       await vscode.commands.executeCommand('kleio.review.publishDrafts');
       sent = (await requests()).filter((r) => r.method === 'POST');
       assert.ok(sent.at(-1)!.url.endsWith('/draft_notes/bulk_publish'));
       await waitFor(
-        () => (api.review.openThreads().length === 3 ? true : undefined),
-        'three published threads',
+        () => (api.review.openThreads().length === 4 ? true : undefined),
+        'four published threads',
       );
 
       await vscode.commands.executeCommand('kleio.review.openJournal');

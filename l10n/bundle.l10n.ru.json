@@ -680,5 +680,10 @@
   "Open pull request #{0}": "Открыть pull request #{0}",
   "File of the change set: name, folder or number": "Файл набора изменений: имя, папка или номер",
   "Kleio: nothing to go back to": "Kleio: дальше назад некуда",
-  "Kleio: nothing to go forward to": "Kleio: дальше вперёд некуда"
+  "Kleio: nothing to go forward to": "Kleio: дальше вперёд некуда",
+  "Sending…": "Отправляется…",
+  "Kleio: the comment is not saved: {0}": "Kleio: комментарий не сохранён: {0}",
+  "Kleio: the comment is saved": "Kleio: комментарий сохранён",
+  "Delete your comment from GitLab?": "Удалить ваш комментарий из GitLab?",
+  "Kleio: the comment is not deleted: {0}": "Kleio: комментарий не удалён: {0}"
 }

@@ -67,5 +67,9 @@
   "config.review.ctrlEnter.draft": "Save it as a draft, to publish all drafts together",
   "command.navigate.back": "Go Back (Files and Review Diffs)",
   "command.navigate.forward": "Go Forward (Files and Review Diffs)",
-  "config.navigation.history": "Go Back and Go Forward keys (`Ctrl+Alt+-` and `Ctrl+Shift+-`, `Alt+←/→` on Windows) go through one history of files and of the files of review diffs. The editor's own history loses a diff once Kleio shows the next file of the set in its place."
+  "config.navigation.history": "Go Back and Go Forward keys (`Ctrl+Alt+-` and `Ctrl+Shift+-`, `Alt+←/→` on Windows) go through one history of files and of the files of review diffs. The editor's own history loses a diff once Kleio shows the next file of the set in its place.",
+  "command.review.editComment": "Edit",
+  "command.review.deleteComment": "Delete the Comment",
+  "command.review.saveComment": "Save",
+  "command.review.cancelEdit": "Cancel"
 }

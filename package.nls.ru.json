@@ -67,5 +67,9 @@
   "config.review.ctrlEnter.draft": "Сохранить черновиком, чтобы опубликовать все черновики вместе",
   "command.navigate.back": "Назад (файлы и diff ревью)",
   "command.navigate.forward": "Вперёд (файлы и diff ревью)",
-  "config.navigation.history": "Клавиши «Назад» и «Вперёд» (`Ctrl+Alt+-` и `Ctrl+Shift+-`, на Windows `Alt+←/→`) ходят по одной истории файлов и файлов diff ревью. Собственная история редактора теряет diff, когда Kleio показывает на его месте следующий файл набора."
+  "config.navigation.history": "Клавиши «Назад» и «Вперёд» (`Ctrl+Alt+-` и `Ctrl+Shift+-`, на Windows `Alt+←/→`) ходят по одной истории файлов и файлов diff ревью. Собственная история редактора теряет diff, когда Kleio показывает на его месте следующий файл набора.",
+  "command.review.editComment": "Изменить",
+  "command.review.deleteComment": "Удалить комментарий",
+  "command.review.saveComment": "Сохранить",
+  "command.review.cancelEdit": "Отмена"
 }
