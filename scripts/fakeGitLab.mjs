@@ -53,6 +53,30 @@ export async function startFakeGitLab({ baseSha, headSha }) {
         },
       ],
     },
+    {
+      // Made before the version under review, on a line that has not changed since: GitLab moved it along.
+      id: 'moved',
+      individual_note: false,
+      notes: [
+        {
+          id: 3,
+          body: 'Здесь тоже',
+          author: { name: 'Kleio Test', username: 'kleio' },
+          created_at: '2026-01-01T12:30:00Z',
+          resolvable: true,
+          resolved: false,
+          position: {
+            base_sha: baseSha,
+            start_sha: baseSha,
+            head_sha: headSha,
+            old_path: 'b.txt',
+            new_path: 'b.txt',
+            old_line: 4,
+            new_line: 4,
+          },
+        },
+      ],
+    },
   ];
   let drafts = [];
   let nextId = 100;
@@ -82,6 +106,10 @@ export async function startFakeGitLab({ baseSha, headSha }) {
     }),
     [`GET ${project}/merge_requests/1/discussions?per_page=100&page=1`]: () => discussions,
     [`GET ${project}/merge_requests/1/draft_notes`]: () => drafts,
+    [`GET ${project}/merge_requests/1/versions`]: () => [
+      { head_commit_sha: headSha, created_at: '2026-01-01T13:00:00Z' },
+      { head_commit_sha: baseSha, created_at: '2026-01-01T11:00:00Z' },
+    ],
     [`POST ${project}/merge_requests/1/discussions`]: (body) => {
       const id = `d${nextId++}`;
       discussions.push({

@@ -381,6 +381,14 @@ export class GitLabApi {
     );
   }
 
+  /** The versions of the merge request's diff, the newest first: what each push made of it, and when. */
+  async versions(iid: number): Promise<{ headSha: string; createdAt: string }[]> {
+    const raw = await this.get<{ head_commit_sha: string; created_at: string }[]>(
+      `${this.projectPath}/merge_requests/${iid}/versions`,
+    );
+    return raw.map((v) => ({ headSha: v.head_commit_sha, createdAt: v.created_at }));
+  }
+
   async draftNotes(iid: number): Promise<DraftNote[]> {
     const raw = await this.get<RawDraftNote[]>(`${this.projectPath}/merge_requests/${iid}/draft_notes`);
     return raw.map((d) => ({

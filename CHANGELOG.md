@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.21.1
+
+- The changes since the last review show on the left every comment made before the version under review,
+  also those GitLab moved onto it because their line did not change; there they are not shown on the right.
+- Next and previous comment in the changes since the last review go through the files of that diff.
+
 ## 0.21.0
 
 - The changes since the last review show the comments of the earlier version on its side, next to how they
