@@ -19,7 +19,8 @@ stays editable.
 **Log and diffs**
 
 - **Commit graph** for every branch, remote and worktree, virtual scrolling for repositories with tens of
-  thousands of commits, filter by text, author or hash, speed search by typing. **Filters** by authors,
+  thousands of commits, filter by text, author or hash, speed search by typing; select
+  commits by dragging with the left button held, `Ctrl` adds a range. **Filters** by authors,
   dates and paths, and by changed text: the commits where a piece of code appeared or disappeared
   (`git log -S`, or `-G` with a regular expression).
 - **Branch panel**: HEAD, favorites, local and remote branches as a tree, tags, stashes, ahead/behind

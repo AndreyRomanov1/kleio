@@ -52,7 +52,8 @@
 
   $effect(() => {
     if (store.revealRequest === 0) return;
-    const hash = [...store.selected][0];
+    // Only a request scrolls: a selection growing by dragging must not pull the list back to its start.
+    const hash = untrack(() => [...store.selected][0]);
     void tick().then(() => scrollIntoView(hash));
   });
 
@@ -77,6 +78,50 @@
     };
     handle.addEventListener('pointermove', move);
     handle.addEventListener('pointerup', up);
+  }
+
+  /** Rows follow the pointer while the button is held; at the top or bottom edge the list scrolls along. */
+  function startDrag(event: MouseEvent): void {
+    if (!viewport) return;
+    let pointerY = event.clientY;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const update = () => {
+      if (!viewport || store.rowCount === 0) return;
+      const rect = viewport.getBoundingClientRect();
+      const y = Math.max(rect.top, Math.min(rect.bottom - 1, pointerY));
+      const row = Math.max(
+        0,
+        Math.min(store.rowCount - 1, Math.floor((y - rect.top + viewport.scrollTop) / ROW_HEIGHT)),
+      );
+      store.dragTo(store.commitAt(row).hash);
+    };
+    const edgeScroll = () => {
+      if (!viewport) return;
+      const rect = viewport.getBoundingClientRect();
+      const step =
+        pointerY < rect.top + ROW_HEIGHT ? -ROW_HEIGHT : pointerY > rect.bottom - ROW_HEIGHT ? ROW_HEIGHT : 0;
+      if (step) {
+        viewport.scrollTop += step;
+        update();
+      }
+    };
+    const move = (e: MouseEvent) => {
+      pointerY = e.clientY;
+      update();
+    };
+    const up = () => {
+      clearInterval(timer);
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      viewport?.classList.remove('dragging');
+      // The row pressed may have scrolled away and taken the focus with it; arrows go on from the list.
+      if (!viewport?.contains(document.activeElement)) viewport?.focus({ preventScroll: true });
+      store.dragEnd();
+    };
+    viewport.classList.add('dragging');
+    timer = setInterval(edgeScroll, 40);
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
   }
 
   function scrollIntoView(hash: string | undefined): void {
@@ -155,7 +200,8 @@
           ondblclick={() => post({ type: 'openCommitDiff', hash: commit.hash })}
           onmousedown={(e) => {
             if (e.button !== 0) return;
-            store.click(commit.hash, e.ctrlKey || e.metaKey, e.shiftKey);
+            store.dragStart(commit.hash, e.ctrlKey || e.metaKey, e.shiftKey);
+            startDrag(e);
           }}
           oncontextmenu={(e) => {
             if (!store.selected.has(commit.hash)) store.click(commit.hash, false, false);
@@ -338,5 +384,8 @@
     display: grid;
     place-items: center;
     opacity: 0.6;
+  }
+  .viewport:global(.dragging) {
+    user-select: none;
   }
 </style>

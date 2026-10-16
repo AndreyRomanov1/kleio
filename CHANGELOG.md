@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.20.0
+
+- Select commits in the log by dragging with the left button held: with `Ctrl` the range is added to the
+  selection, with `Shift` it starts from the anchor; at the edge the list scrolls along.
+- A growing selection no longer pulls the log back to its first selected commit.
+
 ## 0.19.2
 
 - Diffs of revisions survive a reload of the window for real: revisions are a read-only file system now, as

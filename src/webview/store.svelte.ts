@@ -63,6 +63,7 @@ export class LogStore {
   revealRequest = $state(0);
 
   private anchor?: string;
+  private drag?: { from: string; base: ReadonlySet<string>; moved: boolean };
   private requestId = 0;
   private pendingReveal?: string;
 
@@ -244,6 +245,36 @@ export class LogStore {
     }
     this.anchor = hash;
     this.select(new Set([hash]));
+  }
+
+  /**
+   * Selection by dragging with the left button held: from the commit pressed (or the anchor with Shift) to the
+   * one under the pointer; with Ctrl the range is added to what was selected. Details load once at the end.
+   */
+  dragStart(hash: string, toggle: boolean, range: boolean): void {
+    const from = range && this.anchor !== undefined ? this.anchor : hash;
+    this.click(hash, toggle, range);
+    this.drag = { from, base: toggle ? new Set(this.selected) : new Set(), moved: false };
+  }
+
+  dragTo(hash: string): void {
+    const drag = this.drag;
+    // Until the pointer leaves the commit pressed, it is a click: a Ctrl+click that unselected it stays so.
+    if (!drag || (!drag.moved && hash === drag.from)) return;
+    const from = this.rowOf(drag.from);
+    const to = this.rowOf(hash);
+    if (from === undefined || to === undefined) return;
+    const next = new Set(drag.base);
+    for (let r = Math.min(from, to); r <= Math.max(from, to); r++) next.add(this.commitAt(r).hash);
+    if (next.size === this.selected.size && [...next].every((h) => this.selected.has(h))) return;
+    drag.moved = true;
+    this.selected = next;
+  }
+
+  dragEnd(): void {
+    const drag = this.drag;
+    this.drag = undefined;
+    if (drag?.moved) this.select(new Set(this.selected));
   }
 
   /** Moves the selection with the keyboard. */
