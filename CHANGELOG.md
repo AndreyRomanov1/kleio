@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.21.0
+
+- The changes since the last review show the comments of the earlier version on its side, next to how they
+  were dealt with; they can be answered and resolved there.
+- The changes since the last review stay available after a reload of the window.
+
 ## 0.20.0
 
 - Select commits in the log by dragging with the left button held: with `Ctrl` the range is added to the

@@ -47,3 +47,18 @@ export function lineCounters(hunks: readonly Hunk[], side: Side, line: number): 
   const pair = linePair(hunks, side, line);
   return { old: pair.oldLine!, new: pair.newLine! };
 }
+
+/**
+ * Where a line of a file is after the changes between two versions, by the hunks of their diff; undefined
+ * when the line itself was changed.
+ */
+export function followLine(hunks: readonly Hunk[], line: number): number | undefined {
+  let shift = 0;
+  for (const hunk of hunks) {
+    if (hunk.oldLines > 0 && line >= hunk.oldStart && line < hunk.oldStart + hunk.oldLines) return undefined;
+    const before = hunk.oldLines > 0 ? hunk.oldStart + hunk.oldLines - 1 < line : hunk.oldStart < line;
+    if (!before) break;
+    shift += hunk.newLines - hunk.oldLines;
+  }
+  return line + shift;
+}

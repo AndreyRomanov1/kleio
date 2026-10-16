@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lineCounters, linePair } from '../src/extension/review/positions';
+import { followLine, lineCounters, linePair } from '../src/extension/review/positions';
 
 // old: 1 a, 2 b, 3 c, 4 d, 5 e, 6 f
 // new: 1 a, 2 B, 3 c, 4 x, 5 y, 6 d, 7 f      (b→B, x and y added after c, e removed)
@@ -45,5 +45,19 @@ describe('lineCounters', () => {
 
   it('gives an unchanged line both of its numbers', () => {
     expect(lineCounters(hunks, 'new', 8)).toEqual({ old: 7, new: 8 });
+  });
+});
+
+describe('followLine', () => {
+  it('moves an unchanged line by the lines added and removed before it', () => {
+    expect([1, 3, 4, 6].map((line) => followLine(hunks, line))).toEqual([1, 3, 6, 7]);
+  });
+
+  it('loses a changed or removed line', () => {
+    expect([2, 5].map((line) => followLine(hunks, line))).toEqual([undefined, undefined]);
+  });
+
+  it('keeps every line when nothing changed', () => {
+    expect(followLine([], 12)).toBe(12);
   });
 });

@@ -339,6 +339,23 @@ const tests: Test[] = [
         'the diff tab belongs to the review again',
       );
 
+      // The comments of the version reviewed last time stand on the left of what changed since then.
+      const session = (api.review as unknown as { session: { previous?: object; since?: unknown } }).session;
+      const earlier = (await repository.revParse('HEAD~1'))!;
+      session.previous = { baseSha: earlier, headSha: earlier };
+      session.since = undefined;
+      await vscode.commands.executeCommand('kleio.review.refresh');
+      await vscode.commands.executeCommand('kleio.review.sinceLastReview');
+      const since = await waitFor(
+        () => (activeDiff()?.original.toString().includes(earlier) ? activeDiff() : undefined),
+        'diff since the last review',
+      );
+      const old = api.review.openThreads().find((t) => t.uri === since.original.toString());
+      assert.ok(old, 'the earlier comment is on the left side');
+      assert.equal(old.line, 5);
+      assert.deepEqual(old.comments, ['Поменяй пятую строку']);
+      assert.equal(old.label, 'On the earlier version');
+
       await vscode.commands.executeCommand('kleio.review.openJournal');
       const journal = vscode.window.activeTextEditor!.document.getText();
       assert.match(journal, /"text":"Изменённая строка"/);

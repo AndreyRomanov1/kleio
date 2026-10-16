@@ -29,6 +29,30 @@ export async function startFakeGitLab({ baseSha, headSha }) {
         },
       ],
     },
+    {
+      // A comment of the earlier version, before line 5 was changed: GitLab keeps it on that version.
+      id: 'earlier',
+      individual_note: false,
+      notes: [
+        {
+          id: 2,
+          body: 'Поменяй пятую строку',
+          author: { name: 'Kleio Test', username: 'kleio' },
+          created_at: '2026-01-01T12:00:00Z',
+          resolvable: true,
+          resolved: false,
+          position: {
+            base_sha: baseSha,
+            start_sha: baseSha,
+            head_sha: baseSha,
+            old_path: 'a.txt',
+            new_path: 'a.txt',
+            old_line: null,
+            new_line: 5,
+          },
+        },
+      ],
+    },
   ];
   let drafts = [];
   let nextId = 100;

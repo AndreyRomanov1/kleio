@@ -2,7 +2,7 @@
   "name": "kleio",
   "displayName": "Kleio",
   "description": "Git the JetBrains way: commit graph, one diff viewer for any changes, history, blame, interactive rebase, conflicts, GitLab merge requests and review",
-  "version": "0.20.0",
+  "version": "0.21.0",
   "publisher": "aroma",
   "license": "MIT",
   "repository": {
