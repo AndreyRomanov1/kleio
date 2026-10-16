@@ -183,15 +183,18 @@
             <button
               class="thread"
               class:resolved={thread.resolved}
-              title={thread.outdated
-                ? t('On an earlier version of the merge request')
-                : t('Open in the code')}
+              title={thread.outdated && thread.id
+                ? t('Open in the earlier version of the merge request it was made on')
+                : thread.outdated
+                  ? t('On an earlier version of the merge request')
+                  : t('Open in the code')}
               onclick={() =>
                 post({
                   type: 'startReview',
                   number: card.iid,
                   path: thread.path,
-                  line: thread.outdated ? undefined : thread.line,
+                  line: thread.line,
+                  discussion: thread.id,
                 })}
             >
               <i

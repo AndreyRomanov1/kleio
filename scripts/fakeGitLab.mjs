@@ -2,7 +2,7 @@
 // drafts. It keeps what Kleio sends, and GET /__requests returns the recorded requests for assertions.
 import { createServer } from 'node:http';
 
-export async function startFakeGitLab({ baseSha, headSha }) {
+export async function startFakeGitLab({ baseSha, headSha, earlierSha }) {
   const project = '/api/v4/projects/group%2Fproject';
   const requests = [];
   const discussions = [
@@ -44,7 +44,7 @@ export async function startFakeGitLab({ baseSha, headSha }) {
           position: {
             base_sha: baseSha,
             start_sha: baseSha,
-            head_sha: baseSha,
+            head_sha: earlierSha,
             old_path: 'a.txt',
             new_path: 'a.txt',
             old_line: null,

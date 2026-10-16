@@ -168,7 +168,13 @@ export class LogController implements vscode.Disposable {
         return;
       case 'startReview':
         if (this.repository)
-          await this.services.review.start(this.repository, message.number, message.path, message.line);
+          await this.services.review.start(
+            this.repository,
+            message.number,
+            message.path,
+            message.line,
+            message.discussion,
+          );
         return;
       case 'postComment':
         if (

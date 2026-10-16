@@ -112,6 +112,7 @@ export function buildDiscussions(
     }
     const onNew = first.position.newLine !== undefined;
     view.threads.push({
+      id: discussion.id,
       path: onNew ? first.position.newPath : first.position.oldPath,
       line: (onNew ? first.position.newLine : first.position.oldLine) ?? 1,
       author: first.author.name,

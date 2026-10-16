@@ -134,6 +134,8 @@ export interface DiscussionsView {
   general: { author: string; body: string; createdAt: string; draft?: boolean }[];
   /** Threads on diff lines. `outdated` ones belong to an older version of the merge request. */
   threads: {
+    /** The GitLab discussion, to open an outdated one in the version it was made on. */
+    id?: string;
     path: string;
     line: number;
     author: string;
@@ -233,7 +235,7 @@ export type WebviewMessage =
   | { type: 'selectHostingRemote' }
   | { type: 'openJobLog'; jobId: number; name: string; projectId?: number }
   | { type: 'retryPipeline'; pipelineId: number; number: number }
-  | { type: 'startReview'; number: number; path?: string; line?: number }
+  | { type: 'startReview'; number: number; path?: string; line?: number; discussion?: string }
   | { type: 'postComment'; number: number; body: string; draft: boolean }
   | { type: 'publishDrafts'; number: number }
   | { type: 'approveMergeRequest'; number: number; approve: boolean }

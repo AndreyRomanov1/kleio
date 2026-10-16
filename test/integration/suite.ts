@@ -320,8 +320,8 @@ const tests: Test[] = [
       sent = (await requests()).filter((r) => r.method === 'POST');
       assert.ok(sent.at(-1)!.url.endsWith('/draft_notes/bulk_publish'));
       await waitFor(
-        () => (api.review.openThreads().length === 4 ? true : undefined),
-        'four published threads',
+        () => (api.review.openThreads().length === 5 ? true : undefined),
+        'four published threads and the outdated one',
       );
 
       // A reload of the window: Kleio forgets the review and the diff, as when the window closes.
@@ -331,7 +331,7 @@ const tests: Test[] = [
       assert.equal(api.review.openThreads().length, 0);
       await api.review.restore(api.repositories);
       await waitFor(
-        () => (api.review.openThreads().length === 4 ? true : undefined),
+        () => (api.review.openThreads().length === 5 ? true : undefined),
         'threads of the restored review',
       );
       assert.ok(
@@ -339,22 +339,54 @@ const tests: Test[] = [
         'the diff tab belongs to the review again',
       );
 
-      // The comments of the version reviewed last time stand on the left of what changed since then.
+      // An outdated discussion stands in the version it was made on: the card opens it there, and the next
+      // comment after the last one of the merge request goes there too.
+      const earlier = process.env.KLEIO_TEST_EARLIER_SHA!;
+      const shown = () => (api.navigator as unknown as { shown?: { title: string } }).shown?.title;
+      const outdated = () => api.review.openThreads().find((t) => t.comments[0] === 'Поменяй пятую строку');
+      await api.review.start(repository, 1, 'a.txt', 5, 'earlier');
+      const version = await waitFor(
+        () => (activeDiff()?.modified.toString().includes(earlier) ? activeDiff() : undefined),
+        'the version of the outdated discussion',
+      );
+      assert.equal(outdated()?.uri, version.modified.toString());
+      assert.equal(outdated()?.line, 5);
+      assert.equal(outdated()?.label, 'On the earlier version');
+      await api.review.start(repository, 1, 'a.txt', 30);
+      await waitFor(() => (shown() === 'MR !1' ? true : undefined), 'the merge request diff');
+      await vscode.commands.executeCommand('kleio.review.nextComment');
+      await waitFor(
+        () => (activeDiff()?.modified.toString().includes(earlier) ? true : undefined),
+        'the next comment in the earlier version',
+      );
+
+      // The version reviewed last time: its comments stand on the left of what changed since then, and the
+      // next comment stays in that diff.
       const session = (api.review as unknown as { session: { previous?: object; since?: unknown } }).session;
-      const earlier = (await repository.revParse('HEAD~1'))!;
-      session.previous = { baseSha: earlier, headSha: earlier };
+      session.previous = { baseSha: (await repository.revParse('HEAD~1'))!, headSha: earlier };
       session.since = undefined;
       await vscode.commands.executeCommand('kleio.review.refresh');
       await vscode.commands.executeCommand('kleio.review.sinceLastReview');
       const since = await waitFor(
-        () => (activeDiff()?.original.toString().includes(earlier) ? activeDiff() : undefined),
+        () => (shown() === '!1 since the last review' ? activeDiff() : undefined),
         'diff since the last review',
       );
-      const old = api.review.openThreads().find((t) => t.uri === since.original.toString());
-      assert.ok(old, 'the earlier comment is on the left side');
+      const old = await waitFor(
+        () => api.review.openThreads().find((t) => t.uri === since.original.toString()),
+        'the earlier comment on the left side',
+      );
       assert.equal(old.line, 5);
       assert.deepEqual(old.comments, ['Поменяй пятую строку']);
-      assert.equal(old.label, 'On the earlier version');
+      const right = vscode.window.visibleTextEditors.find(
+        (e) => e.document.uri.toString() === since.modified.toString(),
+      )!;
+      right.selection = new vscode.Selection(0, 0, 0, 0);
+      await vscode.commands.executeCommand('kleio.review.nextComment');
+      const left = vscode.window.visibleTextEditors.find(
+        (e) => e.document.uri.toString() === since.original.toString(),
+      )!;
+      assert.equal(left.selection.active.line, 4, 'the next comment is the earlier one on the left');
+      assert.equal(shown(), '!1 since the last review');
 
       await vscode.commands.executeCommand('kleio.review.openJournal');
       const journal = vscode.window.activeTextEditor!.document.getText();

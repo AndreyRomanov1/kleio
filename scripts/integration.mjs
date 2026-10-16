@@ -58,7 +58,31 @@ git('-c', 'user.name=Other Dev', '-c', 'user.email=other@example.com', 'commit',
 // The repository looks hosted on a GitLab, which is the fake server below.
 git('remote', 'add', 'origin', 'git@gitlab.test:group/project.git');
 const sha = (rev) => execFileSync('git', ['rev-parse', rev], { cwd: repo, encoding: 'utf8' }).trim();
-const gitlab = await startFakeGitLab({ baseSha: sha('HEAD~1'), headSha: sha('HEAD') });
+// An earlier version of the merge request, gone from the branch after a force push: line 5 was changed
+// differently there.
+const index = path.join(work, 'earlier-index');
+const indexed = (...args) =>
+  execFileSync('git', args, {
+    cwd: repo,
+    encoding: 'utf8',
+    env: { ...process.env, GIT_INDEX_FILE: index },
+  }).trim();
+indexed('read-tree', 'HEAD~1');
+writeFileSync(path.join(work, 'earlier-a.txt'), lines(30, { 5: 'first try 5' }));
+const blob = execFileSync('git', ['hash-object', '-w', path.join(work, 'earlier-a.txt')], {
+  cwd: repo,
+  encoding: 'utf8',
+}).trim();
+indexed('update-index', '--cacheinfo', `100644,${blob},a.txt`);
+const earlierSha = execFileSync(
+  'git',
+  ['commit-tree', indexed('write-tree'), '-p', 'HEAD~1', '-m', 'first version'],
+  {
+    cwd: repo,
+    encoding: 'utf8',
+  },
+).trim();
+const gitlab = await startFakeGitLab({ baseSha: sha('HEAD~1'), headSha: sha('HEAD'), earlierSha });
 mkdirSync(path.join(work, 'user-data', 'User'), { recursive: true });
 writeFileSync(
   path.join(work, 'user-data', 'User', 'settings.json'),
@@ -88,6 +112,7 @@ const env = {
   ELECTRON_RUN_AS_NODE: undefined,
   KLEIO_TEST_GITLAB_ORIGIN: gitlab.origin,
   KLEIO_TEST_GITLAB_TOKEN: 'test-token',
+  KLEIO_TEST_EARLIER_SHA: earlierSha,
   ...(headless ? { WAYLAND_DISPLAY: undefined } : {}),
 };
 const status = await new Promise((resolve) => {

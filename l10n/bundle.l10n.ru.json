@@ -172,7 +172,6 @@
   "Retry": "Повторить",
   "Journal": "Журнал",
   "The comment was not sent: {0}. Its text is saved in the review journal.": "Комментарий не отправлен: {0}. Текст сохранён в журнале ревью.",
-  "Kleio: the merge request has no comments on the current version": "Kleio: в MR нет замечаний к текущей версии",
   "Kleio: this is the last comment": "Kleio: это последнее замечание",
   "Kleio: this is the first comment": "Kleio: это первое замечание",
   "Connect GitLab": "Подключить GitLab",
@@ -686,5 +685,8 @@
   "Kleio: the comment is not saved: {0}": "Kleio: комментарий не сохранён: {0}",
   "Kleio: the comment is saved": "Kleio: комментарий сохранён",
   "Delete your comment from GitLab?": "Удалить ваш комментарий из GitLab?",
-  "Kleio: the comment is not deleted: {0}": "Kleio: комментарий не удалён: {0}"
+  "Kleio: the comment is not deleted: {0}": "Kleio: комментарий не удалён: {0}",
+  "Kleio: the merge request has no comments in the code": "Kleio: в коде MR нет комментариев",
+  "!{0}, version {1}": "!{0}, версия {1}",
+  "Open in the earlier version of the merge request it was made on": "Открыть в той версии MR, к которой он написан"
 }

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.22.0
+
+- Outdated discussions are in the code of the version of the merge request they were made on: the card opens
+  them there, and next comment goes on to them after the comments of the current version.
+- Next and previous comment go through the diff of the active tab, however it was opened; in the changes
+  since the last review they stay in that diff.
+- 0.21.1 is reverted: the comments made before the current version are no longer moved to the left by guess.
+
 ## 0.21.0
 
 - The changes since the last review show the comments of the earlier version on its side, next to how they
