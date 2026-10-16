@@ -6,7 +6,7 @@ import { BlameAnnotations } from './blame/blameAnnotations';
 import { NavigationHistory } from './changes/navigationHistory';
 import { ChangeSetNavigator } from './changes/changeSetNavigator';
 import { CommitView } from './commit/commitView';
-import { RevisionContentProvider } from './content/revisionContentProvider';
+import { RevisionFileSystem } from './content/revisionFileSystem';
 import { REVISION_SCHEME } from './content/revisionUri';
 import { watchGitPath } from './git/gitPath';
 import { BranchStatus } from './statusBar/branchStatus';
@@ -41,10 +41,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<KleioA
   const repositories = new RepositoryManager();
   // First of all: after a reload the editor restores diffs of revisions and waits for their contents.
   context.subscriptions.push(
-    vscode.workspace.registerTextDocumentContentProvider(
-      REVISION_SCHEME,
-      new RevisionContentProvider(repositories),
-    ),
+    vscode.workspace.registerFileSystemProvider(REVISION_SCHEME, new RevisionFileSystem(repositories), {
+      isReadonly: true,
+      isCaseSensitive: true,
+    }),
   );
   context.subscriptions.push(await loadLanguage(context), watchGitPath());
   const navigator = new ChangeSetNavigator(context.workspaceState);

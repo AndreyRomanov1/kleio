@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.19.2
+
+- Diffs of revisions survive a reload of the window for real: revisions are a read-only file system now, as
+  the `git:` scheme of the built-in Git extension; the editor restores only tabs of file systems.
+- `kleio.navigation.history` is off by default: it takes over a command of the editor.
+
 ## 0.19.1
 
 - After a reload of the window the diff tab stays, and the review comes back with its comments in the code;

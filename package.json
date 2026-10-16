@@ -2,7 +2,7 @@
   "name": "kleio",
   "displayName": "Kleio",
   "description": "Git the JetBrains way: commit graph, one diff viewer for any changes, history, blame, interactive rebase, conflicts, GitLab merge requests and review",
-  "version": "0.19.1",
+  "version": "0.19.2",
   "publisher": "aroma",
   "license": "MIT",
   "repository": {
@@ -824,7 +824,7 @@
         },
         "kleio.navigation.history": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "markdownDescription": "%config.navigation.history%"
         },
         "kleio.review.ctrlEnter": {

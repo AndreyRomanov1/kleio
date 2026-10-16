@@ -124,7 +124,7 @@ extension when it is signed in, or from a personal access token (command «По�
 | `kleio.blame.ignoreWhitespaceAndMoves` | `false`                               | Blame ignores whitespace changes and moved lines                                             |
 | `kleio.rebase.updateRefs`              | `true`                                | A rebase moves the stacked branches along (`--update-refs`, git 2.38+)                       |
 | `kleio.review.ctrlEnter`               | `publish`                             | `Ctrl+Enter` in a review comment: `publish` it or save a `draft`                             |
-| `kleio.navigation.history`             | `true`                                | Go Back / Go Forward through files and review diffs in one history                           |
+| `kleio.navigation.history`             | `false`                               | Go Back / Go Forward through files and review diffs in one history                           |
 
 ## Key bindings
 
@@ -150,8 +150,8 @@ unpredictably. User key bindings always win, so add these to `keybindings.json` 
 ]
 ```
 
-**Go Back / Go Forward** (`Ctrl+Alt+-` / `Ctrl+Shift+-`, `Alt+←/→` on Windows) go through one history of files
-and of the files of review diffs: the editor's own history loses a diff once Kleio shows the next file in its
+With `kleio.navigation.history` on, **Go Back / Go Forward** (`Ctrl+Alt+-` / `Ctrl+Shift+-`, `Alt+←/→` on
+Windows) go through one history of files and of the files of review diffs: the editor's own history loses a diff once Kleio shows the next file in its
 place. The last two lines above put them on `Ctrl+Alt+←/→`, as the IntelliJ keymap has them, and make
 `Ctrl+Enter` send a review comment there (that keymap takes it for Go to Declaration). `Ctrl+Enter` publishes
 the comment, or saves a draft with `kleio.review.ctrlEnter` set to `draft`; `Enter` starts a new line.
