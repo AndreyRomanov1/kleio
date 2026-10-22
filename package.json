@@ -2,7 +2,7 @@
   "name": "kleio",
   "displayName": "Kleio",
   "description": "Git the JetBrains way: commit graph, one diff viewer for any changes, history, blame, interactive rebase, conflicts, GitLab merge requests and review",
-  "version": "0.23.0",
+  "version": "0.24.0",
   "publisher": "aroma",
   "license": "MIT",
   "repository": {
@@ -299,6 +299,26 @@
         "icon": "$(diff-multiple)"
       },
       {
+        "command": "kleio.review.newVersion",
+        "title": "%command.review.newVersion%",
+        "category": "Kleio"
+      },
+      {
+        "command": "kleio.review.compareNewer",
+        "title": "%command.review.compareNewer%",
+        "category": "Kleio"
+      },
+      {
+        "command": "kleio.review.switchToNewer",
+        "title": "%command.review.switchToNewer%",
+        "category": "Kleio"
+      },
+      {
+        "command": "kleio.review.stayOnVersion",
+        "title": "%command.review.stayOnVersion%",
+        "category": "Kleio"
+      },
+      {
         "command": "kleio.review.openJournal",
         "title": "%command.review.openJournal%",
         "category": "Kleio"
@@ -544,6 +564,22 @@
         },
         {
           "command": "kleio.review.end",
+          "when": "false"
+        },
+        {
+          "command": "kleio.review.newVersion",
+          "when": "kleio.reviewActive"
+        },
+        {
+          "command": "kleio.review.compareNewer",
+          "when": "false"
+        },
+        {
+          "command": "kleio.review.switchToNewer",
+          "when": "false"
+        },
+        {
+          "command": "kleio.review.stayOnVersion",
           "when": "false"
         },
         {

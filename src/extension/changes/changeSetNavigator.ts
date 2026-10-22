@@ -212,7 +212,7 @@ export class ChangeSetNavigator implements vscode.Disposable {
     const target = edge === 'first' ? hunks[0] : hunks[hunks.length - 1];
     const line = show.line ?? (target ? hunkLine(target, 'right') : 0);
     const moved = change.oldPath && change.oldPath !== change.path ? t(' — moved') : '';
-    const title = `${path.basename(change.path)}${moved} (${describeRange(changeSet)}) — ${index + 1}/${changeSet.files.length}`;
+    const title = `${path.basename(change.path)}${moved} (${changeSet.caption ?? describeRange(changeSet)}) — ${index + 1}/${changeSet.files.length}`;
     const options: vscode.TextDocumentShowOptions = {
       preview: true,
       preserveFocus: show.preserveFocus,

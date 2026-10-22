@@ -14,6 +14,8 @@ export interface ChangeSet {
   files: FileChange[];
   /** Precomputed right side per path, so that other features (review comments) attach to the same documents. */
   rightUris?: ReadonlyMap<string, Uri>;
+  /** Shown in the tab instead of the two revisions, e.g. `MR !12 v2`. */
+  caption?: string;
 }
 
 export function shortRevision(revision: string | undefined): string {

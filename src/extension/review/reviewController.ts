@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import type { FileChange } from '../../shared/model';
 import type { ChangeSet } from '../changes/changeSet';
 import type { ChangeSetNavigator } from '../changes/changeSetNavigator';
-import { revisionUri, workingFileUri } from '../content/revisionUri';
+import { REVISION_SCHEME, revisionUri, workingFileUri } from '../content/revisionUri';
 import type { Hunk } from '../git/parse';
 import type { Repository } from '../git/repository';
 import type { RepositoryManager } from '../git/repositoryManager';
@@ -74,6 +74,16 @@ interface Session {
   loadedInterdiffs: Interdiff[];
   /** Taken up by itself as the merge request of the current branch, not opened by hand. */
   auto: boolean;
+  /** Version numbers by head, as GitLab counts them: one for each push, from 1. */
+  numbers: Map<string, number>;
+  /** A newer version pushed while the diff of this one is open: the review stays on this one until you choose. */
+  newer?: Version & { number?: number; createdAt?: string };
+  /** The newer version you chose to finish this one before going to. */
+  dismissed?: string;
+  /** Your drafts, to offer sending them as GitLab's "Submit review". */
+  drafts: number;
+  /** Comments of the newer version on lines this one has not. */
+  newerOnly: number;
 }
 
 interface Version {
@@ -134,6 +144,8 @@ export class ReviewController implements vscode.Disposable {
   private session?: Session;
   private following = false;
   private reloadedAt = 0;
+  private readonly lensesChanged = new vscode.EventEmitter<void>();
+  private readonly status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
   private readonly comments: vscode.CommentController;
   private readonly disposables: vscode.Disposable[];
 
@@ -194,7 +206,19 @@ export class ReviewController implements vscode.Disposable {
       vscode.window.onDidChangeWindowState((state) => {
         if (state.focused) void this.refreshQuietly();
       }),
+      this.lensesChanged,
+      this.status,
+      vscode.languages.registerCodeLensProvider([{ scheme: 'file' }, { scheme: REVISION_SCHEME }], {
+        onDidChangeCodeLenses: this.lensesChanged.event,
+        provideCodeLenses: (document) => this.newerLenses(document),
+      }),
+      vscode.commands.registerCommand('kleio.review.newVersion', () => this.newVersionMenu()),
+      vscode.commands.registerCommand('kleio.review.compareNewer', () => this.compareNewer()),
+      vscode.commands.registerCommand('kleio.review.switchToNewer', () => this.switchToNewer()),
+      vscode.commands.registerCommand('kleio.review.stayOnVersion', () => this.stayOnVersion()),
     ];
+    this.status.command = 'kleio.review.newVersion';
+    this.status.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
   }
 
   get activeMergeRequest(): number | undefined {
@@ -256,7 +280,7 @@ export class ReviewController implements vscode.Disposable {
     const existing = this.session;
     if (existing?.iid === iid && existing.repository === repository) {
       existing.auto = false;
-      await this.renewIfUpdated(existing, false);
+      await this.renewIfUpdated(existing, true);
       if (this.session) this.session.auto = false;
       return true;
     }
@@ -468,7 +492,8 @@ export class ReviewController implements vscode.Disposable {
       title:
         latest && from.headSha === session.previous?.headSha
           ? t('!{0} since the last review', session.iid)
-          : t('!{0}: {1} → {2}', session.iid, from.headSha.slice(0, 8), to.headSha.slice(0, 8)),
+          : t('!{0}: {1} → {2}', session.iid, versionName(session, from), versionName(session, to)),
+      caption: `!${session.iid} ${versionName(session, from)} → ${versionName(session, to)}`,
       left,
       right: to.headSha,
       files,
@@ -513,6 +538,7 @@ export class ReviewController implements vscode.Disposable {
     const set: ChangeSet = {
       repository,
       title: t('!{0}, version {1}', session.iid, version.headSha.slice(0, 8)),
+      caption: `!${session.iid} ${versionName(session, version)}`,
       left: version.baseSha,
       right: version.headSha,
       files: await repository.changes(version.baseSha, version.headSha),
@@ -679,6 +705,8 @@ export class ReviewController implements vscode.Disposable {
     }
     const rightUris = new Map(files.filter((f) => f.right).map((f) => [f.change.path, f.right!] as const));
     const label = await this.label(repository, iid);
+    const numbers = await this.versionNumbers(api, iid);
+    const number = numbers.get(refs.headSha);
     return {
       repository,
       api,
@@ -696,10 +724,14 @@ export class ReviewController implements vscode.Disposable {
       interdiffs: new Map(),
       loadedInterdiffs: [],
       auto: false,
+      numbers,
+      drafts: 0,
+      newerOnly: 0,
       refs,
       changeSet: {
         repository,
         title: `MR !${iid}`,
+        caption: number ? `MR !${iid} v${number}` : undefined,
         left: refs.baseSha,
         right: refs.headSha,
         files: changes,
@@ -733,7 +765,7 @@ export class ReviewController implements vscode.Disposable {
     const session = this.session;
     if (!session) return;
     this.reloadedAt = Date.now();
-    if (await this.renewIfUpdated(session, true)) return;
+    if (await this.renewIfUpdated(session, false)) return;
     let discussions: Discussion[];
     let drafts: DraftNote[];
     try {
@@ -747,10 +779,18 @@ export class ReviewController implements vscode.Disposable {
     }
     // An outdated discussion stands in the version it was made on, and on the left of each comparison from
     // that version: GitLab keeps a discussion on the version after which its line changed.
+    // While the review stays on this version, the discussions GitLab moved onto a newer one are followed back
+    // onto it by the diff between the two, when their line is the same in both.
     const earlier = new Map<string, Place[]>();
+    let newerOnly = 0;
     for (const discussion of discussions) {
       const position = discussion.notes.find((n) => !n.system)?.position;
       if (!position || position.headSha === session.refs.headSha) continue;
+      if (isNewer(session, position.headSha)) {
+        const back = await this.backPlaceOf(session, position);
+        if (back) earlier.set(discussion.id, [back]);
+        else newerOnly++;
+      }
       for (const interdiff of session.loadedInterdiffs) {
         if (interdiff.from.headSha !== position.headSha) continue;
         const place = await this.earlierPlaceOf(session, position, interdiff);
@@ -758,6 +798,11 @@ export class ReviewController implements vscode.Disposable {
       }
     }
     if (session !== this.session) return;
+    session.drafts = drafts.length;
+    if (session.newerOnly !== newerOnly) {
+      session.newerOnly = newerOnly;
+      this.lensesChanged.fire();
+    }
     session.outdated.clear();
     for (const thread of session.threads) thread.dispose();
     session.threads = [];
@@ -771,10 +816,11 @@ export class ReviewController implements vscode.Disposable {
       const notes = discussion.notes.filter((n) => !n.system);
       const first = notes[0];
       if (!first?.position) continue;
-      const outdated = first.position.headSha !== session.refs.headSha;
+      const newer = isNewer(session, first.position.headSha);
+      const outdated = first.position.headSha !== session.refs.headSha && !newer;
       const places: Place[] = [];
-      if (outdated) {
-        session.outdated.set(discussion.id, first.position);
+      if (outdated || newer) {
+        if (outdated) session.outdated.set(discussion.id, first.position);
         const own = versionPlaceOf(session.repository.root, first.position);
         places.push(own);
         for (const place of earlier.get(discussion.id) ?? [])
@@ -831,36 +877,199 @@ export class ReviewController implements vscode.Disposable {
   }
 
   /**
-   * GitLab reviews the latest version of a merge request, and comments made on an earlier one are moved onto it.
-   * After a push the review moves on to the new version as well, the file shown stays shown, and what changed
-   * since the version reviewed so far is offered.
+   * After a push the merge request has a newer version. While the diff of this one is open the review stays on
+   * it, as a GitLab page does until it is reloaded, and the newer one is offered next to the diff; otherwise,
+   * or when the merge request is opened by hand, the review moves on to the newer one quietly.
    */
-  private async renewIfUpdated(session: Session, reopen: boolean): Promise<boolean> {
+  private async renewIfUpdated(session: Session, explicit: boolean): Promise<boolean> {
     const head = await session.api
       .mergeRequest(session.iid)
-      .then((details) => details.diffRefs?.headSha)
+      .then((details) => details.diffRefs)
       .catch(() => undefined);
-    if (!head || head === session.refs.headSha || session !== this.session) return false;
+    if (!head || session !== this.session) return false;
+    if (head.headSha === session.refs.headSha) {
+      if (session.newer) this.offerNewer(session, undefined);
+      return false;
+    }
+    if (!explicit && this.showing(session)) {
+      if (session.newer?.headSha !== head.headSha) {
+        await this.ensureVersionCommits(session, [head.baseSha, head.headSha]);
+        session.numbers = await this.versionNumbers(session.api, session.iid, session.numbers);
+        const created = await session.api
+          .versions(session.iid)
+          .then((versions) => versions.find((v) => v.headSha === head.headSha)?.createdAt)
+          .catch(() => undefined);
+        this.offerNewer(session, {
+          baseSha: head.baseSha,
+          headSha: head.headSha,
+          number: session.numbers.get(head.headSha),
+          createdAt: created,
+        });
+      }
+      return false;
+    }
+    return !!(await this.renew(session));
+  }
+
+  private async renew(session: Session): Promise<Session | undefined> {
     const renewed = await this.createSession(session.repository, session.iid, true).catch(() => undefined);
-    if (!renewed || session !== this.session) return false;
+    if (!renewed || session !== this.session) return undefined;
+    renewed.auto = session.auto;
+    this.end(false);
+    this.begin(renewed);
+    await this.reload();
+    return renewed;
+  }
+
+  /** Whether a diff of the review is open in a tab: the merge request, a comparison of versions, a version. */
+  private showing(session: Session): boolean {
+    const sides = this.ownSets(session).map(sidesOf);
+    return vscode.window.tabGroups.all
+      .flatMap((group) => group.tabs)
+      .some(
+        (tab) =>
+          tab.input instanceof vscode.TabInputTextDiff &&
+          sides.some(
+            (map) =>
+              map.has((tab.input as vscode.TabInputTextDiff).original.toString()) ||
+              map.has((tab.input as vscode.TabInputTextDiff).modified.toString()),
+          ),
+      );
+  }
+
+  /** Version numbers by head; GitLab lists the versions newest first. */
+  private async versionNumbers(
+    api: GitLabApi,
+    iid: number,
+    known: Map<string, number> = new Map(),
+  ): Promise<Map<string, number>> {
+    const versions = await api.versions(iid).catch(() => undefined);
+    if (!versions) return known;
+    return new Map([...versions].reverse().map((v, i) => [v.headSha, i + 1] as const));
+  }
+
+  /** Shows or hides the offer of a newer version: above the diff, in the status bar and once as a message. */
+  private offerNewer(session: Session, newer: Session['newer']): void {
+    const first = newer && session.newer?.headSha !== newer.headSha;
+    session.newer = newer;
+    this.updateNewer();
+    if (!first) return;
+    const compare = t(
+      'What changed {0} → {1}',
+      versionName(session, current(session)),
+      versionName(session, newer),
+    );
+    const go = t('Go to {0}', versionName(session, newer));
+    void vscode.window
+      .showInformationMessage(
+        t(
+          '!{0} has a new version {1}. You stay on {2} until you choose.',
+          session.iid,
+          versionName(session, newer),
+          versionName(session, current(session)),
+        ),
+        compare,
+        go,
+      )
+      .then((choice) => {
+        if (choice === compare) return this.compareNewer();
+        if (choice === go) return this.switchToNewer();
+      });
+  }
+
+  private updateNewer(): void {
+    const session = this.session;
+    const newer = session?.newer;
+    this.lensesChanged.fire();
+    if (!session || !newer) {
+      this.status.hide();
+      return;
+    }
+    this.status.text = `$(git-pull-request) !${session.iid} · ${versionName(session, current(session))} · ${t(
+      'new {0}',
+      versionName(session, newer),
+    )}`;
+    this.status.tooltip = t('A newer version of !{0}: choose what to do with it', session.iid);
+    this.status.show();
+  }
+
+  /** The lenses above each file of the merge request while a newer version waits. */
+  private newerLenses(document: vscode.TextDocument): vscode.CodeLens[] {
+    const session = this.session;
+    const newer = session?.newer;
+    if (!session || !newer || session.dismissed === newer.headSha) return [];
+    if (session.documents.get(document.uri.toString())?.side !== 'new') return [];
+    const range = new vscode.Range(0, 0, 0, 0);
+    const lens = (title: string, command: string) => new vscode.CodeLens(range, { title, command });
+    const time = newer.createdAt ? formatTime(newer.createdAt) : '';
+    const was = versionName(session, current(session));
+    const now = versionName(session, newer);
+    return [
+      lens(
+        `$(git-pull-request) ${t('New version {0}', now)}${time ? ` · ${time}` : ''}`,
+        'kleio.review.newVersion',
+      ),
+      lens(t('What changed {0} → {1}', was, now), 'kleio.review.compareNewer'),
+      lens(t('Go to {0}', now), 'kleio.review.switchToNewer'),
+      lens(t('Finish {0}', was), 'kleio.review.stayOnVersion'),
+      ...(session.drafts ? [lens(t('Send drafts ({0})', session.drafts), 'kleio.review.publishDrafts')] : []),
+      ...(session.newerOnly
+        ? [lens(t('+{0} comments of {1}', session.newerOnly, now), 'kleio.review.switchToNewer')]
+        : []),
+    ];
+  }
+
+  private async newVersionMenu(): Promise<void> {
+    const session = this.session;
+    const newer = session?.newer;
+    if (!session || !newer) return;
+    const was = versionName(session, current(session));
+    const now = versionName(session, newer);
+    const items: (vscode.QuickPickItem & { run: () => unknown })[] = [
+      { label: t('What changed {0} → {1}', was, now), run: () => this.compareNewer() },
+      { label: t('Go to {0}', now), run: () => this.switchToNewer() },
+      { label: t('Finish {0}', was), run: () => this.stayOnVersion() },
+      ...(session.drafts
+        ? [{ label: t('Send drafts ({0})', session.drafts), run: () => this.publishDrafts() }]
+        : []),
+    ];
+    const choice = await vscode.window.showQuickPick(items, {
+      placeHolder: t('!{0} has a new version {1}; you are on {2}', session.iid, now, was),
+    });
+    await choice?.run();
+  }
+
+  private async compareNewer(): Promise<void> {
+    const session = this.session;
+    if (session?.newer) await this.openInterdiff(session, current(session), session.newer);
+  }
+
+  /** Goes on to the newer version at the same file and line. */
+  private async switchToNewer(): Promise<void> {
+    const session = this.session;
+    if (!session?.newer) return;
     const shown = this.navigator.shownFile;
-    const path =
+    const filePath =
       shown && this.ownSets(session).includes(shown.changeSet)
         ? shown.changeSet.files[shown.index]?.path
         : undefined;
     const line = vscode.window.activeTextEditor?.selection.active.line;
-    this.end(false);
-    this.begin(renewed);
-    await this.reload();
-    renewed.auto = session.auto;
-    if (reopen && path !== undefined) {
-      const index = renewed.changeSet.files.findIndex((f) => f.path === path);
-      if (index >= 0) {
-        await this.navigator.open(renewed.changeSet, index, 'first', { line });
-        await this.looked(renewed);
-      }
-    }
-    return true;
+    const renewed = await this.renew(session);
+    if (!renewed || !renewed.changeSet.files.length) return;
+    const index = Math.max(
+      0,
+      renewed.changeSet.files.findIndex((f) => f.path === filePath),
+    );
+    await this.navigator.open(renewed.changeSet, index, 'first', { line: filePath ? line : undefined });
+    await this.looked(renewed);
+  }
+
+  /** Keeps the review on this version: the lenses go, the status bar keeps the newer one at hand. */
+  private stayOnVersion(): void {
+    const session = this.session;
+    if (!session?.newer) return;
+    session.dismissed = session.newer.headSha;
+    this.lensesChanged.fire();
   }
 
   /** The diffs of a review: the merge request, what changed since the last review, its earlier versions. */
@@ -882,6 +1091,25 @@ export class ReviewController implements vscode.Disposable {
     const start = position.lineRange?.start;
     const first = (onNew ? start?.newLine : start?.oldLine) ?? line;
     return uri ? { uri, range: new vscode.Range(Math.min(first, line) - 1, 0, line - 1, 0) } : undefined;
+  }
+
+  /** A discussion GitLab moved onto a newer version, at the same line of the version under review. */
+  private async backPlaceOf(session: Session, position: DiffPosition): Promise<Place | undefined> {
+    if (position.newLine === undefined) return undefined;
+    const file = session.files.find((f) => f.change.path === position.newPath);
+    if (!file?.right) return undefined;
+    const hunks = await session.repository
+      .hunks(position.headSha, session.refs.headSha, {
+        status: 'R',
+        path: file.change.path,
+        oldPath: position.newPath,
+      })
+      .catch(() => undefined);
+    const line = hunks && followLine(hunks, position.newLine);
+    if (!line) return undefined;
+    const start = position.lineRange?.start.newLine;
+    const first = (start !== undefined && followLine(hunks, start)) || line;
+    return { uri: file.right, range: new vscode.Range(Math.min(first, line) - 1, 0, line - 1, 0) };
   }
 
   /**
@@ -1198,6 +1426,7 @@ export class ReviewController implements vscode.Disposable {
   private end(forget = true): void {
     for (const thread of this.session?.threads ?? []) thread.dispose();
     this.session = undefined;
+    this.updateNewer();
     void vscode.commands.executeCommand('setContext', CONTEXT_KEY, false);
     if (forget) void this.workspaceState?.update(ACTIVE_KEY, undefined);
   }
@@ -1218,6 +1447,19 @@ function message(error: unknown): string {
 }
 
 type Place = { uri: vscode.Uri; range: vscode.Range };
+
+/** A version pushed after the one under review. */
+function isNewer(session: Session, head: string): boolean {
+  const number = session.numbers.get(head);
+  const own = session.numbers.get(session.refs.headSha);
+  return number !== undefined && own !== undefined && number > own;
+}
+
+/** `v3` when GitLab's number of the version is known, else its short head. */
+function versionName(session: Session, version: Version): string {
+  const number = session.numbers.get(version.headSha);
+  return number ? `v${number}` : version.headSha.slice(0, 8);
+}
 
 /** The version under review. */
 function current(session: Session): Version {

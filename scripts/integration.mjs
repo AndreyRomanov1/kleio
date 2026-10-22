@@ -82,7 +82,26 @@ const earlierSha = execFileSync(
     encoding: 'utf8',
   },
 ).trim();
-const gitlab = await startFakeGitLab({ baseSha: sha('HEAD~1'), headSha: sha('HEAD'), earlierSha });
+// A newer version, pushed during a review: line 10 changed on top of the branch.
+indexed('read-tree', 'HEAD');
+writeFileSync(
+  path.join(work, 'newer-a.txt'),
+  lines(30, { 5: 'changed 5', 10: 'third 10', 25: 'changed 25' }),
+);
+const newerBlob = execFileSync('git', ['hash-object', '-w', path.join(work, 'newer-a.txt')], {
+  cwd: repo,
+  encoding: 'utf8',
+}).trim();
+indexed('update-index', '--cacheinfo', `100644,${newerBlob},a.txt`);
+const newerSha = execFileSync(
+  'git',
+  ['commit-tree', indexed('write-tree'), '-p', 'HEAD', '-m', 'third version'],
+  {
+    cwd: repo,
+    encoding: 'utf8',
+  },
+).trim();
+const gitlab = await startFakeGitLab({ baseSha: sha('HEAD~1'), headSha: sha('HEAD'), earlierSha, newerSha });
 mkdirSync(path.join(work, 'user-data', 'User'), { recursive: true });
 writeFileSync(
   path.join(work, 'user-data', 'User', 'settings.json'),
@@ -113,6 +132,7 @@ const env = {
   KLEIO_TEST_GITLAB_ORIGIN: gitlab.origin,
   KLEIO_TEST_GITLAB_TOKEN: 'test-token',
   KLEIO_TEST_EARLIER_SHA: earlierSha,
+  KLEIO_TEST_NEWER_SHA: newerSha,
   ...(headless ? { WAYLAND_DISPLAY: undefined } : {}),
 };
 const status = await new Promise((resolve) => {

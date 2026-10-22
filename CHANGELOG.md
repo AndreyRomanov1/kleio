@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.24.0
+
+- A push no longer moves the review under you: while a diff of the merge request is open, the review stays
+  on its version, as a GitLab page does until it is reloaded. Above the diff a line offers the newer version —
+  "What changed v2 → v3", "Go to v3", "Finish v2", "Send drafts" — and the status bar keeps it at hand.
+  Without an open diff, or when the merge request is opened from the card or the log, the review is on the
+  latest version.
+- While on the earlier version, comments GitLab moved onto the newer one are shown at their lines of this
+  version when those lines did not change; the others are counted above the diff. Nothing changes in GitLab.
+- The tab of a review diff names its version: `MR !12 v2`, `!12 v1 → v2`.
+
 ## 0.23.0
 
 - No starting or ending a review: the merge request of the current branch has its comments in the code by

@@ -71,5 +71,9 @@
   "command.review.editComment": "Изменить",
   "command.review.deleteComment": "Удалить комментарий",
   "command.review.saveComment": "Сохранить",
-  "command.review.cancelEdit": "Отмена"
+  "command.review.cancelEdit": "Отмена",
+  "command.review.newVersion": "Новая версия MR…",
+  "command.review.compareNewer": "Сравнить с новой версией",
+  "command.review.switchToNewer": "Перейти на новую версию",
+  "command.review.stayOnVersion": "Досмотреть эту версию"
 }

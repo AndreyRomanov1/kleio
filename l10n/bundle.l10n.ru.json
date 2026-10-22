@@ -703,5 +703,15 @@
   "Compare": "Сравнить",
   "What changed since the version you looked at last": "Что изменилось с версии, которую вы смотрели последней",
   "New since v{0}": "Новое с v{0}",
-  "The changes of the merge request with its comments in the code": "Изменения MR с комментариями в коде"
+  "The changes of the merge request with its comments in the code": "Изменения MR с комментариями в коде",
+  "What changed {0} → {1}": "Что изменилось {0} → {1}",
+  "Go to {0}": "Перейти на {0}",
+  "!{0} has a new version {1}. You stay on {2} until you choose.": "У !{0} новая версия {1}. Вы остаётесь на {2}, пока не выберете.",
+  "new {0}": "есть {0}",
+  "A newer version of !{0}: choose what to do with it": "Новая версия !{0}: выберите, что с ней делать",
+  "New version {0}": "Новая версия {0}",
+  "Finish {0}": "Досмотреть {0}",
+  "Send drafts ({0})": "Отправить черновики ({0})",
+  "+{0} comments of {1}": "+{0} комментариев к {1}",
+  "!{0} has a new version {1}; you are on {2}": "У !{0} новая версия {1}; вы на {2}"
 }

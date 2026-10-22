@@ -2,7 +2,7 @@
 // drafts. It keeps what Kleio sends, and GET /__requests returns the recorded requests for assertions.
 import { createServer } from 'node:http';
 
-export async function startFakeGitLab({ baseSha, headSha, earlierSha }) {
+export async function startFakeGitLab({ baseSha, headSha, earlierSha, newerSha }) {
   const project = '/api/v4/projects/group%2Fproject';
   const requests = [];
   const discussions = [
@@ -54,9 +54,34 @@ export async function startFakeGitLab({ baseSha, headSha, earlierSha }) {
       ],
     },
   ];
+  // GitLab moved this one onto the newer version: it shows up once that version is pushed.
+  discussions.push({
+    id: 'on-newer',
+    individual_note: false,
+    notes: [
+      {
+        id: 4,
+        body: 'На новой версии',
+        author: { name: 'Reviewer', username: 'reviewer' },
+        created_at: '2026-01-03T12:00:00Z',
+        resolvable: true,
+        resolved: false,
+        position: {
+          base_sha: baseSha,
+          start_sha: baseSha,
+          head_sha: newerSha,
+          old_path: 'a.txt',
+          new_path: 'a.txt',
+          old_line: 20,
+          new_line: 20,
+        },
+      },
+    ],
+  });
   let drafts = [];
   // POST /__head makes a new version of the merge request, as a push does.
   let head = headSha;
+  const pushed = [earlierSha, headSha];
   let nextId = 100;
 
   const routes = {
@@ -82,12 +107,17 @@ export async function startFakeGitLab({ baseSha, headSha, earlierSha }) {
       approvals_required: 0,
       approvals_left: 0,
     }),
-    [`GET ${project}/merge_requests/1/discussions?per_page=100&page=1`]: () => discussions,
+    [`GET ${project}/merge_requests/1/discussions?per_page=100&page=1`]: () =>
+      discussions.filter((d) => !d.notes[0]?.position || pushed.includes(d.notes[0].position.head_sha)),
     [`GET ${project}/merge_requests/1/draft_notes`]: () => drafts,
-    [`GET ${project}/merge_requests/1/versions`]: () => [
-      { head_commit_sha: head, base_commit_sha: baseSha, created_at: '2026-01-02T09:00:00Z' },
-      { head_commit_sha: earlierSha, base_commit_sha: baseSha, created_at: '2026-01-01T11:00:00Z' },
-    ],
+    [`GET ${project}/merge_requests/1/versions`]: () =>
+      pushed
+        .map((sha, i) => ({
+          head_commit_sha: sha,
+          base_commit_sha: baseSha,
+          created_at: `2026-01-0${i + 1}T11:00:00Z`,
+        }))
+        .reverse(),
     [`POST ${project}/merge_requests/1/discussions`]: (body) => {
       const id = `d${nextId++}`;
       discussions.push({
@@ -134,6 +164,7 @@ export async function startFakeGitLab({ baseSha, headSha, earlierSha }) {
     const body = text ? JSON.parse(text) : undefined;
     if (req.url === '/__head') {
       head = body.headSha;
+      if (!pushed.includes(head)) pushed.push(head);
       res.end('{}');
       return;
     }

@@ -71,5 +71,9 @@
   "command.review.editComment": "Edit",
   "command.review.deleteComment": "Delete the Comment",
   "command.review.saveComment": "Save",
-  "command.review.cancelEdit": "Cancel"
+  "command.review.cancelEdit": "Cancel",
+  "command.review.newVersion": "Newer Version of the Merge Request…",
+  "command.review.compareNewer": "Compare with the Newer Version",
+  "command.review.switchToNewer": "Go to the Newer Version",
+  "command.review.stayOnVersion": "Finish This Version"
 }

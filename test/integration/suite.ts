@@ -388,28 +388,44 @@ const tests: Test[] = [
       assert.equal(left.selection.active.line, 4, 'the next comment is the earlier one on the left');
       assert.equal(shown(), '!1 since the last review');
 
-      // A push makes a new version: the review moves on to it, and the comment GitLab keeps on it is in the code.
+      // A push while the diff is open: the review stays on its version, offers the newer one above the diff and
+      // follows the comments GitLab moved onto it back to this version.
       const push = (sha: string) =>
         fetch(`${origin}/__head`, { method: 'POST', body: JSON.stringify({ headSha: sha }) });
       const current = (await repository.revParse('HEAD'))!;
+      const newer = process.env.KLEIO_TEST_NEWER_SHA!;
       await api.review.start(repository, 1, 'a.txt', 1);
-      await push(earlier);
+      const pinned = await waitFor(
+        () => (shown() === 'MR !1' ? activeDiff() : undefined),
+        'the merge request diff',
+      );
+      await push(newer);
       await vscode.commands.executeCommand('kleio.review.refresh');
-      const renewed = await waitFor(
+      const offer = await waitFor(async () => {
+        const lenses = await vscode.commands.executeCommand<vscode.CodeLens[]>(
+          'vscode.executeCodeLensProvider',
+          pinned.modified,
+        );
+        const titles = lenses.map((l) => l.command?.title ?? '').filter((title) => title.includes('v3'));
+        return titles.length ? titles : undefined;
+      }, 'the offer of the newer version');
+      assert.ok(offer.includes('Go to v3'), offer.join(' | '));
+      assert.equal(activeDiff()?.modified.toString(), pinned.modified.toString(), 'the diff stays');
+      const back = await waitFor(
         () =>
-          shown() === 'MR !1' && activeDiff()?.modified.toString().includes(earlier)
-            ? activeDiff()
-            : undefined,
-        'the diff of the new version',
+          api.review
+            .openThreads()
+            .find((t) => t.comments[0] === 'На новой версии' && t.uri === pinned.modified.toString()),
+        'the comment of the newer version on this one',
       );
-      const moved = await waitFor(
-        () => (outdated()?.uri === renewed.modified.toString() ? outdated() : undefined),
-        'the comment of the new version in the code',
+      assert.equal(back.line, 20);
+      await vscode.commands.executeCommand('kleio.review.switchToNewer');
+      await waitFor(
+        () => (activeDiff()?.modified.toString().includes(newer) ? true : undefined),
+        'the diff of the newer version',
       );
-      assert.equal(moved.line, 5);
-      assert.equal(moved.label, undefined);
       await push(current);
-      await vscode.commands.executeCommand('kleio.review.refresh');
+      await api.review.start(repository, 1, 'a.txt', 1);
 
       // Any two versions compare, as from the card; the comments of the earlier one stand on its left.
       const base = (await repository.revParse('HEAD~1'))!;
@@ -420,7 +436,7 @@ const tests: Test[] = [
         { baseSha: base, headSha: current },
       );
       const compared = await waitFor(
-        () => (shown() === '!1 since the last review' ? activeDiff() : undefined),
+        () => (shown() === '!1: v1 → v2' ? activeDiff() : undefined),
         'the comparison of two versions',
       );
       await waitFor(
