@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.22.1
+
+- After a push the open review moves on to the new version of the merge request, as GitLab reviews the
+  latest one: on refresh, after a comment is sent or when the card opens a comment. The file shown stays
+  shown, and what changed since the version reviewed so far is offered. Comments GitLab moved onto the new
+  version are in the code again, and the card opens them there.
+
 ## 0.22.0
 
 - Outdated discussions are in the code of the version of the merge request they were made on: the card opens

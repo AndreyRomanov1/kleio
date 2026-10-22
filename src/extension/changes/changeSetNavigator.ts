@@ -177,6 +177,11 @@ export class ChangeSetNavigator implements vscode.Disposable {
     return this.current?.changeSet;
   }
 
+  /** The file of a change set shown last. */
+  get shownFile(): ChangeSetFile | undefined {
+    return this.current && { changeSet: this.current.changeSet, index: this.current.index };
+  }
+
   /** The file of a change set an editor shows, on either side of the diff. */
   fileOf(uri: vscode.Uri): ChangeSetFile | undefined {
     const current = this.current;

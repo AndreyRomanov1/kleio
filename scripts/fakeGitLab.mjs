@@ -55,6 +55,8 @@ export async function startFakeGitLab({ baseSha, headSha, earlierSha }) {
     },
   ];
   let drafts = [];
+  // POST /__head makes a new version of the merge request, as a push does.
+  let head = headSha;
   let nextId = 100;
 
   const routes = {
@@ -73,7 +75,7 @@ export async function startFakeGitLab({ baseSha, headSha, earlierSha }) {
       detailed_merge_status: 'mergeable',
       user_notes_count: 1,
       head_pipeline: null,
-      diff_refs: { base_sha: baseSha, start_sha: baseSha, head_sha: headSha },
+      diff_refs: { base_sha: baseSha, start_sha: baseSha, head_sha: head },
     }),
     [`GET ${project}/merge_requests/1/approvals`]: () => ({
       approved_by: [],
@@ -126,6 +128,11 @@ export async function startFakeGitLab({ baseSha, headSha, earlierSha }) {
     let text = '';
     for await (const chunk of req) text += chunk;
     const body = text ? JSON.parse(text) : undefined;
+    if (req.url === '/__head') {
+      head = body.headSha;
+      res.end('{}');
+      return;
+    }
     if (req.url === '/__requests') {
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify(requests));

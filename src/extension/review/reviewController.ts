@@ -58,6 +58,8 @@ interface Session {
   discussions: WeakMap<vscode.CommentThread, string>;
   /** Diffs of earlier versions of the merge request by `base..head`, for its outdated discussions. */
   versions: Map<string, Promise<ChangeSet | undefined>>;
+  /** The diffs worked out for the review besides the merge request: since the last review, earlier versions. */
+  loadedSets: ChangeSet[];
   /** Outdated discussions by id: where they were made. */
   outdated: Map<string, DiffPosition>;
   /** The version reviewed last time, when the merge request has changed since then. */
@@ -217,6 +219,8 @@ export class ReviewController implements vscode.Disposable {
       this.end();
       this.begin(session);
       await this.reload();
+    } else if (this.session) {
+      await this.renewIfUpdated(this.session, false);
     }
     const session = this.session!;
     const outdated = discussion === undefined ? undefined : session.outdated.get(discussion);
@@ -359,6 +363,7 @@ export class ReviewController implements vscode.Disposable {
       files,
       rightUris: session.changeSet.rightUris,
     };
+    session.loadedSets.push(set);
     return { set, left, files, conflicted };
   }
 
@@ -386,13 +391,15 @@ export class ReviewController implements vscode.Disposable {
       await repository.git.run(['fetch', remote, ...shas], { timeoutMs: 120_000 }).catch(() => undefined);
       if (await missing()) return undefined;
     }
-    return {
+    const set: ChangeSet = {
       repository,
       title: t('!{0}, version {1}', session.iid, position.headSha.slice(0, 8)),
       left: position.baseSha,
       right: position.headSha,
       files: await repository.changes(position.baseSha, position.headSha),
     };
+    session.loadedSets.push(set);
+    return set;
   }
 
   /** Opens an outdated discussion in the version of the merge request it was made on. */
@@ -545,6 +552,7 @@ export class ReviewController implements vscode.Disposable {
         .catch(() => undefined),
       sending: new WeakSet(),
       versions: new Map(),
+      loadedSets: [],
       outdated: new Map(),
       iid,
       label,
@@ -584,7 +592,7 @@ export class ReviewController implements vscode.Disposable {
 
   private async reload(): Promise<void> {
     const session = this.session;
-    if (!session) return;
+    if (!session || (await this.renewIfUpdated(session, true))) return;
     let discussions: Discussion[];
     let drafts: DraftNote[];
     try {
@@ -676,6 +684,41 @@ export class ReviewController implements vscode.Disposable {
     if (outdated && !notes[0].resolved) thread.label = t('On the earlier version');
     session.discussions.set(thread, discussionId);
     session.threads.push(thread);
+  }
+
+  /**
+   * GitLab reviews the latest version of a merge request, and comments made on an earlier one are moved onto it.
+   * After a push the review moves on to the new version as well, the file shown stays shown, and what changed
+   * since the version reviewed so far is offered.
+   */
+  private async renewIfUpdated(session: Session, reopen: boolean): Promise<boolean> {
+    const head = await session.api
+      .mergeRequest(session.iid)
+      .then((details) => details.diffRefs?.headSha)
+      .catch(() => undefined);
+    if (!head || head === session.refs.headSha || session !== this.session) return false;
+    const renewed = await this.createSession(session.repository, session.iid, true).catch(() => undefined);
+    if (!renewed || session !== this.session) return false;
+    const shown = this.navigator.shownFile;
+    const path =
+      shown && this.ownSets(session).includes(shown.changeSet)
+        ? shown.changeSet.files[shown.index]?.path
+        : undefined;
+    const line = vscode.window.activeTextEditor?.selection.active.line;
+    this.end(false);
+    this.begin(renewed);
+    await this.reload();
+    if (reopen && path !== undefined) {
+      const index = renewed.changeSet.files.findIndex((f) => f.path === path);
+      if (index >= 0) await this.navigator.open(renewed.changeSet, index, 'first', { line });
+    }
+    if (renewed.changed) this.offerSinceLastReview(renewed);
+    return true;
+  }
+
+  /** The diffs of a review: the merge request, what changed since the last review, its earlier versions. */
+  private ownSets(session: Session): ChangeSet[] {
+    return [session.changeSet, ...session.loadedSets];
   }
 
   private placeOf(

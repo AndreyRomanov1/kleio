@@ -388,6 +388,29 @@ const tests: Test[] = [
       assert.equal(left.selection.active.line, 4, 'the next comment is the earlier one on the left');
       assert.equal(shown(), '!1 since the last review');
 
+      // A push makes a new version: the review moves on to it, and the comment GitLab keeps on it is in the code.
+      const push = (sha: string) =>
+        fetch(`${origin}/__head`, { method: 'POST', body: JSON.stringify({ headSha: sha }) });
+      const current = (await repository.revParse('HEAD'))!;
+      await api.review.start(repository, 1, 'a.txt', 1);
+      await push(earlier);
+      await vscode.commands.executeCommand('kleio.review.refresh');
+      const renewed = await waitFor(
+        () =>
+          shown() === 'MR !1' && activeDiff()?.modified.toString().includes(earlier)
+            ? activeDiff()
+            : undefined,
+        'the diff of the new version',
+      );
+      const moved = await waitFor(
+        () => (outdated()?.uri === renewed.modified.toString() ? outdated() : undefined),
+        'the comment of the new version in the code',
+      );
+      assert.equal(moved.line, 5);
+      assert.equal(moved.label, undefined);
+      await push(current);
+      await vscode.commands.executeCommand('kleio.review.refresh');
+
       await vscode.commands.executeCommand('kleio.review.openJournal');
       const journal = vscode.window.activeTextEditor!.document.getText();
       assert.match(journal, /"text":"Изменённая строка"/);
