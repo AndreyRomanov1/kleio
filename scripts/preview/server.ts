@@ -412,6 +412,10 @@ async function handle(repository: Repository, message: WebviewMessage): Promise<
                 await api.draftNotes(message.number).catch(() => []),
                 details.diffRefs?.headSha,
               ),
+              // The preview has no memory of looked-at versions: the first one is shown as looked at.
+              versions: [...(await api.versions(message.number).catch(() => []))]
+                .reverse()
+                .map((v, i) => ({ ...v, seen: i === 0 })),
             },
           },
         ];

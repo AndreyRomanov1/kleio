@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.23.0
+
+- No starting or ending a review: the merge request of the current branch has its comments in the code by
+  itself (its upstream is the head of the merge request, so local commits do not break it), and new
+  comments and versions come in when the window gets focus again. "End review" is gone from the menus.
+- The card shows the versions of a merge request, one per push, with those you looked at marked; any two
+  compare, a single one opens as GitLab showed it, and "New since vN" shows what changed since the version
+  you looked at last. A version counts as looked at once its diff is shown, not when comments load.
+- "Changes of the branch" in the branch menu: from where it left the target of its merge request (the lower
+  branch of a stack) or the default branch; "Show changes" of a commit or of several selected ones.
+
 ## 0.22.1
 
 - After a push the open review moves on to the new version of the merge request, as GitLab reviews the

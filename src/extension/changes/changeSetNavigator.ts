@@ -123,14 +123,16 @@ export class ChangeSetNavigator implements vscode.Disposable {
   /**
    * After a reload the editor brings the diff tab back, but Kleio has forgotten what it belongs to: the saved
    * change set is taken up again when the restored tab is its file, so F7 and the file list work on.
-   * `changeSet` is the same set known again by its owner, e.g. a review restored with its comments.
+   * `known` are sets their owner knows again, e.g. a review restored with its comments, to take up the same one.
    */
-  async restore(repositories: RepositoryManager, changeSet?: ChangeSet): Promise<void> {
+  async restore(repositories: RepositoryManager, known: readonly ChangeSet[] = []): Promise<void> {
     const saved = this.state?.get<SavedChangeSet>(SHOWN_KEY);
     if (!saved || this.current) return;
     const repository = await repositories.get(saved.root);
     if (!repository) return;
-    const set: ChangeSet = changeSet ?? {
+    const set: ChangeSet = known.find(
+      (s) => s.title === saved.title && s.left === saved.left && s.right === saved.right,
+    ) ?? {
       repository,
       title: saved.title,
       left: saved.left,
@@ -160,7 +162,7 @@ export class ChangeSetNavigator implements vscode.Disposable {
         this.waitingForTabs = true;
         const listener = vscode.window.tabGroups.onDidChangeTabs(() => {
           listener.dispose();
-          void this.restore(repositories, changeSet);
+          void this.restore(repositories, known);
         });
         setTimeout(() => listener.dispose(), 30_000);
       }

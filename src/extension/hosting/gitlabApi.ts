@@ -21,6 +21,8 @@ export interface MergeRequestSummary {
   state: 'opened' | 'closed' | 'locked' | 'merged';
   draft: boolean;
   webUrl: string;
+  /** The branch it is to be merged into, e.g. a lower branch of a stack. */
+  targetBranch?: string;
 }
 
 export interface MergedMergeRequest extends MergeRequestSummary {
@@ -381,6 +383,18 @@ export class GitLabApi {
     );
   }
 
+  /** The versions of the merge request's diff, the newest first: one for each push. */
+  async versions(iid: number): Promise<{ headSha: string; baseSha: string; createdAt: string }[]> {
+    const raw = await this.get<{ head_commit_sha: string; base_commit_sha: string; created_at: string }[]>(
+      `${this.projectPath}/merge_requests/${iid}/versions`,
+    );
+    return raw.map((v) => ({
+      headSha: v.head_commit_sha,
+      baseSha: v.base_commit_sha,
+      createdAt: v.created_at,
+    }));
+  }
+
   async draftNotes(iid: number): Promise<DraftNote[]> {
     const raw = await this.get<RawDraftNote[]>(`${this.projectPath}/merge_requests/${iid}/draft_notes`);
     return raw.map((d) => ({
@@ -635,5 +649,6 @@ function summary(raw: RawMergeRequest): MergeRequestSummary {
     state: raw.state,
     draft: !!(raw.draft ?? raw.work_in_progress),
     webUrl: raw.web_url,
+    targetBranch: raw.target_branch,
   };
 }

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import type { LogQuery, RepositorySnapshot } from '../../shared/model';
-import type { ChangeSetView, HostMessage, WebviewMessage } from '../../shared/protocol';
+import type { LogQuery, Ref, RepositorySnapshot } from '../../shared/model';
+import type { ChangeSetView, HostMessage, MergeRequestCardView, WebviewMessage } from '../../shared/protocol';
 import type { GitActions } from '../actions/gitActions';
 import type { SyncActions } from '../actions/syncActions';
 import { commitChangeSet, describeRange, rangeChangeSet, type ChangeSet } from '../changes/changeSet';
@@ -166,6 +166,15 @@ export class LogController implements vscode.Disposable {
             message.projectId,
           );
         return;
+      case 'compareVersions':
+        if (this.repository)
+          await this.services.review.compareVersions(
+            this.repository,
+            message.number,
+            message.from,
+            message.to,
+          );
+        return;
       case 'startReview':
         if (this.repository)
           await this.services.review.start(
@@ -258,6 +267,7 @@ export class LogController implements vscode.Disposable {
           if (message.action === 'savePatch') return this.services.actions.savePatch(this.repository, hashes);
           return this.services.sync.cherryPick(this.repository, ...hashes);
         }
+        if (message.action === 'showChanges') return this.openRangeDiff(message.hashes);
         if (message.action === 'squash')
           return this.services.rebase.open(this.repository, { kind: 'squash', hashes: message.hashes });
         return this.services.rebase.drop(this.repository, message.hashes);
@@ -357,9 +367,32 @@ export class LogController implements vscode.Disposable {
           pipelines: hosting?.pipelines ?? {},
         },
       });
+      if (!this.history && hosting?.links?.kind === 'gitlab' && hosting.api === 'available')
+        void this.services.review.follow(repository, this.currentMergeRequest(hosting));
     } catch {
       // Hosting details are an extra; the log works without them.
     }
+  }
+
+  /**
+   * The open merge request of the current branch: the one whose head the branch's upstream is at, as the
+   * agent's local commits move the branch itself ahead of it.
+   */
+  private currentMergeRequest(hosting: {
+    mergeRequests: Record<string, number[]>;
+    mergeRequestInfo: Record<number, { state: string }>;
+  }): number | undefined {
+    const snapshot = this.snapshot;
+    const branch = snapshot?.head.branch;
+    if (!snapshot || !branch) return undefined;
+    const local = snapshot.refs.find((r) => r.kind === 'head' && r.name === branch);
+    const upstream = local?.upstream ? snapshot.refs.find((r) => r.fullName === local.upstream) : undefined;
+    for (const hash of [upstream?.hash, local?.hash]) {
+      if (!hash) continue;
+      const iid = hosting.mergeRequests[hash]?.find((n) => hosting.mergeRequestInfo[n]?.state === 'opened');
+      if (iid !== undefined) return iid;
+    }
+    return undefined;
   }
 
   /** Always answers, so the log does not wait forever; without access or on an error it stops asking. */
@@ -376,11 +409,22 @@ export class LogController implements vscode.Disposable {
     });
   }
 
+  private async versions(repository: Repository, number: number): Promise<MergeRequestCardView['versions']> {
+    const api = await this.services.hosting.gitlab(repository, false).catch(() => undefined);
+    const versions = await api?.versions(number).catch(() => undefined);
+    if (!versions) return undefined;
+    const seen = new Set(await this.services.review.seenHeads(repository, number));
+    return [...versions].reverse().map((v) => ({ ...v, seen: seen.has(v.headSha) }));
+  }
+
   private async loadCard(number: number): Promise<void> {
     const repository = this.repository;
     if (!repository) return;
     const result = await this.services.cards.card(repository, number);
-    if ('card' in result) result.card.reviewing = this.services.review.activeMergeRequest === number;
+    if ('card' in result) {
+      result.card.reviewing = this.services.review.activeMergeRequest === number;
+      if (result.card.kind !== 'github') result.card.versions = await this.versions(repository, number);
+    }
     this.post({ type: 'mergeRequestCard', number, ...result });
   }
 
@@ -468,6 +512,45 @@ export class LogController implements vscode.Disposable {
     return index < 0 ? undefined : index;
   }
 
+  /**
+   * What a branch changes, as its merge request shows it: from where it left the branch it goes into — the
+   * target of its open merge request, e.g. the lower branch of a stack, or else the default branch.
+   */
+  private async branchTarget(repository: Repository, ref: Ref): Promise<string | undefined> {
+    const hosting = await this.services.hosting.hosting(repository, false).catch(() => undefined);
+    const iid = hosting?.mergeRequests[ref.hash]?.find(
+      (n) => hosting.mergeRequestInfo[n]?.state === 'opened',
+    );
+    const target = iid === undefined ? undefined : hosting?.mergeRequestInfo[iid]?.targetBranch;
+    const candidates = [
+      ...(target ? [`${hosting?.remoteName ?? 'origin'}/${target}`, target] : []),
+      ...(hosting?.defaultBranch ? [hosting.defaultBranch] : []),
+      'origin/main',
+      'origin/master',
+      'main',
+      'master',
+    ].filter((name) => name !== ref.name);
+    for (const name of candidates) if (await repository.revParse(name)) return name;
+    return undefined;
+  }
+
+  /** The changes of several commits together: from the parent of the oldest to the newest. */
+  private async openRangeDiff(hashes: string[]): Promise<void> {
+    const repository = this.repository;
+    if (!repository || !hashes.length) return;
+    const order = new Map(this.snapshot?.commits.map((c, i) => [c.hash, i]));
+    const sorted = [...hashes].sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
+    const newest = sorted[0];
+    const oldest = await repository.commitDetails(sorted[sorted.length - 1]);
+    const changeSet = await rangeChangeSet(
+      repository,
+      oldest.parents[0],
+      newest,
+      t('Commits {0}…{1}', oldest.hash.slice(0, 8), newest.slice(0, 8)),
+    );
+    return this.openChangeSet(changeSet);
+  }
+
   private async openCommitDiff(hash: string): Promise<void> {
     const repository = this.repository;
     if (!repository) return;
@@ -547,6 +630,8 @@ export class LogController implements vscode.Disposable {
         return;
       case 'savePatch':
         return this.services.actions.savePatch(repository, [hash]);
+      case 'showChanges':
+        return this.openCommitDiff(hash);
       case 'copySubject': {
         const details = await repository.commitDetails(hash);
         await vscode.env.clipboard.writeText(details.message.split('\n')[0]);
@@ -595,6 +680,23 @@ export class LogController implements vscode.Disposable {
           repository,
           ref.kind === 'remote' ? ref : snapshot.refs.find((r) => r.fullName === ref.upstream),
         );
+      case 'showBranchChanges': {
+        const target = await this.branchTarget(repository, ref);
+        if (!target) {
+          void vscode.window.showWarningMessage(
+            t('Kleio: the branch to compare {0} with is unknown.', ref.name),
+          );
+          return;
+        }
+        const base = (await repository.git.run(['merge-base', target, ref.hash])).trim();
+        const changeSet = await rangeChangeSet(
+          repository,
+          base,
+          ref.name,
+          t('{0} since {1}', ref.name, target),
+        );
+        return this.openChangeSet(changeSet);
+      }
       case 'showDiffWithCurrent': {
         const head = snapshot.head.branch ?? snapshot.head.hash;
         if (!head) return;

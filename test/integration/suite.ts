@@ -411,11 +411,41 @@ const tests: Test[] = [
       await push(current);
       await vscode.commands.executeCommand('kleio.review.refresh');
 
+      // Any two versions compare, as from the card; the comments of the earlier one stand on its left.
+      const base = (await repository.revParse('HEAD~1'))!;
+      await api.review.compareVersions(
+        repository,
+        1,
+        { baseSha: base, headSha: earlier },
+        { baseSha: base, headSha: current },
+      );
+      const compared = await waitFor(
+        () => (shown() === '!1 since the last review' ? activeDiff() : undefined),
+        'the comparison of two versions',
+      );
+      await waitFor(
+        () =>
+          api.review
+            .openThreads()
+            .find((t) => t.uri === compared.original.toString() && t.comments[0] === 'Поменяй пятую строку'),
+        'the comment of the earlier version on its left',
+      );
+
       await vscode.commands.executeCommand('kleio.review.openJournal');
       const journal = vscode.window.activeTextEditor!.document.getText();
       assert.match(journal, /"text":"Изменённая строка"/);
       assert.match(journal, /"status":"sent"/);
       await vscode.commands.executeCommand('kleio.review.end');
+
+      // The merge request of the current branch has its comments in the code with nothing to start or end.
+      await api.review.follow(repository, 1);
+      assert.equal(api.review.activeMergeRequest, 1);
+      await waitFor(
+        () => (api.review.openThreads().length ? true : undefined),
+        'comments of the followed request',
+      );
+      await api.review.follow(repository, undefined);
+      assert.equal(api.review.activeMergeRequest, undefined);
     },
   ],
   [

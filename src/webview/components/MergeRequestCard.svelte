@@ -36,6 +36,38 @@
     return Number.isNaN(date.getTime()) ? '' : timeFormat.format(date);
   }
 
+  // Versions to compare, by index among the versions of the card: -1 is the base of the merge request.
+  let from = $state(-1);
+  let to = $state(0);
+  const versions = $derived(store.card?.card?.versions ?? []);
+  const lastSeen = $derived.by(() => {
+    for (let i = versions.length - 1; i >= 0; i--) if (versions[i].seen) return i;
+    return -1;
+  });
+  $effect(() => {
+    const count = versions.length;
+    to = count - 1;
+    from = lastSeen >= 0 && lastSeen < count - 1 ? lastSeen : count - 2;
+  });
+
+  function compare(fromIndex: number, toIndex: number): void {
+    const number = store.card?.number;
+    const target = versions[toIndex];
+    if (!number || !target) return;
+    const version = (v: (typeof versions)[number]) => ({ baseSha: v.baseSha, headSha: v.headSha });
+    post({
+      type: 'compareVersions',
+      number,
+      from: fromIndex >= 0 && versions[fromIndex] ? version(versions[fromIndex]) : undefined,
+      to: version(target),
+    });
+  }
+
+  function versionTitle(v: (typeof versions)[number], i: number): string {
+    const what = `v${i + 1} · ${v.headSha.slice(0, 8)} · ${formatTime(v.createdAt)}`;
+    return v.seen ? `${what} · ${t('you looked at it')}` : what;
+  }
+
   const current = $derived(store.card);
   const card = $derived(current?.card);
   const github = $derived(store.hosting?.kind === 'github');
@@ -158,6 +190,49 @@
         <div class="section muted">{github ? t('No checks') : t('No pipeline')}</div>
       {/if}
 
+      {#if versions.length > 1}
+        <div class="section">
+          <div class="label">
+            {t('Versions')}
+            <span class="muted">· {t('one for each push; the eye marks those you looked at')}</span>
+          </div>
+          <div class="versions">
+            {#each versions as v, i (v.headSha)}
+              <button
+                class="version"
+                class:seen={v.seen}
+                title={versionTitle(v, i) + '\n' + t('Open this version as GitLab showed it')}
+                onclick={() => compare(-1, i)}
+                >v{i + 1}{#if v.seen}<i class="codicon codicon-eye"></i>{/if}</button
+              >
+            {/each}
+          </div>
+          <div class="compare">
+            <select bind:value={from} aria-label={t('From version')}>
+              <option value={-1}>{t('base')}</option>
+              {#each versions as v, i (v.headSha)}
+                <option value={i} disabled={i >= to}>v{i + 1}{v.seen ? ' ✓' : ''}</option>
+              {/each}
+            </select>
+            →
+            <select bind:value={to} aria-label={t('To version')}>
+              {#each versions as v, i (v.headSha)}
+                <option value={i} disabled={i <= from}>v{i + 1}{v.seen ? ' ✓' : ''}</option>
+              {/each}
+            </select>
+            <button class="small" onclick={() => compare(from, to)}>{t('Compare')}</button>
+            {#if lastSeen >= 0 && lastSeen < versions.length - 1}
+              <button
+                class="small"
+                title={t('What changed since the version you looked at last')}
+                onclick={() => compare(lastSeen, versions.length - 1)}
+                >{t('New since v{0}', lastSeen + 1)}</button
+              >
+            {/if}
+          </div>
+        </div>
+      {/if}
+
       {#if card.discussions}
         {@const d = card.discussions}
         {@const open = d.threads.filter((th) => !th.outdated && !(th.resolvable && th.resolved))}
@@ -264,9 +339,9 @@
           class="primary"
           title={github
             ? t('The changes of the pull request in the diff viewer; comments in the code stay on GitHub')
-            : ''}
+            : t('The changes of the merge request with its comments in the code')}
           onclick={() => post({ type: 'startReview', number: card.iid })}
-          ><i class="codicon codicon-eye"></i> {card.reviewing ? t('Review is open') : t('Review')}</button
+          ><i class="codicon codicon-eye"></i> {t('Review')}</button
         >
         {#if card.state === 'opened' && !(github && card.approvedByMe)}
           <button
@@ -544,5 +619,35 @@
   .actions .primary {
     background: var(--vscode-button-background);
     color: var(--vscode-button-foreground);
+  }
+  .versions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 2px 0 4px;
+  }
+  .version {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 6px;
+    border: 1px solid var(--vscode-widget-border, transparent);
+    border-radius: 3px;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+  .version:hover {
+    background: var(--vscode-toolbar-hoverBackground);
+  }
+  .version.seen {
+    border-color: var(--vscode-focusBorder);
+  }
+  .compare {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
   }
 </style>

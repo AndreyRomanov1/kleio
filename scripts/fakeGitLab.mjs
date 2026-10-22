@@ -84,6 +84,10 @@ export async function startFakeGitLab({ baseSha, headSha, earlierSha }) {
     }),
     [`GET ${project}/merge_requests/1/discussions?per_page=100&page=1`]: () => discussions,
     [`GET ${project}/merge_requests/1/draft_notes`]: () => drafts,
+    [`GET ${project}/merge_requests/1/versions`]: () => [
+      { head_commit_sha: head, base_commit_sha: baseSha, created_at: '2026-01-02T09:00:00Z' },
+      { head_commit_sha: earlierSha, base_commit_sha: baseSha, created_at: '2026-01-01T11:00:00Z' },
+    ],
     [`POST ${project}/merge_requests/1/discussions`]: (body) => {
       const id = `d${nextId++}`;
       discussions.push({

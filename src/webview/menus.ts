@@ -19,9 +19,23 @@ export function commitMenu(commit: Commit, store: LogStore): MenuEntry[] {
     icon: refIcons[ref.kind],
     submenu: refMenu(ref, store),
   }));
+  const selection = store.selected.has(hash) ? [...store.selected] : [hash];
   return [
     ...branchEntries,
     ...(branchEntries.length ? (['separator'] as const) : []),
+    selection.length > 1
+      ? {
+          label: t('Show changes of {0} commits', selection.length),
+          icon: 'diff',
+          run: () => post({ type: 'commitsAction', action: 'showChanges', hashes: selection }),
+        }
+      : {
+          label: t('Show changes'),
+          icon: 'diff',
+          hint: t('double-click'),
+          run: action({ type: 'commitAction', action: 'showChanges', hash }),
+        },
+    'separator',
     { label: t('Copy hash'), run: action({ type: 'commitAction', action: 'copyHash', hash }) },
     { label: t('Copy subject'), run: action({ type: 'commitAction', action: 'copySubject', hash }) },
     ...(store.history
@@ -181,6 +195,15 @@ export function refMenu(ref: Ref, store: LogStore): MenuEntry[] {
     'separator',
     ...syncEntries(ref, store, isCurrent),
     'separator',
+    ...(ref.kind === 'tag'
+      ? []
+      : [
+          {
+            label: t('Changes of the branch'),
+            icon: 'diff',
+            run: run({ type: 'refAction', action: 'showBranchChanges', fullName }),
+          },
+        ]),
     {
       label: t('Compare with the current branch'),
       disabled: isCurrent,

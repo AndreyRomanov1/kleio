@@ -30,7 +30,8 @@ export type CommitAction =
   | 'interactiveRebase'
   | 'reword'
   | 'fixupIntoParent'
-  | 'savePatch';
+  | 'savePatch'
+  | 'showChanges';
 
 export type RefAction =
   | 'checkout'
@@ -39,6 +40,7 @@ export type RefAction =
   | 'deleteRemoteBranch'
   | 'fetchBranch'
   | 'showDiffWithCurrent'
+  | 'showBranchChanges'
   | 'copyName'
   | 'openInHosting'
   | 'createMergeRequest'
@@ -122,6 +124,8 @@ export interface MergeRequestCardView {
   discussions?: DiscussionsView;
   /** Whether this merge request is open for review in the diff viewer right now. */
   reviewing?: boolean;
+  /** Versions of a GitLab merge request, the oldest first: one for each push; `seen` ones you looked at. */
+  versions?: { headSha: string; baseSha: string; createdAt: string; seen: boolean }[];
   /** Whether the current GitLab user has approved it. */
   approvedByMe?: boolean;
 }
@@ -221,7 +225,11 @@ export type WebviewMessage =
   | { type: 'fileAction'; action: FileAction; changeSetId: number; index: number }
   | { type: 'commitAction'; action: CommitAction; hash: string }
   /** Rewrites several commits of the current branch at once. */
-  | { type: 'commitsAction'; action: 'squash' | 'drop' | 'cherryPick' | 'savePatch'; hashes: string[] }
+  | {
+      type: 'commitsAction';
+      action: 'squash' | 'drop' | 'cherryPick' | 'savePatch' | 'showChanges';
+      hashes: string[];
+    }
   | { type: 'refAction'; action: RefAction; fullName: string }
   | { type: 'openWorktree'; path: string; newWindow: boolean }
   | { type: 'openUrl'; url: string }
@@ -236,6 +244,13 @@ export type WebviewMessage =
   | { type: 'openJobLog'; jobId: number; name: string; projectId?: number }
   | { type: 'retryPipeline'; pipelineId: number; number: number }
   | { type: 'startReview'; number: number; path?: string; line?: number; discussion?: string }
+  | {
+      type: 'compareVersions';
+      number: number;
+      /** Absent: the version `to` alone, against its base. */
+      from?: { baseSha: string; headSha: string };
+      to: { baseSha: string; headSha: string };
+    }
   | { type: 'postComment'; number: number; body: string; draft: boolean }
   | { type: 'publishDrafts'; number: number }
   | { type: 'approveMergeRequest'; number: number; approve: boolean }

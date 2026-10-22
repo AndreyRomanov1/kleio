@@ -28,6 +28,9 @@ const CONTEXT_KEY = 'kleio.reviewActive';
 /** The version of each merge request reviewed last, to show what changed since then. */
 const SEEN_KEY = 'kleio.review.seen';
 const SEEN_LIMIT = 300;
+const SEEN_VERSIONS = 50;
+/** New comments and versions are looked for at most this often without a click. */
+const REFRESH_MS = 30_000;
 /** The review open in this workspace, to bring it back after a reload of the window. */
 const ACTIVE_KEY = 'kleio.review.active';
 
@@ -62,12 +65,15 @@ interface Session {
   loadedSets: ChangeSet[];
   /** Outdated discussions by id: where they were made. */
   outdated: Map<string, DiffPosition>;
-  /** The version reviewed last time, when the merge request has changed since then. */
+  /** The version looked at last before this one, to show what changed since then. */
   previous?: Version;
-  /** The merge request has changed since it was opened for review last time, not just reopened. */
+  /** The merge request has a version you have not looked at yet. */
   changed: boolean;
-  /** What changed since the last review, worked out once. */
-  since?: Promise<SinceLastReview | undefined>;
+  /** Diffs between two versions by `from..to`, each worked out once. */
+  interdiffs: Map<string, Promise<Interdiff | undefined>>;
+  loadedInterdiffs: Interdiff[];
+  /** Taken up by itself as the merge request of the current branch, not opened by hand. */
+  auto: boolean;
 }
 
 interface Version {
@@ -75,9 +81,14 @@ interface Version {
   headSha: string;
 }
 
-/** The view of what changed since the last review: the earlier version, moved onto the new base if rebased. */
-interface SinceLastReview {
+/**
+ * What changed from one version of a merge request to another, as GitLab compares versions: after a rebase the
+ * earlier changes are first moved onto the new base, so that what came from the target branch is not shown
+ * as the author's work.
+ */
+interface Interdiff {
   set: ChangeSet;
+  from: Version;
   left: string;
   files: FileChange[];
   /** The earlier version did not move onto the new base, and the diff has the changes of the rebase. */
@@ -121,6 +132,8 @@ class ReviewComment implements vscode.Comment {
  */
 export class ReviewController implements vscode.Disposable {
   private session?: Session;
+  private following = false;
+  private reloadedAt = 0;
   private readonly comments: vscode.CommentController;
   private readonly disposables: vscode.Disposable[];
 
@@ -178,6 +191,9 @@ export class ReviewController implements vscode.Disposable {
       vscode.commands.registerCommand('kleio.review.openJournal', () => this.journal.open()),
       vscode.commands.registerCommand('kleio.review.nextComment', () => this.moveToComment(1)),
       vscode.commands.registerCommand('kleio.review.previousComment', () => this.moveToComment(-1)),
+      vscode.window.onDidChangeWindowState((state) => {
+        if (state.focused) void this.refreshQuietly();
+      }),
     ];
   }
 
@@ -208,20 +224,7 @@ export class ReviewController implements vscode.Disposable {
   ): Promise<void> {
     if ((await this.hosting.known(repository))?.links?.kind === 'github')
       return this.openPullRequest(repository, iid, filePath, line);
-    let started = false;
-    if (this.session?.iid !== iid || this.session.repository !== repository) {
-      started = true;
-      const session = await vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Notification, title: t('Kleio: review of !{0}', iid) },
-        () => this.createSession(repository, iid),
-      );
-      if (!session) return;
-      this.end();
-      this.begin(session);
-      await this.reload();
-    } else if (this.session) {
-      await this.renewIfUpdated(this.session, false);
-    }
+    if (!(await this.ensureSession(repository, iid))) return;
     const session = this.session!;
     const outdated = discussion === undefined ? undefined : session.outdated.get(discussion);
     if (outdated && (await this.openOutdated(session, outdated))) return;
@@ -235,7 +238,73 @@ export class ReviewController implements vscode.Disposable {
     await this.navigator.open(session.changeSet, Math.max(0, index), 'first', {
       line: line === undefined ? undefined : line - 1,
     });
-    if (started && session.changed) this.offerSinceLastReview(session);
+    await this.looked(session);
+  }
+
+  /**
+   * The diff of the merge request is shown: its version counts as looked at, and a version new to you offers
+   * what changed since the one you looked at before.
+   */
+  private async looked(session: Session): Promise<void> {
+    const isNew = this.seenOf(session.label).at(-1)?.headSha !== session.refs.headSha;
+    await this.markSeen(session.label, current(session));
+    if (isNew && session.previous) this.offerSinceLastReview(session);
+  }
+
+  /** A merge request opened by hand: its session, taken up or made, with the comments in the code. */
+  private async ensureSession(repository: Repository, iid: number): Promise<boolean> {
+    const existing = this.session;
+    if (existing?.iid === iid && existing.repository === repository) {
+      existing.auto = false;
+      await this.renewIfUpdated(existing, false);
+      if (this.session) this.session.auto = false;
+      return true;
+    }
+    const session = await vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Notification, title: t('Kleio: review of !{0}', iid) },
+      () => this.createSession(repository, iid),
+    );
+    if (!session) return false;
+    this.end();
+    this.begin(session);
+    await this.reload();
+    return true;
+  }
+
+  /**
+   * The merge request of the current branch has its comments in the code with nothing to start or end: on its
+   * diff and on the files that are the same on disk. One opened by hand stays until another one is opened.
+   * Not a look at the merge request: no version counts as looked at.
+   */
+  async follow(repository: Repository, iid: number | undefined): Promise<void> {
+    const session = this.session;
+    if (session && !session.auto) {
+      if (session.iid === iid && session.repository === repository) await this.refreshQuietly();
+      return;
+    }
+    if (session && session.iid === iid && session.repository === repository) return this.refreshQuietly();
+    if (iid === undefined) {
+      if (session?.repository === repository) this.end();
+      return;
+    }
+    if (this.following) return;
+    this.following = true;
+    try {
+      const created = await this.createSession(repository, iid, true).catch(() => undefined);
+      if (!created || this.session !== session) return;
+      created.auto = true;
+      this.end();
+      this.begin(created);
+      await this.reload();
+    } finally {
+      this.following = false;
+    }
+  }
+
+  /** New comments and versions without a click: when the window is back in focus or the log refreshes. */
+  private async refreshQuietly(): Promise<void> {
+    if (!this.session || Date.now() - this.reloadedAt < REFRESH_MS) return;
+    await this.reload();
   }
 
   /**
@@ -304,11 +373,7 @@ export class ReviewController implements vscode.Disposable {
       });
   }
 
-  /**
-   * The changes of the merge request since the version reviewed last time. After new commits it is the diff
-   * between the two heads; after a rebase the old changes are first moved onto the new base, so that what
-   * came from the target branch is not shown as the author's work.
-   */
+  /** The changes of the merge request since the version looked at last time. */
   private async sinceLastReview(): Promise<void> {
     const session = this.session;
     if (!session?.previous) {
@@ -317,86 +382,140 @@ export class ReviewController implements vscode.Disposable {
       );
       return;
     }
-    const since = await this.sinceOf(session);
-    if (!since) {
+    await this.openInterdiff(session, session.previous, current(session));
+  }
+
+  /**
+   * Compares two versions of a merge request, or shows one version as GitLab showed it then when `from` is
+   * absent. The review goes on in that merge request.
+   */
+  async compareVersions(
+    repository: Repository,
+    iid: number,
+    from: Version | undefined,
+    to: Version,
+  ): Promise<void> {
+    if (!(await this.ensureSession(repository, iid))) return;
+    const session = this.session!;
+    if (!from) {
+      const set = await this.versionOf(session, to);
+      if (!set) {
+        void vscode.window.showWarningMessage(t('The commits of the version are not in the repository.'));
+        return;
+      }
+      if (to.headSha === session.refs.headSha) return this.start(repository, iid);
+      await this.navigator.open(set, 0);
+      return;
+    }
+    await this.openInterdiff(session, from, to);
+  }
+
+  private async openInterdiff(session: Session, from: Version, to: Version): Promise<void> {
+    const interdiff = await this.interdiffOf(session, from, to);
+    if (!interdiff) {
       void vscode.window.showWarningMessage(
         t('The commits of the earlier version are not in the repository any more.'),
       );
       return;
     }
-    if (since.conflicted)
+    if (interdiff.conflicted)
       void vscode.window.showWarningMessage(
         t('The earlier version conflicts with the new base: the diff includes the changes of the rebase.'),
       );
-    if (!since.files.length) {
-      void vscode.window.showInformationMessage(
-        t('!{0}: nothing has changed since the last review.', session.iid),
-      );
+    if (!interdiff.files.length) {
+      void vscode.window.showInformationMessage(t('{0}: no differences.', interdiff.set.title));
       return;
     }
-    await this.navigator.open(since.set, 0);
+    // Its comments of the earlier version go on its left side.
+    await this.reload();
+    await this.navigator.open(interdiff.set, 0);
+    if (to.headSha === session.refs.headSha) await this.markSeen(session.label, to);
   }
 
-  private sinceOf(session: Session): Promise<SinceLastReview | undefined> {
-    session.since ??= this.workOutSince(session).catch(() => undefined);
-    return session.since;
+  private sinceOf(session: Session): Promise<Interdiff | undefined> | undefined {
+    return session.previous && this.interdiffOf(session, session.previous, current(session));
   }
 
-  private async workOutSince(session: Session): Promise<SinceLastReview | undefined> {
-    const { repository, refs, previous } = session;
-    if (!previous) return undefined;
-    if (!(await repository.revParse(previous.headSha)) || !(await repository.revParse(previous.baseSha)))
+  private interdiffOf(session: Session, from: Version, to: Version): Promise<Interdiff | undefined> {
+    const key = `${from.headSha}..${to.headSha}`;
+    let interdiff = session.interdiffs.get(key);
+    if (!interdiff) {
+      interdiff = this.workOutInterdiff(session, from, to).catch(() => undefined);
+      session.interdiffs.set(key, interdiff);
+    }
+    return interdiff;
+  }
+
+  private async workOutInterdiff(
+    session: Session,
+    from: Version,
+    to: Version,
+  ): Promise<Interdiff | undefined> {
+    const { repository } = session;
+    if (!(await this.ensureVersionCommits(session, [from.baseSha, from.headSha, to.baseSha, to.headSha])))
       return undefined;
-    let left = previous.headSha;
+    let left = from.headSha;
     let conflicted = false;
-    if (!(await repository.isAncestor(previous.headSha, refs.headSha))) {
-      const tree = await repository.rebasedTree(previous.baseSha, previous.headSha, refs.baseSha);
+    if (!(await repository.isAncestor(from.headSha, to.headSha))) {
+      const tree = await repository.rebasedTree(from.baseSha, from.headSha, to.baseSha);
       if (tree) left = tree;
       else conflicted = true;
     }
-    const files = await repository.changes(left, refs.headSha);
+    const files = await repository.changes(left, to.headSha);
+    const latest = to.headSha === session.refs.headSha;
     const set: ChangeSet = {
       repository,
-      title: t('!{0} since the last review', session.iid),
+      title:
+        latest && from.headSha === session.previous?.headSha
+          ? t('!{0} since the last review', session.iid)
+          : t('!{0}: {1} → {2}', session.iid, from.headSha.slice(0, 8), to.headSha.slice(0, 8)),
       left,
-      right: refs.headSha,
+      right: to.headSha,
       files,
-      rightUris: session.changeSet.rightUris,
+      rightUris: latest ? session.changeSet.rightUris : undefined,
     };
+    const interdiff = { set, from, left, files, conflicted };
     session.loadedSets.push(set);
-    return { set, left, files, conflicted };
+    session.loadedInterdiffs.push(interdiff);
+    return interdiff;
+  }
+
+  /** Commits of earlier versions may be gone from the branch after a force push; GitLab keeps them. */
+  private async ensureVersionCommits(session: Session, shas: string[]): Promise<boolean> {
+    const { repository } = session;
+    const missing = async () =>
+      (await Promise.all(shas.map((sha) => repository.revParse(sha)))).some((s) => !s);
+    if (!(await missing())) return true;
+    const remote = (await this.hosting.known(repository))?.remoteName ?? 'origin';
+    await repository.git
+      .run(['fetch', remote, ...new Set(shas)], { timeoutMs: 120_000 })
+      .catch(() => undefined);
+    return !(await missing());
   }
 
   /**
    * The diff of an earlier version of the merge request, as GitLab showed it then: outdated discussions are
-   * in it at the lines they were made on. Its commits may be gone from the branch; GitLab keeps them.
+   * in it at the lines they were made on.
    */
-  private versionOf(session: Session, position: DiffPosition): Promise<ChangeSet | undefined> {
-    const key = `${position.baseSha}..${position.headSha}`;
+  private versionOf(session: Session, version: Version): Promise<ChangeSet | undefined> {
+    const key = `${version.baseSha}..${version.headSha}`;
     let set = session.versions.get(key);
     if (!set) {
-      set = this.workOutVersion(session, position).catch(() => undefined);
+      set = this.workOutVersion(session, version).catch(() => undefined);
       session.versions.set(key, set);
     }
     return set;
   }
 
-  private async workOutVersion(session: Session, position: DiffPosition): Promise<ChangeSet | undefined> {
+  private async workOutVersion(session: Session, version: Version): Promise<ChangeSet | undefined> {
     const { repository } = session;
-    const shas = [position.baseSha, position.headSha];
-    const missing = async () =>
-      (await Promise.all(shas.map((sha) => repository.revParse(sha)))).some((s) => !s);
-    if (await missing()) {
-      const remote = (await this.hosting.known(repository))?.remoteName ?? 'origin';
-      await repository.git.run(['fetch', remote, ...shas], { timeoutMs: 120_000 }).catch(() => undefined);
-      if (await missing()) return undefined;
-    }
+    if (!(await this.ensureVersionCommits(session, [version.baseSha, version.headSha]))) return undefined;
     const set: ChangeSet = {
       repository,
-      title: t('!{0}, version {1}', session.iid, position.headSha.slice(0, 8)),
-      left: position.baseSha,
-      right: position.headSha,
-      files: await repository.changes(position.baseSha, position.headSha),
+      title: t('!{0}, version {1}', session.iid, version.headSha.slice(0, 8)),
+      left: version.baseSha,
+      right: version.headSha,
+      files: await repository.changes(version.baseSha, version.headSha),
     };
     session.loadedSets.push(set);
     return set;
@@ -420,20 +539,36 @@ export class ReviewController implements vscode.Disposable {
     return true;
   }
 
-  /**
-   * Remembers the version under review and returns the one reviewed before it. Opening the same version again,
-   * e.g. after a reload of the window, keeps the one before.
-   */
-  private async remember(label: string, refs: DiffRefs): Promise<{ previous?: Version; changed: boolean }> {
-    type Seen = Version & { before?: Version };
-    const seen = this.state.get<Record<string, Seen>>(SEEN_KEY, {});
-    const last = seen[label];
-    const changed = !!last && last.headSha !== refs.headSha;
-    const previous = changed ? { baseSha: last.baseSha, headSha: last.headSha } : last?.before;
-    const entries = Object.entries(seen).filter(([key]) => key !== label);
-    entries.push([label, { baseSha: refs.baseSha, headSha: refs.headSha, before: previous }]);
+  /** The versions of each merge request you looked at, oldest first. */
+  private seenOf(label: string): Version[] {
+    type Old = Version & { before?: Version };
+    const stored = this.state.get<Record<string, Version[] | Old>>(SEEN_KEY, {})[label];
+    if (!stored) return [];
+    if (Array.isArray(stored)) return stored;
+    return [...(stored.before ? [stored.before] : []), { baseSha: stored.baseSha, headSha: stored.headSha }];
+  }
+
+  /** The version looked at last before the one under review, and whether that one is new to you. */
+  private seenState(label: string, refs: DiffRefs): { previous?: Version; changed: boolean } {
+    const seen = this.seenOf(label);
+    const previous = [...seen].reverse().find((v) => v.headSha !== refs.headSha);
+    return { previous, changed: seen.length > 0 && seen.at(-1)!.headSha !== refs.headSha };
+  }
+
+  /** Heads of the versions of a merge request you looked at, for its card. */
+  async seenHeads(repository: Repository, iid: number): Promise<string[]> {
+    return this.seenOf(await this.label(repository, iid)).map((v) => v.headSha);
+  }
+
+  /** Remembers that you looked at a version: the diff of the merge request was shown, not just its comments. */
+  private async markSeen(label: string, version: Version): Promise<void> {
+    const seen = this.seenOf(label);
+    if (seen.at(-1)?.headSha === version.headSha) return;
+    const versions = [...seen.filter((v) => v.headSha !== version.headSha), version].slice(-SEEN_VERSIONS);
+    const all = this.state.get<Record<string, unknown>>(SEEN_KEY, {});
+    const entries = Object.entries(all).filter(([key]) => key !== label);
+    entries.push([label, versions]);
     await this.state.update(SEEN_KEY, Object.fromEntries(entries.slice(-SEEN_LIMIT)));
-    return { previous, changed };
   }
 
   /** Publishes or saves a comment typed outside the code, e.g. a general comment from the merge request card. */
@@ -486,8 +621,9 @@ export class ReviewController implements vscode.Disposable {
     const session = await this.createSession(repository, saved.iid, true).catch(() => undefined);
     if (!session || this.session) return;
     this.begin(session);
+    const since = await this.sinceOf(session);
     await this.reload();
-    await this.navigator.restore(repositories, session.changeSet);
+    await this.navigator.restore(repositories, [session.changeSet, ...(since ? [since.set] : [])]);
   }
 
   private async createSession(
@@ -556,7 +692,10 @@ export class ReviewController implements vscode.Disposable {
       outdated: new Map(),
       iid,
       label,
-      ...(await this.remember(label, refs)),
+      ...this.seenState(label, refs),
+      interdiffs: new Map(),
+      loadedInterdiffs: [],
+      auto: false,
       refs,
       changeSet: {
         repository,
@@ -592,7 +731,9 @@ export class ReviewController implements vscode.Disposable {
 
   private async reload(): Promise<void> {
     const session = this.session;
-    if (!session || (await this.renewIfUpdated(session, true))) return;
+    if (!session) return;
+    this.reloadedAt = Date.now();
+    if (await this.renewIfUpdated(session, true)) return;
     let discussions: Discussion[];
     let drafts: DraftNote[];
     try {
@@ -604,14 +745,17 @@ export class ReviewController implements vscode.Disposable {
       void vscode.window.showErrorMessage(t('Kleio: the discussions did not load: {0}', message(error)));
       return;
     }
-    // An outdated discussion stands in the version it was made on, and on the left of the changes since the
-    // last review when it was made on the version reviewed then.
-    const earlier = new Map<string, Place>();
+    // An outdated discussion stands in the version it was made on, and on the left of each comparison from
+    // that version: GitLab keeps a discussion on the version after which its line changed.
+    const earlier = new Map<string, Place[]>();
     for (const discussion of discussions) {
       const position = discussion.notes.find((n) => !n.system)?.position;
       if (!position || position.headSha === session.refs.headSha) continue;
-      const place = await this.earlierPlaceOf(session, position);
-      if (place) earlier.set(discussion.id, place);
+      for (const interdiff of session.loadedInterdiffs) {
+        if (interdiff.from.headSha !== position.headSha) continue;
+        const place = await this.earlierPlaceOf(session, position, interdiff);
+        if (place) earlier.set(discussion.id, [...(earlier.get(discussion.id) ?? []), place]);
+      }
     }
     if (session !== this.session) return;
     session.outdated.clear();
@@ -632,9 +776,9 @@ export class ReviewController implements vscode.Disposable {
       if (outdated) {
         session.outdated.set(discussion.id, first.position);
         const own = versionPlaceOf(session.repository.root, first.position);
-        const since = earlier.get(discussion.id);
         places.push(own);
-        if (since && !samePlace(since, own)) places.push(since);
+        for (const place of earlier.get(discussion.id) ?? [])
+          if (!places.some((p) => samePlace(p, place))) places.push(place);
       } else {
         const place = this.placeOf(session, first.position);
         if (place) places.push(place);
@@ -708,11 +852,14 @@ export class ReviewController implements vscode.Disposable {
     this.end(false);
     this.begin(renewed);
     await this.reload();
+    renewed.auto = session.auto;
     if (reopen && path !== undefined) {
       const index = renewed.changeSet.files.findIndex((f) => f.path === path);
-      if (index >= 0) await this.navigator.open(renewed.changeSet, index, 'first', { line });
+      if (index >= 0) {
+        await this.navigator.open(renewed.changeSet, index, 'first', { line });
+        await this.looked(renewed);
+      }
     }
-    if (renewed.changed) this.offerSinceLastReview(renewed);
     return true;
   }
 
@@ -738,15 +885,17 @@ export class ReviewController implements vscode.Disposable {
   }
 
   /**
-   * A discussion of an earlier version of the merge request, whose line has changed since: it goes on the left
-   * side of the changes since the last review, by its line in the version reviewed then, so that the comment
-   * stands next to how it was dealt with.
+   * A discussion of an earlier version goes on the left side of a comparison from that version, so that the
+   * comment stands next to how it was dealt with; after a rebase its line is followed onto the new base.
    */
-  private async earlierPlaceOf(session: Session, position: DiffPosition): Promise<Place | undefined> {
+  private async earlierPlaceOf(
+    session: Session,
+    position: DiffPosition,
+    since: Interdiff,
+  ): Promise<Place | undefined> {
     if (position.newLine === undefined) return undefined;
-    const since = await this.sinceOf(session);
     const change = since?.files.find((f) => (f.oldPath ?? f.path) === position.newPath);
-    if (!since || !change || change.status === 'A') return undefined;
+    if (!change || change.status === 'A') return undefined;
     const hunks =
       position.headSha === since.left
         ? []
@@ -891,14 +1040,14 @@ export class ReviewController implements vscode.Disposable {
   private async moveToComment(direction: 1 | -1): Promise<void> {
     const session = this.session;
     if (!session) return;
-    const since = session.previous ? await this.sinceOf(session) : undefined;
+    const interdiffs = session.loadedInterdiffs.map((i) => i.set);
     const versions = (
       await Promise.all([...session.outdated.values()].map((position) => this.versionOf(session, position)))
     ).filter((set, i, all): set is ChangeSet => !!set && all.indexOf(set) === i);
     // The diff shown is told by its tab, whichever way it was opened: the changes since the last review go
     // through their own comments; the merge request goes on to the outdated ones, each in its version.
-    const shown = this.shownSet([session.changeSet, ...(since ? [since.set] : []), ...versions]);
-    const chain = shown && shown === since?.set ? [shown] : [session.changeSet, ...versions];
+    const shown = this.shownSet([session.changeSet, ...interdiffs, ...versions]);
+    const chain = shown && interdiffs.includes(shown) ? [shown] : [session.changeSet, ...versions];
     const sides = chain.map(sidesOf);
     const locate = (uri: vscode.Uri) => {
       for (const [group, map] of sides.entries()) {
@@ -1069,6 +1218,11 @@ function message(error: unknown): string {
 }
 
 type Place = { uri: vscode.Uri; range: vscode.Range };
+
+/** The version under review. */
+function current(session: Session): Version {
+  return { baseSha: session.refs.baseSha, headSha: session.refs.headSha };
+}
 
 /** Where a discussion stands in the version of the merge request it was made on. */
 function versionPlaceOf(root: string, position: DiffPosition): Place {

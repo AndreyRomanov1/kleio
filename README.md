@@ -92,9 +92,13 @@ stays editable.
   choose in the log.
 - **Review in the diff viewer** (GitLab): threads in the code, comments published at once or as drafts, resolve,
   next/previous comment. Every comment is written to a local journal before it is sent, so nothing typed
-  is lost. When a merge request has changed since your last review, Kleio offers to show only what
-  changed — after a rebase too: the old changes are moved onto the new base first. The comments of the
-  version you reviewed stand on its side, next to how they were dealt with.
+  is lost. Nothing to start or end: the merge request of the current branch has its comments in the code
+  by itself, and after a push the review moves on to the new version. The card lists the versions of the
+  merge request (one per push, those you looked at marked) and compares any two of them, as GitLab does —
+  after a rebase too: the old changes are moved onto the new base first. The comments of the earlier
+  version stand on its side, next to how they were dealt with; outdated ones open in their own version.
+- **Changes of a branch** from the context menu: from where it left the target of its merge request, or the
+  default branch when there is none yet; **Show changes** of one commit or of several selected.
 
 ## Install
 
