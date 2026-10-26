@@ -2,7 +2,7 @@
   "name": "kleio",
   "displayName": "Kleio",
   "description": "Git the JetBrains way: commit graph, one diff viewer for any changes, history, blame, interactive rebase, conflicts, GitLab merge requests and review",
-  "version": "0.25.0",
+  "version": "0.26.0",
   "publisher": "aroma",
   "license": "MIT",
   "repository": {
@@ -316,6 +316,11 @@
       {
         "command": "kleio.review.stayOnVersion",
         "title": "%command.review.stayOnVersion%",
+        "category": "Kleio"
+      },
+      {
+        "command": "kleio.remotes.manage",
+        "title": "%command.remotes.manage%",
         "category": "Kleio"
       },
       {

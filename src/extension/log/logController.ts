@@ -8,6 +8,7 @@ import type { ChangeSetNavigator } from '../changes/changeSetNavigator';
 import { WORKTREE, type Repository } from '../git/repository';
 import type { RepositoryManager } from '../git/repositoryManager';
 import type { HostingActions } from '../hosting/hostingActions';
+import type { RemoteActions } from '../actions/remoteActions';
 import type { HostingService } from '../hosting/hostingService';
 import type { PushDialog } from '../push/pushDialog';
 import type { RebaseDialog } from '../rebase/rebaseDialog';
@@ -41,6 +42,7 @@ export interface LogServices {
   rebase: RebaseDialog;
   hosting: HostingService;
   hostingActions: HostingActions;
+  remotes: RemoteActions;
   cards: MergeRequestCards;
   review: ReviewController;
 }
@@ -151,6 +153,9 @@ export class LogController implements vscode.Disposable {
         return this.load();
       case 'selectHostingRemote':
         if (this.repository) await this.services.hostingActions.selectRemote(this.repository);
+        return;
+      case 'remoteAction':
+        if (this.repository) await this.services.remotes.run(this.repository, message.action, message.remote);
         return;
       case 'connectHosting':
         if (this.repository && (await this.services.cards.connect(this.repository)) && message.number) {

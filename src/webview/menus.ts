@@ -432,3 +432,33 @@ export function toggleFocus(store: LogStore, revision: string): void {
     : [...store.focus, revision];
   post({ type: 'setFocus', revisions });
 }
+
+/** A remote of the repository, from its folder in the branch panel: as Rider's Manage Remotes. */
+export function remoteMenu(remote: string, store: LogStore): MenuEntry[] {
+  const run = (action: 'fetch' | 'setUrl' | 'rename' | 'remove' | 'hosting') => () =>
+    post({ type: 'remoteAction', action, remote });
+  return [
+    { label: t('Fetch {0}', remote), icon: 'cloud-download', run: run('fetch') },
+    'separator',
+    { label: t('Change URL…'), icon: 'edit', run: run('setUrl') },
+    { label: t('Rename…'), run: run('rename') },
+    {
+      label: t('Show the hosting of this remote'),
+      icon: 'globe',
+      disabled: store.hosting?.remote === remote,
+      run: run('hosting'),
+    },
+    'separator',
+    { label: t('Remove remote…'), icon: 'trash', run: run('remove') },
+    'separator',
+    { label: t('Add remote…'), icon: 'add', run: () => post({ type: 'remoteAction', action: 'add' }) },
+  ];
+}
+
+/** The section of remotes: a new one, or all of them at once. */
+export function remotesMenu(): MenuEntry[] {
+  return [
+    { label: t('Add remote…'), icon: 'add', run: () => post({ type: 'remoteAction', action: 'add' }) },
+    { label: t('Manage remotes…'), run: () => post({ type: 'remoteAction', action: 'manage' }) },
+  ];
+}

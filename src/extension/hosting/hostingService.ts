@@ -306,6 +306,23 @@ export class HostingService implements vscode.Disposable {
     this.changed.fire();
   }
 
+  /**
+   * After a remote is renamed, removed or pointed elsewhere: the choice of the hosting remote follows a rename,
+   * falls back to the default when its remote is gone, and the hosting is read again.
+   */
+  async remoteChanged(repository: Repository, from: string, to: string | undefined): Promise<void> {
+    const chosen = (
+      await repository.git.run(['config', '--get', REMOTE_KEY], { allowExitCodes: [1] })
+    ).trim();
+    if (chosen === from && to !== from) {
+      if (to) await repository.git.run(['config', REMOTE_KEY, to]);
+      else await repository.git.run(['config', '--unset', REMOTE_KEY], { allowExitCodes: [5] });
+    }
+    this.cache.delete(repository.root);
+    this.merged.delete(repository.root);
+    this.changed.fire();
+  }
+
   private async defaultBranch(repository: Repository, remote: string): Promise<string | undefined> {
     const head = await repository.git.run(['symbolic-ref', '-q', '--short', `refs/remotes/${remote}/HEAD`], {
       allowExitCodes: [1, 128],

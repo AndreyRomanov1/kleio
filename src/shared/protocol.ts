@@ -245,6 +245,12 @@ export type WebviewMessage =
   | { type: 'retryPipeline'; pipelineId: number; number: number }
   | { type: 'startReview'; number: number; path?: string; line?: number; discussion?: string }
   | {
+      type: 'remoteAction';
+      action: 'add' | 'manage' | 'fetch' | 'setUrl' | 'rename' | 'remove' | 'hosting';
+      /** Absent for `add` and `manage`. */
+      remote?: string;
+    }
+  | {
       type: 'compareVersions';
       number: number;
       /** Absent: the version `to` alone, against its base. */

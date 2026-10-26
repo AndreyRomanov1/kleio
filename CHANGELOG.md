@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.26.0
+
+- Remotes are managed from the branch panel, as Rider's Manage Remotes: "+" at the Remote section adds one
+  (and fetches it), the context menu of a remote fetches it, changes its URL, renames it, makes the log
+  show its hosting or removes it after a confirmation that says what goes. "Kleio: Manage Remotes…" lists
+  them in the command palette. Renaming and removing the hosting remote carry Kleio's choice along.
+
 ## 0.25.0
 
 - The push dialog sends any branch to any remote under any name, as Rider's does: the remote and the branch

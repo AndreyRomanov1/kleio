@@ -19,6 +19,7 @@ import { HistoryCommands } from './history/historyCommands';
 import { GitHubAuth } from './hosting/githubAuth';
 import { GitLabAuth } from './hosting/gitlabAuth';
 import { HostingActions } from './hosting/hostingActions';
+import { RemoteActions } from './actions/remoteActions';
 import { HostingService } from './hosting/hostingService';
 import { MergeRequestCards } from './hosting/mergeRequestCards';
 import { LogWebviews } from './log/logWebview';
@@ -35,6 +36,7 @@ export interface KleioApi {
   rebase: RebaseDialog;
   conflicts: ConflictsWindow;
   actions: GitActions;
+  remotes: RemoteActions;
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<KleioApi> {
@@ -58,6 +60,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<KleioA
   const githubAuth = new GitHubAuth(context.secrets);
   const hosting = new HostingService(gitlabAuth, githubAuth);
   const hostingActions = new HostingActions(repositories, hosting);
+  const remotes = new RemoteActions(repositories, hosting);
   const cards = new MergeRequestCards(hosting);
   const review = new ReviewController(
     hosting,
@@ -76,6 +79,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<KleioA
     rebase,
     hosting,
     hostingActions,
+    remotes,
     cards,
     review,
   });
@@ -92,6 +96,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<KleioA
     history,
     blame,
     hostingActions,
+    remotes,
     gitlabAuth,
     githubAuth,
     hosting,
@@ -136,7 +141,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<KleioA
     .restore(repositories)
     .catch(() => undefined)
     .then(() => navigator.restore(repositories));
-  return { repositories, navigator, logs, blame, review, rebase, conflicts, actions };
+  return { repositories, navigator, logs, blame, review, rebase, conflicts, actions, remotes };
 }
 
 /** Commands act on the current repository: the one of the active editor or chosen in the log or commit view. */

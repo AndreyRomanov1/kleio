@@ -2,7 +2,7 @@
   import type { Ref, Stash, Worktree } from '../../shared/model';
   import { basename, formatDate } from '../format';
   import { menu } from '../menu.svelte';
-  import { refMenu, toggleFocus, worktreeMenu } from '../menus';
+  import { refMenu, remoteMenu, remotesMenu, toggleFocus, worktreeMenu } from '../menus';
   import type { LogStore } from '../store.svelte';
   import { mergeRequestRef, mergeRequestStateLabel, mergeRequestTone } from '../hostingView';
   import { buildTree, flatten, type TreeNode } from '../tree';
@@ -167,9 +167,25 @@
   <div class="tree" role="tree">
     {#each sections as section (section.key)}
       {@const open = !effectiveCollapsed.has(section.key)}
-      <button class="section" onclick={() => ontoggle(section.key)} aria-expanded={open}>
-        <i class="chevron codicon codicon-chevron-{open ? 'down' : 'right'}"></i>{section.title}
-      </button>
+      <div class="section-row">
+        <button
+          class="section"
+          onclick={() => ontoggle(section.key)}
+          oncontextmenu={(e) => section.key === 'section:remote' && menu.show(e, remotesMenu())}
+          aria-expanded={open}
+        >
+          <i class="chevron codicon codicon-chevron-{open ? 'down' : 'right'}"></i>{section.title}
+        </button>
+        {#if section.key === 'section:remote'}
+          <button
+            class="section-action"
+            title={t('Add remote…')}
+            aria-label={t('Add remote…')}
+            onclick={() => post({ type: 'remoteAction', action: 'add' })}
+            ><i class="codicon codicon-add"></i></button
+          >
+        {/if}
+      </div>
       {#if open}
         {#each flatten(section.nodes, effectiveCollapsed) as { node, depth } (node.key)}
           {#if node.kind === 'folder'}
@@ -177,6 +193,10 @@
               class="node folder"
               style:padding-left="{14 + depth * 14}px"
               onclick={() => ontoggle(node.key)}
+              oncontextmenu={(e) =>
+                section.key === 'section:remote' &&
+                depth === 0 &&
+                menu.show(e, remoteMenu(node.label.split('/')[0], store))}
               aria-expanded={!effectiveCollapsed.has(node.key)}
             >
               <i class="chevron codicon codicon-chevron-{effectiveCollapsed.has(node.key) ? 'right' : 'down'}"
@@ -318,6 +338,30 @@
     letter-spacing: 0.04em;
     opacity: 0.8;
     margin-top: 4px;
+  }
+  .section-row {
+    position: relative;
+  }
+  .section-action {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    display: none;
+    align-items: center;
+    height: 22px;
+    padding: 0 4px;
+    border: none;
+    border-radius: 3px;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+  }
+  .section-row:hover .section-action,
+  .section-action:focus-visible {
+    display: inline-flex;
+  }
+  .section-action:hover {
+    background: var(--vscode-toolbar-hoverBackground);
   }
   .node:hover,
   .section:hover {

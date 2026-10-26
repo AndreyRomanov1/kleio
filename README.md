@@ -90,7 +90,7 @@ stays editable.
   the changes of a pull request in the diff viewer. Comments in the code stay on GitHub for now. Access
   comes from the editor's GitHub account or a personal access token.
 - A repository with several remotes, e.g. a GitLab mirror and GitHub, shows the hosting of the remote you
-  choose in the log.
+  choose in the log. Remotes are added, renamed, pointed elsewhere and removed from the branch panel.
 - **Review in the diff viewer** (GitLab): threads in the code, comments published at once or as drafts, resolve,
   next/previous comment. Every comment is written to a local journal before it is sent, so nothing typed
   is lost. Nothing to start or end: the merge request of the current branch has its comments in the code

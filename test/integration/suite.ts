@@ -465,6 +465,22 @@ const tests: Test[] = [
     },
   ],
   [
+    'renames and removes a remote; the choice of the hosting remote follows',
+    async (api) => {
+      const repository = await api.repositories.get(root());
+      assert.ok(repository);
+      const git = (...args: string[]) => execFileSync('git', args, { cwd: root(), encoding: 'utf8' }).trim();
+      git('remote', 'add', 'mirror', 'git@example.com:group/mirror.git');
+      git('config', 'kleio.remote', 'mirror');
+      await api.remotes.renameRemote(repository, 'mirror', 'github');
+      assert.equal(git('remote', 'get-url', 'github'), 'git@example.com:group/mirror.git');
+      assert.equal(git('config', '--get', 'kleio.remote'), 'github');
+      await api.remotes.removeRemote(repository, 'github');
+      assert.ok(!git('remote').split('\n').includes('github'));
+      assert.throws(() => git('config', '--get', 'kleio.remote'));
+    },
+  ],
+  [
     'opens the push dialog for the current branch',
     async () => {
       await vscode.commands.executeCommand('kleio.git.push');

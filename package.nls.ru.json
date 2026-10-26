@@ -75,5 +75,6 @@
   "command.review.newVersion": "Новая версия MR…",
   "command.review.compareNewer": "Сравнить с новой версией",
   "command.review.switchToNewer": "Перейти на новую версию",
-  "command.review.stayOnVersion": "Досмотреть эту версию"
+  "command.review.stayOnVersion": "Досмотреть эту версию",
+  "command.remotes.manage": "Управление remote…"
 }
