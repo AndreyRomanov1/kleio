@@ -713,5 +713,7 @@
   "Finish {0}": "Досмотреть {0}",
   "Send drafts ({0})": "Отправить черновики ({0})",
   "+{0} comments of {1}": "+{0} комментариев к {1}",
-  "!{0} has a new version {1}; you are on {2}": "У !{0} новая версия {1}; вы на {2}"
+  "!{0} has a new version {1}; you are on {2}": "У !{0} новая версия {1}; вы на {2}",
+  "A push elsewhere does not change the branch the local one tracks": "Push в другое место не меняет ветку, которую отслеживает локальная",
+  "upstream stays {0}": "upstream останется {0}"
 }

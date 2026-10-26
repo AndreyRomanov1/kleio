@@ -16,7 +16,7 @@ import type { HostMessage, WebviewMessage } from '../../src/shared/protocol';
 import type { PushHostMessage, PushWebviewMessage } from '../../src/shared/pushProtocol';
 import type { RebaseHostMessage, RebaseWebviewMessage } from '../../src/shared/rebaseProtocol';
 import type { ConflictsHostMessage, ConflictsWebviewMessage } from '../../src/shared/conflictsProtocol';
-import { matchesBranchPattern, readPushState } from '../../src/extension/push/pushState';
+import { matchesBranchPattern, readPushState, retarget } from '../../src/extension/push/pushState';
 import { commitChangeSet, describeRange, rangeChangeSet } from '../../src/extension/changes/changeSet';
 import { Repository } from '../../src/extension/git/repository';
 import { hunkViews } from '../../src/extension/git/patch';
@@ -244,6 +244,17 @@ async function handlePush(repository: Repository, message: PushWebviewMessage): 
       const details = await repository.commitDetails(message.hash);
       const changeSet = await commitChangeSet(repository, message.hash, details.parents);
       return [{ type: 'files', hash: message.hash, files: changeSet.files }];
+    }
+    case 'retarget': {
+      const result = await retarget(
+        repository,
+        message.branch,
+        message.remote,
+        message.target.trim(),
+        (b) => matchesBranchPattern(['master', 'main'], b),
+        process.env.KLEIO_PREVIEW_PUSH_BRANCH,
+      );
+      return result ? [{ type: 'branch', branch: result.view }] : [];
     }
     case 'push':
       lastPush = message;

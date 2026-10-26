@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Repository } from '../src/extension/git/repository';
-import { matchesBranchPattern, pushArgs, readPushState } from '../src/extension/push/pushState';
+import { matchesBranchPattern, pushArgs, readPushState, retarget } from '../src/extension/push/pushState';
 
 let work: string;
 
@@ -290,6 +290,40 @@ describe('Repository operations', () => {
     state = await readPushState(repository, 'feature', notProtected);
     await repository.git.run(pushArgs(request, false, state.leases.get('origin/feature')));
     expect(git(server, 'log', '-1', '--format=%s', 'feature').trim()).toBe('f amended');
+  });
+
+  it('pushes a branch to another remote than its upstream, which stays', async () => {
+    const origin = path.join(work, 'two-origin.git');
+    const mirror = path.join(work, 'two-mirror.git');
+    git(work, 'init', '-q', '--bare', '-b', 'main', origin);
+    git(work, 'init', '-q', '--bare', '-b', 'main', mirror);
+    const dir = init('two-remotes');
+    commitFile(dir, 'a.txt', 'a\n', 'a');
+    git(dir, 'remote', 'add', 'origin', origin);
+    git(dir, 'remote', 'add', 'github', mirror);
+    git(dir, 'push', '-q', 'github', 'main');
+    commitFile(dir, 'b.txt', 'b\n', 'b');
+    commitFile(dir, 'c.txt', 'c\n', 'c');
+    git(dir, 'push', '-q', '-u', 'origin', 'main');
+    git(dir, 'fetch', '-q', 'github');
+    const repository = (await Repository.open(dir))!;
+    const notProtected = () => false;
+
+    const state = await readPushState(repository, 'main', notProtected);
+    expect(state.branches[0]).toMatchObject({ remote: 'origin', target: 'main', upstream: 'origin/main' });
+    expect(state.branches[0].commits).toEqual([]);
+
+    const other = (await retarget(repository, 'main', 'github', 'main', notProtected, 'main'))!;
+    expect(other.view).toMatchObject({
+      remote: 'github',
+      existsOnRemote: true,
+      behind: 0,
+      upstream: 'origin/main',
+    });
+    expect(other.view.commits.map((c) => c.subject)).toEqual(['c', 'b']);
+    await repository.git.run(pushArgs({ ...other.view, force: false }, !other.view.hasUpstream, other.lease));
+    expect(git(mirror, 'log', '-1', '--format=%s', 'main').trim()).toBe('c');
+    expect(git(dir, 'rev-parse', '--abbrev-ref', 'main@{u}').trim()).toBe('origin/main');
   });
 
   it('checks the lower branches of the stack along with the current one', async () => {

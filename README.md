@@ -58,7 +58,8 @@ stays editable.
   Uncommitted changes are stashed for the time of an operation; if they come back with conflicts, Kleio
   says so and opens the conflicts.
 - **Push dialog**: outgoing commits of every branch with their diffs; a diverged branch goes only with
-  force-with-lease against what the dialog showed, never into protected branches.
+  force-with-lease against what the dialog showed, never into protected branches. Any branch goes to any
+  remote under any name, e.g. to a mirror, and the upstream stays as it is.
 
   ![Push](docs/images/push.png)
 

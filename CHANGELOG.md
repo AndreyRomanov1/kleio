@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.25.0
+
+- The push dialog sends any branch to any remote under any name, as Rider's does: the remote and the branch
+  name on the server can be changed for every branch, not only a new one, and the commits to push, the
+  commits the server has and the need of force are worked out again for the new destination. A push
+  elsewhere than the upstream leaves the upstream as it is, as `git push <remote> <branch>` does.
+
 ## 0.24.0
 
 - A push no longer moves the review under you: while a diff of the merge request is open, the review stays

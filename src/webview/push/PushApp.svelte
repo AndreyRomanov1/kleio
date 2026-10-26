@@ -42,6 +42,14 @@
       case 'files':
         if (message.hash === selectedCommit) files = message.files;
         break;
+      case 'branch': {
+        const index = rows.findIndex((r) => r.branch === message.branch.branch);
+        if (index < 0) break;
+        const row = rows[index];
+        rows[index] = { ...message.branch, checked: row.checked, force: false };
+        if (index === active) selectCommit(rows[index].commits[0]?.hash);
+        break;
+      }
       case 'error':
         error = message.message;
         loaded = true;
@@ -53,6 +61,12 @@
     selectedCommit = hash;
     files = [];
     if (hash) postPush({ type: 'selectCommit', hash });
+  }
+
+  /** The commits and the state of the branch on the server are worked out for the new destination. */
+  function retarget(row: Row): void {
+    if (!row.target.trim()) return;
+    postPush({ type: 'retarget', branch: row.branch, remote: row.remote, target: row.target });
   }
 
   function activate(index: number): void {
@@ -129,24 +143,31 @@
           <i class="codicon codicon-git-branch"></i>
           <span class="name">{row.branch}</span>
           <span class="arrow">→</span>
-          {#if remotes.length > 1 && !row.hasUpstream}
-            <select bind:value={row.remote} onclick={(e) => e.stopPropagation()}>
+          {#if remotes.length > 1}
+            <select
+              bind:value={row.remote}
+              aria-label={t('Remote')}
+              onclick={(e) => e.stopPropagation()}
+              onchange={() => retarget(row)}
+            >
               {#each remotes as remote (remote)}<option value={remote}>{remote}</option>{/each}
             </select>
           {:else}
             <span class="remote">{row.remote}</span>
           {/if}
           <span class="colon">:</span>
-          {#if row.hasUpstream}
-            <span class="target">{row.target}</span>
-          {:else}
-            <input
-              class="target-input"
-              bind:value={row.target}
-              spellcheck="false"
-              aria-label={t('Branch name on the server')}
-              onclick={(e) => e.stopPropagation()}
-            />
+          <input
+            class="target-input"
+            bind:value={row.target}
+            spellcheck="false"
+            aria-label={t('Branch name on the server')}
+            onclick={(e) => e.stopPropagation()}
+            onchange={() => retarget(row)}
+          />
+          {#if row.upstream && row.upstream !== `${row.remote}/${row.target.trim()}`}
+            <span class="badge" title={t('A push elsewhere does not change the branch the local one tracks')}
+              >{t('upstream stays {0}', row.upstream)}</span
+            >
           {/if}
           {#if !row.existsOnRemote}<span class="badge new">{t('new')}</span>{/if}
           <span class="count" title={t('Commits to push')}>↑{row.commits.length}</span>

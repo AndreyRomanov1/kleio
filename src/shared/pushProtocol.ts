@@ -6,8 +6,10 @@ export interface PushBranchView {
   remote: string;
   /** Branch name on the remote. */
   target: string;
-  /** Whether the branch already tracks a branch of the remote; otherwise the push sets it up. */
+  /** Whether the branch already tracks a remote branch; otherwise the push sets it up. */
   hasUpstream: boolean;
+  /** The branch it tracks, e.g. `origin/main`: a push elsewhere leaves it as it is. */
+  upstream?: string;
   /** Whether the target branch exists on the remote already. */
   existsOnRemote: boolean;
   current: boolean;
@@ -23,6 +25,8 @@ export type PushHostMessage =
   | { type: 'state'; remotes: string[]; branches: PushBranchView[] }
   | { type: 'busy'; value: boolean }
   | { type: 'files'; hash: string; files: FileChange[] }
+  /** One branch again after its destination changed. */
+  | { type: 'branch'; branch: PushBranchView }
   | { type: 'error'; message: string };
 
 export interface PushRequest {
@@ -37,4 +41,6 @@ export type PushWebviewMessage =
   | { type: 'selectCommit'; hash: string }
   | { type: 'openFile'; hash: string; index: number }
   | { type: 'push'; branches: PushRequest[] }
+  /** Another remote or branch name on the server: what goes there is worked out again. */
+  | { type: 'retarget'; branch: string; remote: string; target: string }
   | { type: 'cancel' };

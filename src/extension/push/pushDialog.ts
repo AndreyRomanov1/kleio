@@ -11,7 +11,7 @@ import { GitError } from '../git/gitRunner';
 import type { Repository } from '../git/repository';
 import type { RepositoryManager } from '../git/repositoryManager';
 import { renderHtml, webviewOptions } from '../webviewHtml';
-import { matchesBranchPattern, pushArgs, readPushState } from './pushState';
+import { matchesBranchPattern, pushArgs, readPushState, retarget } from './pushState';
 import { t } from '../../shared/l10n';
 
 const PANEL_TYPE = 'kleio.push';
@@ -74,6 +74,24 @@ export class PushDialog implements vscode.Disposable {
           return await this.navigator.open(changeSet, message.index, 'first', {
             viewColumn: vscode.ViewColumn.Beside,
           });
+        }
+        case 'retarget': {
+          const repository = this.repository;
+          const target = message.target.trim();
+          if (!repository || !target) return;
+          const result = await retarget(
+            repository,
+            message.branch,
+            message.remote,
+            target,
+            isProtected,
+            this.focusBranch,
+          );
+          if (!result) return;
+          this.branches = this.branches.map((b) => (b.branch === message.branch ? result.view : b));
+          this.leases.set(`${message.remote}/${target}`, result.lease);
+          this.post({ type: 'branch', branch: result.view });
+          return;
         }
         case 'push':
           return await this.push(message.branches);
