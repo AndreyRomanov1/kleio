@@ -445,6 +445,7 @@ describe('Repository', () => {
     expect(read()).toBe('a\nB\nC\nd\n');
   });
 
+  // Hundreds of git runs: slow on Windows runners.
   it('stages and rolls back any lines of a hunk at the end of a file without a line break', async () => {
     const cases = [
       ['a\nb\nc', 'a\nB\nC'],
@@ -482,7 +483,7 @@ describe('Repository', () => {
         expect(readFileSync(path.join(dir, 'f.txt'), 'utf8'), label).toBe(before);
       }
     }
-  });
+  }, 120_000);
 
   it('stages hunks and reads the log whatever diff and log settings the user has', async () => {
     const dir = path.join(work, 'user-config');
