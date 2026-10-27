@@ -110,21 +110,24 @@ export function selectHunks(patch: FilePatch, selections: Iterable<string>, reve
  * kind is dropped.
  */
 function partialHunk(hunk: PatchHunk, lines: ReadonlySet<number>, reverse: boolean): string[] | undefined {
+  const body = hunk.text.slice(1);
   const removed: { line: string; index: number }[] = [];
   const added: { line: string; index: number }[] = [];
-  hunk.text.slice(1).forEach((line, index) => {
+  body.forEach((line, index) => {
     if (line.startsWith('-')) removed.push({ line, index });
     else if (line.startsWith('+')) added.push({ line, index });
   });
-  const body: string[] = [];
+  // `\ No newline at end of file` after a line: the last line of its side has no line break.
+  const noEol = (index: number) => body[index + 1]?.startsWith('\\') ?? false;
+  const kept: PatchLine[] = [];
   let changes = 0;
   const take = (entry: { line: string; index: number } | undefined, keptAsContext: boolean) => {
     if (!entry) return;
     if (lines.has(entry.index)) {
-      body.push(entry.line);
+      kept.push({ sign: entry.line[0], text: entry.line.slice(1), noEol: noEol(entry.index) });
       changes++;
     } else if (keptAsContext) {
-      body.push(' ' + entry.line.slice(1));
+      kept.push({ sign: ' ', text: entry.line.slice(1), noEol: noEol(entry.index) });
     }
   };
   for (let i = 0; i < Math.max(removed.length, added.length); i++) {
@@ -132,7 +135,8 @@ function partialHunk(hunk: PatchHunk, lines: ReadonlySet<number>, reverse: boole
     take(added[i], reverse);
   }
   if (!changes) return undefined;
-  const count = (sign: string) => body.filter((l) => l[0] === sign || l[0] === ' ').length;
+  const result = withLineEnds(kept);
+  const count = (sign: string) => result.filter((l) => l[0] === sign || l[0] === ' ').length;
   // A side with no lines names the line before the change, a side with lines its first line.
   const start = (from: number, before: number, after: number) =>
     before === 0 && after > 0 ? from + 1 : before > 0 && after === 0 ? from - 1 : from;
@@ -140,8 +144,47 @@ function partialHunk(hunk: PatchHunk, lines: ReadonlySet<number>, reverse: boole
   const newLines = count('+');
   return [
     `@@ -${start(hunk.oldStart, hunk.oldLines, oldLines)},${oldLines} +${start(hunk.newStart, hunk.newLines, newLines)},${newLines} @@`,
-    ...body,
+    ...result,
   ];
+}
+
+interface PatchLine {
+  sign: string;
+  text: string;
+  noEol: boolean;
+}
+
+const NO_EOL = '\\ No newline at end of file';
+
+/**
+ * Patch lines with the no-line-break markers git expects: only the last line of a side may lack the break. A
+ * changed line that is no longer last on its side gets the break; a kept one becomes a removed line without
+ * the break and the same line with it.
+ */
+function withLineEnds(lines: PatchLine[]): string[] {
+  const lastOf = (signs: string) => {
+    for (let i = lines.length - 1; i >= 0; i--) if (signs.includes(lines[i].sign)) return i;
+    return -1;
+  };
+  const lastOld = lastOf(' -');
+  const lastNew = lastOf(' +');
+  const result: string[] = [];
+  lines.forEach((line, i) => {
+    if (!line.noEol) {
+      result.push(line.sign + line.text);
+    } else if (line.sign !== ' ') {
+      result.push(line.sign + line.text);
+      if (i === (line.sign === '-' ? lastOld : lastNew)) result.push(NO_EOL);
+    } else if (i === lastOld && i === lastNew) {
+      result.push(' ' + line.text, NO_EOL);
+    } else {
+      result.push('-' + line.text);
+      if (i === lastOld) result.push(NO_EOL);
+      result.push('+' + line.text);
+      if (i === lastNew) result.push(NO_EOL);
+    }
+  });
+  return result;
 }
 
 /** What the commit view shows of each hunk: where it starts in the working file and its first changed lines. */

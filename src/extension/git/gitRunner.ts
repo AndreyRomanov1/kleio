@@ -23,6 +23,19 @@ export interface RunOptions {
 
 let defaultGitPath = 'git';
 
+/**
+ * Settings of the user that would change output Kleio parses or patches it applies: diffs without `a/` and
+ * `b/` prefixes or in color, signatures printed into the log.
+ */
+const FIXED_CONFIG = [
+  'core.quotepath=off',
+  'color.ui=false',
+  'color.diff=false',
+  'diff.noprefix=false',
+  'diff.mnemonicPrefix=false',
+  'log.showSignature=false',
+].flatMap((setting) => ['-c', setting]);
+
 /** Sets the git executable for runners created without their own, e.g. from the `git.path` setting. */
 export function setGitPath(gitPath: string): void {
   defaultGitPath = gitPath;
@@ -64,11 +77,7 @@ export class GitRunner {
     options: RunOptions = {},
   ): Promise<{ stdout: string; stderr: string }> {
     return new Promise((resolve, reject) => {
-      const child = spawn(this.gitPath, ['-c', 'core.quotepath=off', '-c', 'color.ui=false', ...args], {
-        cwd: this.cwd,
-        env: { ...process.env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C', ...options.env },
-        windowsHide: true,
-      });
+      const child = this.spawn(args, options.env);
 
       const stdout: Buffer[] = [];
       const stderr: Buffer[] = [];
@@ -95,7 +104,7 @@ export class GitRunner {
   /** Runs git and returns raw stdout bytes, for file contents in arbitrary encodings. */
   runBuffer(args: readonly string[]): Promise<Buffer> {
     return new Promise((resolve, reject) => {
-      const child = spawn(this.gitPath, args, { cwd: this.cwd, windowsHide: true });
+      const child = this.spawn(args);
       const stdout: Buffer[] = [];
       const stderr: Buffer[] = [];
       child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
@@ -105,6 +114,14 @@ export class GitRunner {
         if (code === 0) resolve(Buffer.concat(stdout));
         else reject(new GitError(args, code, Buffer.concat(stderr).toString('utf8')));
       });
+    });
+  }
+
+  private spawn(args: readonly string[], env?: NodeJS.ProcessEnv) {
+    return spawn(this.gitPath, [...FIXED_CONFIG, ...args], {
+      cwd: this.cwd,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C', ...env },
+      windowsHide: true,
     });
   }
 }

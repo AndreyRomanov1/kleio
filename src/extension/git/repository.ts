@@ -200,8 +200,17 @@ export class Repository {
     return parseHunks(output);
   }
 
-  showFile(revision: string, filePath: string): Promise<Buffer> {
-    return this.git.runBuffer(['show', `${revision}:${filePath}`]);
+  /**
+   * Contents of a file at a revision as a checkout would write them: through its filters, so that a Git LFS
+   * file shows its contents, not the pointer. Without the filter program at hand, the contents as stored.
+   */
+  async showFile(revision: string, filePath: string): Promise<Buffer> {
+    const object = `${revision}:${filePath}`;
+    try {
+      return await this.git.runBuffer(['cat-file', '--filters', object]);
+    } catch {
+      return this.git.runBuffer(['show', object]);
+    }
   }
 
   async blobHash(revision: string, filePath: string): Promise<string | undefined> {

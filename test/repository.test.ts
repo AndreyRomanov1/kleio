@@ -445,6 +445,79 @@ describe('Repository', () => {
     expect(read()).toBe('a\nB\nC\nd\n');
   });
 
+  it('stages and rolls back any lines of a hunk at the end of a file without a line break', async () => {
+    const cases = [
+      ['a\nb\nc', 'a\nB\nC'],
+      ['a\nb\nc', 'a\nB\nc\n'],
+      ['a\nb\nc\n', 'a\nB\nC'],
+      ['a\nb', 'a\nb\nc\nd'],
+      ['a\nb\nc', 'a'],
+    ];
+    for (const [n, [before, after]] of cases.entries()) {
+      const dir = path.join(work, `no-eol-${n}`);
+      git(work, 'init', '-q', '-b', 'main', dir);
+      commitFile(dir, 'f.txt', before, 'base');
+      const repository = (await Repository.open(dir))!;
+      const hunk = async () => (await repository.unstagedPatch('f.txt')).hunks[0];
+      writeFileSync(path.join(dir, 'f.txt'), after);
+      const changed = (await hunk()).text
+        .slice(1)
+        .flatMap((line, index) => (line[0] === '+' || line[0] === '-' ? [index] : []));
+      // Every subset of the changed lines, staged first and then the rest, ends with the whole change staged;
+      // rolled back first and then the rest, with the file as it was.
+      for (let mask = 1; mask < 1 << changed.length; mask++) {
+        const lines = changed.filter((_, i) => mask & (1 << i));
+        const label = `${JSON.stringify(before)} → ${JSON.stringify(after)}, lines ${lines}`;
+        git(dir, 'reset', '-q');
+        writeFileSync(path.join(dir, 'f.txt'), after);
+        await repository.stageHunks('f.txt', [`${(await hunk()).key}@${lines.join(',')}`], true);
+        const rest = (await repository.unstagedPatch('f.txt')).hunks.map((h) => h.key);
+        if (rest.length) await repository.stageHunks('f.txt', rest, true);
+        expect(git(dir, 'show', ':f.txt'), label).toBe(after);
+
+        git(dir, 'reset', '-q');
+        await repository.rollbackHunks('f.txt', [`${(await hunk()).key}@${lines.join(',')}`], true);
+        const left = (await repository.unstagedPatch('f.txt')).hunks.map((h) => h.key);
+        if (left.length) await repository.rollbackHunks('f.txt', left, true);
+        expect(readFileSync(path.join(dir, 'f.txt'), 'utf8'), label).toBe(before);
+      }
+    }
+  });
+
+  it('stages hunks and reads the log whatever diff and log settings the user has', async () => {
+    const dir = path.join(work, 'user-config');
+    git(work, 'init', '-q', '-b', 'main', dir);
+    commitFile(dir, 'f.txt', 'a\nb\n', 'base');
+    for (const [key, value] of [
+      ['diff.noprefix', 'true'],
+      ['color.diff', 'always'],
+      ['log.showSignature', 'true'],
+    ])
+      git(dir, 'config', key, value);
+    writeFileSync(path.join(dir, 'f.txt'), 'A\nb\nc\n');
+    const repository = (await Repository.open(dir))!;
+
+    const hunks = (await repository.unstagedPatch('f.txt')).hunks;
+    expect(hunks).toHaveLength(2);
+    await repository.stageHunks('f.txt', [hunks[1].key], true);
+    expect(git(dir, 'show', ':f.txt')).toBe('a\nb\nc\n');
+    expect(await repository.hunks('HEAD', WORKTREE, { path: 'f.txt', status: 'M' })).toHaveLength(2);
+    expect((await repository.snapshot()).commits.map((c) => c.subject)).toEqual(['base']);
+  });
+
+  it('reads a file of a revision through its filters, as Git LFS needs', async () => {
+    const dir = path.join(work, 'filters');
+    git(work, 'init', '-q', '-b', 'main', dir);
+    git(dir, 'config', 'filter.upper.smudge', 'tr a-z A-Z');
+    git(dir, 'config', 'filter.upper.clean', 'tr A-Z a-z');
+    writeFileSync(path.join(dir, '.gitattributes'), '*.up filter=upper\n');
+    commitFile(dir, 'f.up', 'abc\n', 'base');
+    const repository = (await Repository.open(dir))!;
+
+    expect(git(dir, 'cat-file', 'blob', 'HEAD:f.up')).toBe('abc\n');
+    expect((await repository.showFile('HEAD', 'f.up')).toString()).toBe('ABC\n');
+  });
+
   it('stages single lines of a deletion and of an addition at the top of a file', async () => {
     const dir = path.join(work, 'line-edges');
     git(work, 'init', '-q', '-b', 'main', dir);
