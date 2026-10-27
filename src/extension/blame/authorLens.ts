@@ -41,7 +41,10 @@ export class AuthorLens implements vscode.CodeLensProvider, vscode.Disposable {
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration('kleio.codeLens.authors')) this.changed.fire();
       }),
-      vscode.workspace.onDidChangeTextDocument(() => this.scheduleRefresh()),
+      // Edits of files only: output channels, Kleio's own log among them, change all the time.
+      vscode.workspace.onDidChangeTextDocument((e) => {
+        if (e.document.uri.scheme === 'file' && e.contentChanges.length) this.scheduleRefresh();
+      }),
       vscode.workspace.onDidCloseTextDocument((d) => this.blames.delete(d.uri.toString())),
       repositories.onDidChangeRepository(() => {
         this.blames.clear();

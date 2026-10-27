@@ -518,6 +518,21 @@ describe('Repository', () => {
     expect((await repository.showFile('HEAD', 'f.up')).toString()).toBe('ABC\n');
   });
 
+  it('leaves git notes and refs prefetched by git maintenance out of the log', async () => {
+    const dir = path.join(work, 'notes');
+    git(work, 'init', '-q', '-b', 'main', dir);
+    commitFile(dir, 'a.txt', 'a\n', 'a');
+    commitFile(dir, 'a.txt', 'b\n', 'b');
+    git(dir, 'notes', 'add', '-m', 'note', 'HEAD');
+    git(dir, 'checkout', '-q', '--detach', 'HEAD~1');
+    commitFile(dir, 'c.txt', 'c\n', 'prefetched');
+    git(dir, 'update-ref', 'refs/prefetch/remotes/origin/main', 'HEAD');
+    git(dir, 'checkout', '-q', 'main');
+    const repository = (await Repository.open(dir))!;
+
+    expect((await repository.snapshot()).commits.map((c) => c.subject)).toEqual(['b', 'a']);
+  });
+
   it('stages single lines of a deletion and of an addition at the top of a file', async () => {
     const dir = path.join(work, 'line-edges');
     git(work, 'init', '-q', '-b', 'main', dir);

@@ -125,7 +125,11 @@ export class Repository {
   }
 
   async snapshot(filter: LogFilter = {}): Promise<RepositorySnapshot> {
-    const revisions = filter.revisions?.length ? filter.revisions : ['--exclude=refs/stash', '--all'];
+    // Not history: git notes are commits of their own, prefetch refs are what `git maintenance` fetched in the
+    // background for the next fetch.
+    const revisions = filter.revisions?.length
+      ? filter.revisions
+      : ['--exclude=refs/stash', '--exclude=refs/notes/*', '--exclude=refs/prefetch/*', '--all'];
     const [log, refs, head, worktrees, stashes, operation] = await Promise.all([
       this.git.run([
         'log',
