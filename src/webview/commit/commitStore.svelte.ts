@@ -4,7 +4,7 @@ import {
   type CommitHostMessage,
   type HunkView,
 } from '../../shared/commitProtocol';
-import type { Stash } from '../../shared/model';
+import type { OperationState, Stash } from '../../shared/model';
 import { loadState, postCommit, saveState } from '../vscode';
 
 interface Saved {
@@ -24,6 +24,7 @@ export class CommitStore {
   noRepository = $state(false);
   busy = $state(false);
   loaded = $state(false);
+  operation = $state.raw<OperationState | undefined>(undefined);
   /** Checkboxes show the staging area; set by the host from the settings. */
   staging = $state(false);
   checked = $state.raw<ReadonlySet<string>>(new Set());
@@ -47,6 +48,8 @@ export class CommitStore {
   /** Paths seen before, so that new files get default checkboxes and earlier choices are kept. */
   private known = new Set<string>();
   private messageBeforeAmend = '';
+  /** The message git prepared, last seen: it fills an empty message box and leaves with the operation. */
+  private prepared?: string;
 
   constructor() {
     const saved = loadState<Saved>({ message: '', amend: false, flat: false, messageHeight: 130 });
@@ -77,6 +80,8 @@ export class CommitStore {
         this.root = message.root;
         this.stashes = message.stashes;
         this.staging = message.staging;
+        this.operation = message.operation;
+        this.applyPrepared(message.preparedMessage);
         this.applyFiles(message.files);
         break;
       case 'noRepository':
@@ -115,6 +120,7 @@ export class CommitStore {
         break;
       }
       case 'committed':
+        this.prepared = undefined;
         this.message = '';
         this.amend = false;
         this.excluded = new Map();
@@ -122,6 +128,16 @@ export class CommitStore {
         this.persist();
         break;
     }
+  }
+
+  private applyPrepared(prepared: string | undefined): void {
+    if (prepared === this.prepared) return;
+    const untouched = !this.message.trim() || this.message === this.prepared;
+    if (untouched) {
+      this.message = prepared ?? '';
+      this.persist();
+    }
+    this.prepared = prepared;
   }
 
   get checkedFiles(): CommitFile[] {

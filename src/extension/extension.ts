@@ -111,6 +111,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<KleioA
     new CommitView(context, repositories, navigator, {
       push: (repository) => push.open(repository),
       merge: (repository, filePath) => conflicts.openMerge(repository, filePath),
+      operation: (repository, action) => sync.operationAction(repository, action),
     }),
     vscode.commands.registerCommand('kleio.log.openInEditor', () => logs.openInEditor()),
     vscode.commands.registerCommand('kleio.log.openInNewWindow', () => logs.openInNewWindow()),

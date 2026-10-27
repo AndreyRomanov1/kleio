@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -61,7 +61,7 @@ describe('interactive rebase', () => {
       'pick b',
       'fixup c',
       'drop d',
-      "exec git hook run --ignore-missing commit-msg -- '/git dir/message-1.txt' && git commit --amend --allow-empty --no-verify --quiet --cleanup=strip -F '/git dir/message-1.txt'",
+      "exec git hook run --ignore-missing commit-msg -- '/git dir/message-1.txt' && git commit --amend --allow-empty --no-verify --quiet --cleanup=whitespace -F '/git dir/message-1.txt'",
       '',
     ]);
     expect([...messages]).toEqual([['message-1.txt', 'B new']]);
@@ -87,6 +87,28 @@ describe('interactive rebase', () => {
       'one.txt',
     ]);
     expect(await repository.operation()).toBeUndefined();
+  });
+
+  it('keeps lines starting with # in a new message and runs the commit-msg hook without git hook run', async () => {
+    const { dir, hashes } = repo('legacy-hooks');
+    const hook = path.join(dir, '.git', 'hooks', 'commit-msg');
+    writeFileSync(hook, '#!/bin/sh\necho "Checked-by: hook" >> "$1"\n', { mode: 0o755 });
+    const messages = path.join(work, 'legacy-messages');
+    mkdirSync(messages);
+    const { todo, messages: files } = buildRebaseTodo(
+      [{ hash: hashes.four, action: 'reword', message: 'four\n\n#42 task' }],
+      new Map([[hashes.four, 'four\n\nbody of four']]),
+      (name) => path.join(messages, name),
+      new Map(),
+      true,
+    );
+    for (const [name, text] of files) writeFileSync(path.join(messages, name), text + '\n');
+    writeFileSync(path.join(messages, 'todo'), todo);
+    execFileSync('git', ['rebase', '-i', hashes.three], {
+      cwd: dir,
+      env: { ...process.env, GIT_SEQUENCE_EDITOR: `cp '${path.join(messages, 'todo')}'` },
+    });
+    expect(git(dir, 'log', '-1', '--format=%B').trim()).toBe('four\n\n#42 task\nChecked-by: hook');
   });
 
   it('squashes into a commit with the message chosen in the dialog, even if it is the original one', async () => {

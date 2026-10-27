@@ -153,6 +153,50 @@ describe('Repository operations', () => {
     expect(readFileSync(path.join(dir, 'a.txt'), 'utf8')).toBe('a changed\n');
   });
 
+  it('commits a merge from the commit view with whole files and the message git prepared', async () => {
+    const dir = diverged('merge-commit');
+    const repository = (await Repository.open(dir))!;
+    expect(await repository.merge('feature')).toBe('conflicts');
+    writeFileSync(path.join(dir, 'a.txt'), 'both\n');
+    await repository.markResolved(['a.txt']);
+
+    const prepared = await repository.preparedMessage();
+    expect(prepared).toBe("Merge branch 'feature'");
+    await expect(
+      repository.commitFiles({
+        message: 'x',
+        paths: [],
+        untracked: [],
+        amend: false,
+        hunks: { 'a.txt': ['k'] },
+      }),
+    ).rejects.toThrow();
+    await repository.commitFiles({ message: prepared!, paths: ['a.txt'], untracked: [], amend: false });
+
+    expect(await repository.operation()).toBeUndefined();
+    expect(git(dir, 'rev-list', '--parents', '-1', 'HEAD').trim().split(' ')).toHaveLength(3);
+    expect(git(dir, 'show', 'HEAD:b.txt')).toBe('b\n');
+    expect(await repository.preparedMessage()).toBeUndefined();
+  });
+
+  it('keeps lines starting with # in a commit message and offers the commit template without comments', async () => {
+    const dir = init('hash-lines');
+    commitFile(dir, 'a.txt', 'a\n', 'a');
+    writeFileSync(path.join(dir, 'template.txt'), 'PROJ-: \n# what and why\n');
+    git(dir, 'config', 'commit.template', 'template.txt');
+    const repository = (await Repository.open(dir))!;
+    expect(await repository.preparedMessage()).toBe('PROJ-:');
+
+    writeFileSync(path.join(dir, 'a.txt'), 'b\n');
+    await repository.commitFiles({
+      message: 'Fix\n\n#42 task',
+      paths: ['a.txt'],
+      untracked: [],
+      amend: false,
+    });
+    expect(git(dir, 'log', '-1', '--format=%B').trim()).toBe('Fix\n\n#42 task');
+  });
+
   it('lists the reflog and returns the branch to an earlier state, keeping uncommitted changes', async () => {
     const dir = init('reflog');
     commitFile(dir, 'a.txt', 'a\n', 'a');

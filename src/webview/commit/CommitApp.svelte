@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { CommitHostMessage } from '../../shared/commitProtocol';
   import ContextMenu from '../components/ContextMenu.svelte';
+  import OperationBanner from '../components/OperationBanner.svelte';
   import Splitter from '../components/Splitter.svelte';
   import { postCommit } from '../vscode';
   import ChangesTree from './ChangesTree.svelte';
@@ -85,6 +86,13 @@
   {#if store.noRepository}
     <div class="empty">{t('There is no git repository in the open folders.')}</div>
   {:else if tab === 'commit'}
+    {#if store.operation}
+      <OperationBanner
+        operation={store.operation}
+        current={store.branch}
+        onaction={(action) => postCommit({ type: 'operation', action })}
+      />
+    {/if}
     <div class="toolbar">
       <button title={t('Refresh')} onclick={() => postCommit({ type: 'refresh' })}
         ><i class="codicon codicon-refresh"></i></button

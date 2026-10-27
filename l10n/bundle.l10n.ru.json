@@ -739,5 +739,6 @@
   "Letters, digits, dots, dashes and underscores only": "Только буквы, цифры, точки, дефисы и подчёркивания",
   "Remote {0} already exists": "Remote {0} уже есть",
   "Fetch {0}": "Fetch {0}",
-  "Manage remotes…": "Управление remote…"
+  "Manage remotes…": "Управление remote…",
+  "A {0} is committed with whole files: git does not commit a part of the changes during it.": "Во время {0} коммитятся только целые файлы: git не даёт закоммитить часть изменений."
 }

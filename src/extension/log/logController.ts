@@ -291,21 +291,7 @@ export class LogController implements vscode.Disposable {
   private async operation(action: Extract<WebviewMessage, { type: 'operation' }>['action']): Promise<void> {
     const repository = this.repository;
     if (!repository) return;
-    const state = await repository.operation();
-    if (!state) return this.load();
-    const sync = this.services.sync;
-    switch (action) {
-      case 'continue':
-        return sync.continueOperation(repository, state.kind);
-      case 'skip':
-        return sync.skip(repository, state.kind);
-      case 'abort':
-        return sync.abort(repository, state.kind);
-      case 'resolve':
-        if (sync.showConflicts) return sync.showConflicts(repository);
-        await vscode.commands.executeCommand('kleio.commit.focus');
-        return;
-    }
+    if (!(await this.services.sync.operationAction(repository, action))) return this.load();
   }
 
   private async load(): Promise<void> {

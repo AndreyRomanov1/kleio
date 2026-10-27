@@ -235,7 +235,16 @@
     <LogFilters {store} onclose={() => (filtersOpen = false)} />
   {/if}
   {#if store.snapshot?.operation && !store.history}
-    <OperationBanner {store} operation={store.snapshot.operation} />
+    <OperationBanner
+      operation={store.snapshot.operation}
+      current={store.snapshot.head.branch}
+      describe={(hash) => {
+        const refs = store.decorations.get(hash)?.refs ?? [];
+        return (refs.find((r) => r.kind === 'head') ?? refs.find((r) => r.kind === 'remote') ?? refs[0])
+          ?.name;
+      }}
+      onaction={(action) => post({ type: 'operation', action })}
+    />
   {/if}
   {#if store.noRepository}
     <div class="empty">{t('There is no git repository in the open folders.')}</div>

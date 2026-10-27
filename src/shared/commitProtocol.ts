@@ -1,4 +1,4 @@
-import type { ChangeStatus, Stash } from './model';
+import type { ChangeStatus, OperationState, Stash } from './model';
 
 export type CommitFileKind = 'tracked' | 'untracked' | 'conflict';
 
@@ -40,6 +40,10 @@ export type CommitHostMessage =
       root: string;
       /** All repositories, to switch between them when there are several. */
       repositories: { root: string; name: string }[];
+      /** The merge, rebase, cherry-pick or revert the repository is in the middle of. */
+      operation?: OperationState;
+      /** The message git prepared: of a merge or cherry-pick, a squash, or the commit template. */
+      preparedMessage?: string;
     }
   | { type: 'noRepository' }
   | { type: 'busy'; value: boolean }
@@ -69,6 +73,8 @@ export type CommitWebviewMessage =
       push: boolean;
     }
   | { type: 'setStaging'; value: boolean }
+  /** A button of the bar of the operation in progress. */
+  | { type: 'operation'; action: 'continue' | 'skip' | 'abort' | 'resolve' }
   | { type: 'selectRepository'; root: string }
   /** With the staging area: stages or unstages whole files. */
   | { type: 'stage'; paths: string[]; value: boolean }

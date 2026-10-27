@@ -326,9 +326,23 @@ export class Repository {
     hunks?: Record<string, string[]>;
   }): Promise<void> {
     const partial = Object.entries(options.hunks ?? {});
+    const state = await this.operation();
+    if (state && state.kind !== 'rebase') {
+      // git refuses a partial commit while it merges: the checked files join what the operation has staged.
+      if (partial.length)
+        throw new Error(
+          t(
+            'A {0} is committed with whole files: git does not commit a part of the changes during it.',
+            state.kind,
+          ),
+        );
+      const whole = [...options.paths, ...options.untracked];
+      if (whole.length) await this.git.run(['add', '-A', '--', ...whole]);
+      return this.commitIndex(options.message, options.amend);
+    }
     if (partial.length) return this.commitParts(options, partial);
     if (options.untracked.length) await this.git.run(['add', '--intent-to-add', '--', ...options.untracked]);
-    const args = ['commit', '--only', '--cleanup=strip', '-F', '-'];
+    const args = ['commit', '--only', '--cleanup=whitespace', '-F', '-'];
     if (options.amend) args.push('--amend');
     const paths = [...options.paths, ...options.untracked];
     if (paths.length) args.push('--', ...paths);
@@ -360,7 +374,7 @@ export class Repository {
           input: patch,
         });
       }
-      const args = ['commit', '--cleanup=strip', '-F', '-'];
+      const args = ['commit', '--cleanup=whitespace', '-F', '-'];
       if (options.amend) args.push('--amend');
       await this.git.run(args, { env, input: options.message });
     } finally {
@@ -368,6 +382,31 @@ export class Repository {
     }
     const committed = [...options.paths, ...options.untracked, ...partial.map(([p]) => p)];
     await this.git.run(['reset', '-q', '--', ...committed]);
+  }
+
+  /**
+   * The message git has prepared for the next commit: of a merge, cherry-pick or revert (`MERGE_MSG`), of a
+   * squash merge (`SQUASH_MSG`), or the `commit.template`. Comment lines are left out, as git's editor does.
+   */
+  async preparedMessage(): Promise<string | undefined> {
+    const read = (file: string) => readFile(file, 'utf8').catch(() => undefined);
+    let text =
+      (await read(path.join(this.gitDir, 'MERGE_MSG'))) ?? (await read(path.join(this.gitDir, 'SQUASH_MSG')));
+    if (text === undefined) {
+      const template = (
+        await this.git.run(['config', '--path', 'commit.template'], { allowExitCodes: [1] })
+      ).trim();
+      if (template) text = await read(path.resolve(this.root, template));
+    }
+    if (text === undefined) return undefined;
+    const configured = (await this.git.run(['config', 'core.commentChar'], { allowExitCodes: [1] })).trim();
+    const comment = configured && configured !== 'auto' ? configured : '#';
+    const message = text
+      .split('\n')
+      .filter((line) => !line.startsWith(comment))
+      .join('\n')
+      .trim();
+    return message || undefined;
   }
 
   /** Staged changes of a file, split into hunks without context lines as {@link workingPatch} does. */
@@ -411,7 +450,7 @@ export class Repository {
 
   /** Commits what is staged, as plain `git commit` does. */
   async commitIndex(message: string, amend: boolean): Promise<void> {
-    const args = ['commit', '--cleanup=strip', '-F', '-'];
+    const args = ['commit', '--cleanup=whitespace', '-F', '-'];
     if (amend) args.push('--amend');
     await this.git.run(args, { input: message });
   }
@@ -568,7 +607,13 @@ export class Repository {
     const dir = path.join(this.gitDir, 'kleio-rebase');
     await rm(dir, { recursive: true, force: true });
     await mkdir(dir, { recursive: true });
-    const { todo, messages } = buildRebaseTodo(entries, originals, (name) => path.join(dir, name), branches);
+    const { todo, messages } = buildRebaseTodo(
+      entries,
+      originals,
+      (name) => path.join(dir, name),
+      branches,
+      !(await this.git.atLeast(2, 36)),
+    );
     for (const [name, message] of messages) await writeFile(path.join(dir, name), message + '\n', 'utf8');
     const todoFile = path.join(dir, 'todo.txt');
     await writeFile(todoFile, todo, 'utf8');

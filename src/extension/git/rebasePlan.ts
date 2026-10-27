@@ -24,6 +24,8 @@ export function buildRebaseTodo(
   originals: ReadonlyMap<string, string>,
   messageFile: (name: string) => string,
   branches: ReadonlyMap<string, readonly string[]> = new Map(),
+  /** Git before 2.36 has no `git hook run`: the commit-msg hook is then run by its path. */
+  legacyHooks = false,
 ): RebaseTodo {
   const lines: string[] = [];
   const messages = new Map<string, string>();
@@ -36,8 +38,11 @@ export function buildRebaseTodo(
       messages.set(name, pending);
       const file = quote(messageFile(name));
       // As a reword in git itself: the commit-msg hook checks the message, pre-commit does not run again.
+      const hook = legacyHooks
+        ? `hook="$(git rev-parse --git-path hooks/commit-msg)" && { [ ! -x "$hook" ] || "$hook" ${file}; }`
+        : `git hook run --ignore-missing commit-msg -- ${file}`;
       lines.push(
-        `exec git hook run --ignore-missing commit-msg -- ${file} && git commit --amend --allow-empty --no-verify --quiet --cleanup=strip -F ${file}`,
+        `exec ${hook} && git commit --amend --allow-empty --no-verify --quiet --cleanup=whitespace -F ${file}`,
       );
       pending = undefined;
     }

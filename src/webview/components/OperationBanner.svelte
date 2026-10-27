@@ -1,27 +1,27 @@
 <script lang="ts">
   import type { OperationState } from '../../shared/model';
-  import type { LogStore } from '../store.svelte';
-  import { post } from '../vscode';
   import { t } from '../../shared/l10n';
 
+  type Action = 'continue' | 'skip' | 'abort' | 'resolve';
+
   interface Props {
-    store: LogStore;
     operation: OperationState;
+    /** The current branch. */
+    current?: string;
+    /** A name for a commit, e.g. the branch pointing at it; its short hash by default. */
+    describe?: (hash: string) => string | undefined;
+    onaction: (action: Action) => void;
   }
 
-  let { store, operation }: Props = $props();
+  let { operation, current, describe, onaction }: Props = $props();
 
-  /** A branch pointing at the commit reads better than its hash. */
-  function describe(hash: string | undefined): string {
+  function name(hash: string | undefined): string {
     if (!hash) return '';
-    const refs = store.decorations.get(hash)?.refs ?? [];
-    const ref = refs.find((r) => r.kind === 'head') ?? refs.find((r) => r.kind === 'remote') ?? refs[0];
-    return ref?.name ?? hash.slice(0, 8);
+    return describe?.(hash) ?? hash.slice(0, 8);
   }
 
   const text = $derived.by(() => {
-    const target = describe(operation.onto);
-    const current = store.snapshot?.head.branch;
+    const target = name(operation.onto);
     switch (operation.kind) {
       case 'rebase': {
         const step =
@@ -51,24 +51,22 @@
   {/if}
   <span class="spacer"></span>
   {#if conflicts}
-    <button class="primary" onclick={() => post({ type: 'operation', action: 'resolve' })}
-      >{t('Resolve conflicts')}</button
-    >
+    <button class="primary" onclick={() => onaction('resolve')}>{t('Resolve conflicts')}</button>
   {/if}
   <button
     class:primary={!conflicts}
     title="git {operation.kind} --continue"
-    onclick={() => post({ type: 'operation', action: 'continue' })}>{t('Continue')}</button
+    onclick={() => onaction('continue')}>{t('Continue')}</button
   >
   {#if canSkip}
     <button
       title={t('Skip the current commit: git {0} --skip', operation.kind)}
-      onclick={() => post({ type: 'operation', action: 'skip' })}>{t('Skip')}</button
+      onclick={() => onaction('skip')}>{t('Skip')}</button
     >
   {/if}
   <button
     title={t('Return everything to where it was before: git {0} --abort', operation.kind)}
-    onclick={() => post({ type: 'operation', action: 'abort' })}>{t('Abort')}</button
+    onclick={() => onaction('abort')}>{t('Abort')}</button
   >
 </div>
 

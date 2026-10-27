@@ -60,6 +60,31 @@ export class SyncActions {
     await this.operation(repository, title, 'cherry-pick', () => repository.cherryPick(...hashes));
   }
 
+  /** A button of the bar of a stopped operation; false when there is no operation any more. */
+  async operationAction(
+    repository: Repository,
+    action: 'continue' | 'skip' | 'abort' | 'resolve',
+  ): Promise<boolean> {
+    const state = await repository.operation();
+    if (!state) return false;
+    switch (action) {
+      case 'continue':
+        await this.continueOperation(repository, state.kind);
+        break;
+      case 'skip':
+        await this.skip(repository, state.kind);
+        break;
+      case 'abort':
+        await this.abort(repository, state.kind);
+        break;
+      case 'resolve':
+        if (this.showConflicts) await this.showConflicts(repository);
+        else await vscode.commands.executeCommand('kleio.commit.focus');
+        break;
+    }
+    return true;
+  }
+
   async continueOperation(repository: Repository, kind: OperationKind): Promise<void> {
     await this.operation(repository, t('{0}: continue', operationNames[kind]), kind, () =>
       repository.continueOperation(kind),

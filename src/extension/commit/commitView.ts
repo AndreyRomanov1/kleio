@@ -30,6 +30,11 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
       push: (repository: Repository) => Promise<void>;
       /** Opens the three-way merge of a conflicted file. */
       merge: (repository: Repository, filePath: string) => Promise<void>;
+      /** A button of the bar of a stopped operation, as in the log. */
+      operation: (
+        repository: Repository,
+        action: 'continue' | 'skip' | 'abort' | 'resolve',
+      ) => Promise<unknown>;
     },
   ) {
     const watcher = vscode.workspace.createFileSystemWatcher('**/*');
@@ -99,6 +104,9 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
         if (repository) this.repositories.setCurrent(repository);
         return;
       }
+      case 'operation':
+        if (this.repository) await this.dialogs.operation(this.repository, message.action);
+        return this.refresh();
       case 'setStaging':
         await vscode.workspace
           .getConfiguration('kleio')
@@ -141,11 +149,13 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
       return;
     }
     const staging = this.staging;
-    const [changes, stashes, head, index] = await Promise.all([
+    const [changes, stashes, head, index, operation, preparedMessage] = await Promise.all([
       repository.workingChanges(),
       repository.stashes(),
       repository.head(),
       staging ? repository.stagingState() : undefined,
+      repository.operation(),
+      repository.preparedMessage(),
     ]);
     const conflicted = new Set(changes.conflicted);
     const staged = (c: { path: string; oldPath?: string }): CommitFile['staged'] => {
@@ -181,6 +191,8 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
       staging,
       root: repository.root,
       repositories: this.repositories.all.map((r) => ({ root: r.root, name: r.name })),
+      operation,
+      preparedMessage,
     });
   }
 
