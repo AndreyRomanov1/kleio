@@ -2,11 +2,10 @@ import * as vscode from 'vscode';
 import type { Repository } from '../git/repository';
 import type { RepositoryManager } from '../git/repositoryManager';
 import type { HostingService } from '../hosting/hostingService';
+import { withCancellableProgress } from '../progress';
 import { t } from '../../shared/l10n';
 
 export type RemoteAction = 'add' | 'manage' | 'fetch' | 'setUrl' | 'rename' | 'remove' | 'hosting';
-
-const FETCH_TIMEOUT_MS = 120_000;
 
 /**
  * Remotes of a repository, as Rider's Manage Remotes and the Git extension's remote commands: add, change the
@@ -165,9 +164,8 @@ export class RemoteActions implements vscode.Disposable {
   }
 
   private async fetch(repository: Repository, remote: string): Promise<void> {
-    await vscode.window.withProgress(
-      { location: vscode.ProgressLocation.Notification, title: t('Kleio: fetch {0}', remote) },
-      () => this.git(repository, ['fetch', '--prune', remote], FETCH_TIMEOUT_MS),
+    await withCancellableProgress(t('Kleio: fetch {0}', remote), (signal) =>
+      this.git(repository, ['fetch', '--prune', remote], signal),
     );
   }
 
@@ -184,9 +182,9 @@ export class RemoteActions implements vscode.Disposable {
   }
 
   /** Runs git and refreshes the log; a failure is shown as git told it. */
-  private async git(repository: Repository, args: string[], timeoutMs?: number): Promise<boolean> {
+  private async git(repository: Repository, args: string[], signal?: AbortSignal): Promise<boolean> {
     try {
-      await repository.git.run(args, timeoutMs ? { timeoutMs } : {});
+      await repository.git.run(args, { signal });
       return true;
     } catch (error) {
       void vscode.window.showErrorMessage(error instanceof Error ? error.message : String(error));

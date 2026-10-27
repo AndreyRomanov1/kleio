@@ -1,5 +1,6 @@
 **
 !dist/extension.js
+!dist/askpass-main.js
 !dist/webview.js
 !dist/webview.css
 !dist/codicon.ttf

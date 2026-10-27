@@ -198,6 +198,8 @@ export class HostingService implements vscode.Disposable {
         ? repository.git
             .run(['ls-remote', remoteName, 'refs/merge-requests/*/head', 'refs/pull/*/head'], {
               timeoutMs: NETWORK_TIMEOUT_MS,
+              // Asked every few minutes: no password questions, the refs are an extra.
+              env: { KLEIO_ASKPASS_SILENT: '1' },
             })
             .catch(() => '')
         : Promise.resolve(''),

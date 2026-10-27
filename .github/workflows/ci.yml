@@ -26,9 +26,9 @@ jobs:
       - run: npx prettier --check .
       - run: npm test
       - run: npm run package
-      - name: The package has the translations
+      - name: The package has the translations and the askpass program
         if: matrix.os == 'ubuntu-latest'
-        run: unzip -l kleio.vsix | grep -q 'extension/package.nls.ru.json' && unzip -l kleio.vsix | grep -q 'extension/l10n/bundle.l10n.ru.json'
+        run: unzip -l kleio.vsix | grep -q 'extension/package.nls.ru.json' && unzip -l kleio.vsix | grep -q 'extension/l10n/bundle.l10n.ru.json' && unzip -l kleio.vsix | grep -q 'extension/dist/askpass-main.js'
       - uses: actions/upload-artifact@v4
         if: matrix.os == 'ubuntu-latest'
         with:

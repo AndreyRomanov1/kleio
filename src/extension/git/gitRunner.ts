@@ -17,8 +17,10 @@ export interface RunOptions {
   env?: NodeJS.ProcessEnv;
   /** Resolve instead of throwing on these exit codes. */
   allowExitCodes?: number[];
-  /** Kills git after this time, e.g. for network commands that might wait for an SSH passphrase. */
+  /** Kills git after this time, for commands in the background that nobody waits for. */
   timeoutMs?: number;
+  /** Kills git when aborted, e.g. by the cancel button of a progress notification. */
+  signal?: AbortSignal;
 }
 
 let defaultGitPath = 'git';
@@ -50,6 +52,13 @@ export interface GitCommandRecord {
   /** Whether the exit code counts as a failure for the caller. */
   failed: boolean;
   stderr: string;
+}
+
+let environment: NodeJS.ProcessEnv = {};
+
+/** Variables every git command gets, e.g. the program that asks for passwords in the editor. */
+export function setGitEnvironment(env: NodeJS.ProcessEnv): void {
+  environment = env;
 }
 
 let logger: ((record: GitCommandRecord) => void) | undefined;
@@ -107,10 +116,13 @@ export class GitRunner {
       child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
       child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk));
       const timer = options.timeoutMs ? setTimeout(() => child.kill(), options.timeoutMs) : undefined;
+      const kill = () => child.kill();
+      options.signal?.addEventListener('abort', kill);
       const started = Date.now();
       child.on('error', reject);
       child.on('close', (code) => {
         clearTimeout(timer);
+        options.signal?.removeEventListener('abort', kill);
         const out = Buffer.concat(stdout).toString('utf8');
         const err = Buffer.concat(stderr).toString('utf8');
         const ok = code === 0 || (code !== null && !!options.allowExitCodes?.includes(code));
@@ -118,7 +130,8 @@ export class GitRunner {
         if (ok) {
           resolve({ stdout: out, stderr: err });
         } else {
-          reject(new GitError(args, code, err || (code === null ? t('timed out') : '')));
+          const stopped = options.signal?.aborted ? t('cancelled') : t('timed out');
+          reject(new GitError(args, code, err || (code === null ? stopped : '')));
         }
       });
 
@@ -158,7 +171,7 @@ export class GitRunner {
   private spawn(args: readonly string[], env?: NodeJS.ProcessEnv) {
     return spawn(this.gitPath, [...FIXED_CONFIG, ...args], {
       cwd: this.cwd,
-      env: { ...process.env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C', ...env },
+      env: { ...process.env, ...environment, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C', ...env },
       windowsHide: true,
     });
   }

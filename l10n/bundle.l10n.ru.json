@@ -744,5 +744,9 @@
   "{0} new file(s) will leave the index and go to the trash.": "{0} новых файл(ов) уйдут из индекса в корзину.",
   "{0}: git found nothing to stash, yet local changes are in the way. Check git status.": "{0}: git не нашёл, что спрятать в stash, но локальные изменения мешают. Проверьте git status.",
   "Kleio could not run git. Install git or point the git.path setting to it.": "Kleio не смог запустить git. Установите git или укажите путь к нему в настройке git.path.",
-  "Kleio needs git {0} or newer, and git {1} is installed: repositories are not opened.": "Kleio нужен git {0} или новее, а установлен git {1}: репозитории не открываются."
+  "Kleio needs git {0} or newer, and git {1} is installed: repositories are not opened.": "Kleio нужен git {0} или новее, а установлен git {1}: репозитории не открываются.",
+  "Branch {0} has diverged from {1}: {2} own commits, {3} new. The git config allows only fast-forward (pull.ff=only), as git pull does.": "Ветка {0} разошлась с {1}: своих коммитов {2}, новых {3}. В git config разрешена только перемотка (pull.ff=only) — как и git pull, Kleio не обновляет такую ветку.",
+  "Yes, connect": "Да, подключиться",
+  "Git: unknown server": "Git: незнакомый сервер",
+  "cancelled": "отменено"
 }

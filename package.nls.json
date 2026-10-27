@@ -48,7 +48,7 @@
   "config.commit.stagingArea": "The commit view works with the git index (staging area), as `git commit` and the built-in Git of VS Code do: the checkboxes show and change what is staged, and the commit takes what is staged. Off, it works as in Rider: checked files and hunks are committed as they are on disk, and the index is not used. Also toggled by the Stage checkbox in the commit view.",
   "config.autolinks.pattern": "A regular expression (JavaScript).",
   "config.autolinks.url": "The link URL: `$0` is the match, `$1`… are the groups.",
-  "config.update.method.ask": "Ask on the first update and remember the answer",
+  "config.update.method.ask": "Ask on the first update and remember the answer, unless the git config says how git pull updates (`pull.rebase`, `branch.<name>.rebase`, `pull.ff=only`)",
   "config.update.method.merge": "Incoming commits are merged with a merge commit, as git pull does",
   "config.update.method.rebase": "Own commits are rebased on top of the incoming ones, as git pull --rebase does",
   "config.language": "Language of Kleio: `auto` follows the display language of the editor; `en`, `ru` or another language with a translation in `l10n/` works without a language pack. Commands and settings follow the editor. Takes effect after the window is reloaded.",

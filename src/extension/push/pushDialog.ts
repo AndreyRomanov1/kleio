@@ -12,10 +12,10 @@ import type { Repository } from '../git/repository';
 import type { RepositoryManager } from '../git/repositoryManager';
 import { renderHtml, webviewOptions } from '../webviewHtml';
 import { matchesBranchPattern, pushArgs, readPushState, retarget } from './pushState';
+import { withCancellableProgress } from '../progress';
 import { t } from '../../shared/l10n';
 
 const PANEL_TYPE = 'kleio.push';
-const PUSH_TIMEOUT_MS = 120_000;
 
 /**
  * Rider's push dialog: outgoing commits of the current branch (and of other branches that have some),
@@ -137,12 +137,9 @@ export class PushDialog implements vscode.Disposable {
     const messages: string[] = [];
     try {
       for (const request of requests) {
-        const output = await vscode.window.withProgress(
-          {
-            location: vscode.ProgressLocation.Notification,
-            title: `Kleio: push ${request.branch} → ${request.remote}/${request.target}`,
-          },
-          () => repository.git.runWithOutput(this.pushArgs(request), { timeoutMs: PUSH_TIMEOUT_MS }),
+        const output = await withCancellableProgress(
+          `Kleio: push ${request.branch} → ${request.remote}/${request.target}`,
+          (signal) => repository.git.runWithOutput(this.pushArgs(request), { signal }),
         );
         messages.push(...remoteMessages(output.stderr));
       }

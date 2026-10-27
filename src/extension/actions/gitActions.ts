@@ -7,6 +7,7 @@ import { GitError } from '../git/gitRunner';
 import type { Repository } from '../git/repository';
 import type { RepositoryManager } from '../git/repositoryManager';
 import type { SyncActions } from './syncActions';
+import { withCancellableProgress } from '../progress';
 import { t } from '../../shared/l10n';
 
 /** What git says when local changes would be lost by a checkout. */
@@ -388,19 +389,13 @@ export class GitActions {
     args: string[],
     showProgress = false,
   ): Promise<boolean> {
-    const task = async () => {
-      await repository.git.run(args);
+    const task = async (signal?: AbortSignal) => {
+      await repository.git.run(args, { signal });
       this.repositories.notifyChanged(repository);
     };
     try {
-      if (showProgress) {
-        await vscode.window.withProgress(
-          { location: vscode.ProgressLocation.Notification, title: `Kleio: ${title}` },
-          task,
-        );
-      } else {
-        await task();
-      }
+      if (showProgress) await withCancellableProgress(`Kleio: ${title}`, task);
+      else await task();
       vscode.window.setStatusBarMessage(t('Kleio: {0} — done', title), 3000);
       return true;
     } catch (error) {

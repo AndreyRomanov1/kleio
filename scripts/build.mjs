@@ -21,6 +21,16 @@ const extension = {
   external: ['vscode'],
 };
 
+/** The program git and ssh run to ask for a password, started by the editor's binary as plain node. */
+const askpass = {
+  ...common,
+  entryPoints: ['src/askpass/main.ts'],
+  outfile: 'dist/askpass-main.js',
+  platform: 'node',
+  format: 'cjs',
+  target: 'node20',
+};
+
 const webview = {
   ...common,
   entryPoints: ['src/webview/main.ts'],
@@ -37,8 +47,12 @@ const webview = {
 };
 
 if (watch) {
-  const contexts = await Promise.all([esbuild.context(extension), esbuild.context(webview)]);
+  const contexts = await Promise.all([
+    esbuild.context(extension),
+    esbuild.context(askpass),
+    esbuild.context(webview),
+  ]);
   await Promise.all(contexts.map((c) => c.watch()));
 } else {
-  await Promise.all([esbuild.build(extension), esbuild.build(webview)]);
+  await Promise.all([esbuild.build(extension), esbuild.build(askpass), esbuild.build(webview)]);
 }

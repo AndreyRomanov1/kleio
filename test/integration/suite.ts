@@ -651,6 +651,29 @@ const tests: Test[] = [
     },
   ],
   [
+    'asks for the user name and password of a remote in the editor',
+    async (api) => {
+      const asked: string[] = [];
+      const original = api.askpass.ask;
+      api.askpass.ask = async (prompt) => {
+        asked.push(prompt);
+        return prompt.startsWith('Username') ? 'user' : 'secret';
+      };
+      try {
+        const repository = await api.repositories.get(root());
+        assert.ok(repository, 'repository is found');
+        const output = await repository.git.run(['-c', 'credential.helper=', 'credential', 'fill'], {
+          input: 'protocol=https\nhost=example.com\n\n',
+        });
+        assert.match(output, /^username=user$/m);
+        assert.match(output, /^password=secret$/m);
+        assert.equal(asked.length, 2);
+      } finally {
+        api.askpass.ask = original;
+      }
+    },
+  ],
+  [
     'opens the log in an editor tab',
     async (api) => {
       const panel = api.logs.openInEditor();

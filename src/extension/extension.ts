@@ -12,6 +12,7 @@ import { watchGitPath } from './git/gitPath';
 import { BranchStatus } from './statusBar/branchStatus';
 import { loadLanguage } from './language';
 import { checkGit, createOutput } from './output';
+import { startAskpass, type Askpass } from './askpass';
 import type { Repository } from './git/repository';
 import { RepositoryManager } from './git/repositoryManager';
 import { ReviewController } from './review/reviewController';
@@ -38,6 +39,7 @@ export interface KleioApi {
   conflicts: ConflictsWindow;
   actions: GitActions;
   remotes: RemoteActions;
+  askpass: Askpass;
 }
 
 export async function activate(context: vscode.ExtensionContext): Promise<KleioApi> {
@@ -53,6 +55,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<KleioA
   const output = createOutput();
   context.subscriptions.push(output.disposable);
   void checkGit(output.channel);
+  const askpass = await startAskpass(context);
+  context.subscriptions.push(askpass);
   const navigator = new ChangeSetNavigator(context.workspaceState);
   const sync = new SyncActions(repositories);
   const actions = new GitActions(repositories, sync);
@@ -146,7 +150,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<KleioA
     .restore(repositories)
     .catch(() => undefined)
     .then(() => navigator.restore(repositories));
-  return { repositories, navigator, logs, blame, review, rebase, conflicts, actions, remotes };
+  return { repositories, navigator, logs, blame, review, rebase, conflicts, actions, remotes, askpass };
 }
 
 /** Commands act on the current repository: the one of the active editor or chosen in the log or commit view. */

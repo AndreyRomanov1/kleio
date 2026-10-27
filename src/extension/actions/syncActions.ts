@@ -3,9 +3,8 @@ import type { OperationKind, Ref, RepositorySnapshot } from '../../shared/model'
 import type { RebaseEntry } from '../../shared/rebaseProtocol';
 import type { OperationOutcome, Repository } from '../git/repository';
 import type { RepositoryManager } from '../git/repositoryManager';
+import { withCancellableProgress } from '../progress';
 import { t } from '../../shared/l10n';
-
-const FETCH_TIMEOUT_MS = 120_000;
 
 const operationNames: Record<OperationKind, string> = {
   merge: 'Merge',
@@ -130,11 +129,14 @@ export class SyncActions {
    * upstream — fast-forward when it has no own commits, otherwise rebase or merge as configured.
    */
   async updateProject(repository: Repository): Promise<void> {
-    const fetched = await this.withProgress(t('Kleio: updating the project'), async (progress) => {
-      progress.report({ message: 'fetch' });
-      await repository.git.run(['fetch', '--all', '--prune'], { timeoutMs: FETCH_TIMEOUT_MS });
-      return true;
-    });
+    const fetched = await this.fetchWithProgress(
+      t('Kleio: updating the project'),
+      async (signal, progress) => {
+        progress.report({ message: 'fetch' });
+        await repository.git.run(['fetch', '--all', '--prune'], { signal });
+        return true;
+      },
+    );
     this.repositories.notifyChanged(repository);
     if (!fetched) return;
 
@@ -164,7 +166,7 @@ export class SyncActions {
       );
       return;
     }
-    const method = await this.updateMethod(head.branch, upstream, ahead, behind);
+    const method = await this.updateMethod(repository, head.branch, upstream, ahead, behind);
     if (!method) return;
     if (method === 'merge') {
       await this.operation(repository, title, 'merge', () => repository.merge(upstream));
@@ -199,8 +201,8 @@ export class SyncActions {
       const slash = upstreamRef.name.indexOf('/');
       const remote = upstreamRef.name.slice(0, slash);
       const remoteBranch = upstreamRef.name.slice(slash + 1);
-      const fetched = await this.withProgress(`Kleio: fetch ${upstreamRef.name}`, async () => {
-        await repository.git.run(['fetch', remote, remoteBranch], { timeoutMs: FETCH_TIMEOUT_MS });
+      const fetched = await this.fetchWithProgress(`Kleio: fetch ${upstreamRef.name}`, async (signal) => {
+        await repository.git.run(['fetch', remote, remoteBranch], { signal });
         return true;
       });
       if (!fetched) return;
@@ -392,8 +394,12 @@ export class SyncActions {
     if (choice === abort && state) await this.abort(repository, state.kind);
   }
 
-  /** The configured way to update a diverged branch; asked once and saved in the user settings. */
+  /**
+   * The way to update a diverged branch: the Kleio setting, else what git pull would do by the git config
+   * (`branch.<name>.rebase`, `pull.rebase`, `pull.ff=only`), else asked once and saved in the user settings.
+   */
   private async updateMethod(
+    repository: Repository,
     branch: string,
     upstream: string,
     ahead: number,
@@ -402,6 +408,20 @@ export class SyncActions {
     const config = vscode.workspace.getConfiguration('kleio');
     const method = config.get<'ask' | 'merge' | 'rebase'>('update.method', 'ask');
     if (method !== 'ask') return method;
+    const fromGit = await gitPullMethod(repository, branch);
+    if (fromGit === 'ff-only') {
+      void vscode.window.showWarningMessage(
+        t(
+          'Branch {0} has diverged from {1}: {2} own commits, {3} new. The git config allows only fast-forward (pull.ff=only), as git pull does.',
+          branch,
+          upstream,
+          ahead,
+          behind,
+        ),
+      );
+      return undefined;
+    }
+    if (fromGit) return fromGit;
     const picked = await vscode.window.showQuickPick(
       [
         {
@@ -443,6 +463,18 @@ export class SyncActions {
     return output.trim() || undefined;
   }
 
+  private async fetchWithProgress<T>(
+    title: string,
+    task: (signal: AbortSignal, progress: vscode.Progress<{ message?: string }>) => Promise<T>,
+  ): Promise<T | undefined> {
+    try {
+      return await withCancellableProgress(title, task);
+    } catch (error) {
+      report(error);
+      return undefined;
+    }
+  }
+
   private async withProgress<T>(
     title: string,
     task: (progress: vscode.Progress<{ message?: string }>) => Promise<T>,
@@ -461,6 +493,18 @@ export class SyncActions {
   private detached(): void {
     void vscode.window.showWarningMessage(t('HEAD has no branch: check out a branch first.'));
   }
+}
+
+/** What `git pull` would do with a diverged branch by the git config; undefined when nothing is set. */
+async function gitPullMethod(
+  repository: Repository,
+  branch: string,
+): Promise<'merge' | 'rebase' | 'ff-only' | undefined> {
+  const get = async (key: string) =>
+    (await repository.git.run(['config', '--get', key], { allowExitCodes: [1] })).trim().toLowerCase();
+  const rebase = (await get(`branch.${branch}.rebase`)) || (await get('pull.rebase'));
+  if (rebase) return ['false', 'no', 'off', '0'].includes(rebase) ? 'merge' : 'rebase';
+  return (await get('pull.ff')) === 'only' ? 'ff-only' : undefined;
 }
 
 function report(error: unknown): void {

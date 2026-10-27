@@ -15,5 +15,5 @@
     "ignoreDeprecations": "6.0",
     "noEmit": true
   },
-  "include": ["src/extension", "src/shared", "test", "scripts/preview"]
+  "include": ["src/extension", "src/askpass", "src/shared", "test", "scripts/preview"]
 }
