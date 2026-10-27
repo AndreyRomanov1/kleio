@@ -358,6 +358,12 @@
         "category": "Kleio"
       },
       {
+        "command": "kleio.showLog",
+        "title": "%command.showLog%",
+        "category": "Kleio",
+        "icon": "$(output)"
+      },
+      {
         "command": "kleio.git.push",
         "title": "Push…",
         "category": "Kleio",
@@ -417,6 +423,16 @@
           "command": "kleio.git.applyPatch",
           "when": "view == kleio.commit",
           "group": "overflow@2"
+        },
+        {
+          "command": "kleio.showLog",
+          "when": "view == kleio.log",
+          "group": "overflow@9"
+        },
+        {
+          "command": "kleio.showLog",
+          "when": "view == kleio.commit",
+          "group": "overflow@9"
         }
       ],
       "editor/title": [

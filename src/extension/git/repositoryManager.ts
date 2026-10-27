@@ -10,6 +10,8 @@ const REFRESH_DELAY_MS = 400;
 /** Finds repositories of the workspace folders and reports changes to their refs. */
 export class RepositoryManager implements vscode.Disposable {
   private readonly repositories = new Map<string, Repository>();
+  /** Roots found in the workspace folders, unlike repositories opened on demand (e.g. another worktree). */
+  private scanned = new Set<string>();
   private readonly watchers = new Map<string, vscode.Disposable>();
   private readonly changed = new vscode.EventEmitter<Repository>();
   private readonly listChanged = new vscode.EventEmitter<void>();
@@ -61,15 +63,37 @@ export class RepositoryManager implements vscode.Disposable {
 
   async scan(): Promise<void> {
     const folders = vscode.workspace.workspaceFolders ?? [];
-    const found = (await Promise.all(folders.map((f) => openFolder(f.uri.fsPath)))).flat();
+    const found = (await Promise.all(folders.map((f) => openFolder(f.uri.fsPath))))
+      .flat()
+      .filter((r): r is Repository => r !== undefined);
     let changed = false;
     for (const repository of found) {
-      if (repository && !this.repositories.has(repository.root)) {
+      if (!this.repositories.has(repository.root)) {
         this.add(repository);
         changed = true;
       }
     }
+    const roots = new Set(found.map((r) => r.root));
+    for (const root of this.scanned) {
+      if (roots.has(root)) continue;
+      this.remove(root);
+      changed = true;
+    }
+    this.scanned = roots;
     if (changed) this.listChanged.fire();
+  }
+
+  /** Forgets a repository whose folder left the workspace. */
+  private remove(root: string): void {
+    this.watchers.get(root)?.dispose();
+    this.watchers.delete(root);
+    clearTimeout(this.pending.get(root));
+    this.pending.delete(root);
+    this.repositories.delete(root);
+    if (this.currentRoot !== root) return;
+    this.currentRoot = undefined;
+    const next = this.current;
+    if (next) this.currentChanged.fire(next);
   }
 
   /** Returns a known repository by its root, opening it on demand (e.g. another worktree). */

@@ -113,7 +113,9 @@ function destination(
   refs: Map<string, Ref>,
   remotes: string[],
 ): { remote: string; target: string; upstream?: Ref } {
-  const upstream = ref.upstream ? refs.get(ref.upstream) : undefined;
+  const tracked = ref.upstream ? refs.get(ref.upstream) : undefined;
+  // An upstream that is a local branch is no place to push to.
+  const upstream = tracked?.kind === 'remote' ? tracked : undefined;
   if (upstream) {
     const remote = remotes.find((r) => upstream.name.startsWith(`${r}/`)) ?? upstream.name.split('/')[0];
     return { remote, target: upstream.name.slice(remote.length + 1), upstream };

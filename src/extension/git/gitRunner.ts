@@ -41,6 +41,24 @@ export function setGitPath(gitPath: string): void {
   defaultGitPath = gitPath;
 }
 
+/** A finished git command, for the log of Kleio. */
+export interface GitCommandRecord {
+  args: readonly string[];
+  cwd: string;
+  durationMs: number;
+  exitCode: number | null;
+  /** Whether the exit code counts as a failure for the caller. */
+  failed: boolean;
+  stderr: string;
+}
+
+let logger: ((record: GitCommandRecord) => void) | undefined;
+
+/** Receives every finished git command; the extension writes them to its output channel. */
+export function setGitLogger(log: ((record: GitCommandRecord) => void) | undefined): void {
+  logger = log;
+}
+
 const versions = new Map<string, Promise<number[]>>();
 
 export class GitRunner {
@@ -55,16 +73,21 @@ export class GitRunner {
 
   /** Whether git is at least of this version, for options that older versions reject. */
   async atLeast(major: number, minor: number): Promise<boolean> {
+    const [actualMajor = 0, actualMinor = 0] = await this.version();
+    return actualMajor > major || (actualMajor === major && actualMinor >= minor);
+  }
+
+  /** Major, minor and patch of git, empty when it does not run. */
+  version(): Promise<number[]> {
     let version = versions.get(this.gitPath);
     if (!version) {
       version = this.run(['version']).then(
-        (output) => (/(\d+)\.(\d+)/.exec(output) ?? []).slice(1).map(Number),
+        (output) => (/(\d+)\.(\d+)(?:\.(\d+))?/.exec(output) ?? []).slice(1).map((n) => Number(n ?? 0)),
         () => [],
       );
       versions.set(this.gitPath, version);
     }
-    const [actualMajor = 0, actualMinor = 0] = await version;
-    return actualMajor > major || (actualMajor === major && actualMinor >= minor);
+    return version;
   }
 
   async run(args: readonly string[], options: RunOptions = {}): Promise<string> {
@@ -84,12 +107,15 @@ export class GitRunner {
       child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
       child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk));
       const timer = options.timeoutMs ? setTimeout(() => child.kill(), options.timeoutMs) : undefined;
+      const started = Date.now();
       child.on('error', reject);
       child.on('close', (code) => {
         clearTimeout(timer);
         const out = Buffer.concat(stdout).toString('utf8');
         const err = Buffer.concat(stderr).toString('utf8');
-        if (code === 0 || (code !== null && options.allowExitCodes?.includes(code))) {
+        const ok = code === 0 || (code !== null && !!options.allowExitCodes?.includes(code));
+        this.log(args, started, code, !ok, err);
+        if (ok) {
           resolve({ stdout: out, stderr: err });
         } else {
           reject(new GitError(args, code, err || (code === null ? t('timed out') : '')));
@@ -105,16 +131,28 @@ export class GitRunner {
   runBuffer(args: readonly string[]): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       const child = this.spawn(args);
+      const started = Date.now();
       const stdout: Buffer[] = [];
       const stderr: Buffer[] = [];
       child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
       child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk));
       child.on('error', reject);
       child.on('close', (code) => {
+        this.log(args, started, code, code !== 0, Buffer.concat(stderr).toString('utf8'));
         if (code === 0) resolve(Buffer.concat(stdout));
         else reject(new GitError(args, code, Buffer.concat(stderr).toString('utf8')));
       });
     });
+  }
+
+  private log(
+    args: readonly string[],
+    started: number,
+    exitCode: number | null,
+    failed: boolean,
+    stderr: string,
+  ) {
+    logger?.({ args, cwd: this.cwd, durationMs: Date.now() - started, exitCode, failed, stderr });
   }
 
   private spawn(args: readonly string[], env?: NodeJS.ProcessEnv) {

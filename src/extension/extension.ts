@@ -11,6 +11,7 @@ import { REVISION_SCHEME } from './content/revisionUri';
 import { watchGitPath } from './git/gitPath';
 import { BranchStatus } from './statusBar/branchStatus';
 import { loadLanguage } from './language';
+import { checkGit, createOutput } from './output';
 import type { Repository } from './git/repository';
 import { RepositoryManager } from './git/repositoryManager';
 import { ReviewController } from './review/reviewController';
@@ -49,6 +50,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<KleioA
     }),
   );
   context.subscriptions.push(await loadLanguage(context), watchGitPath());
+  const output = createOutput();
+  context.subscriptions.push(output.disposable);
+  void checkGit(output.channel);
   const navigator = new ChangeSetNavigator(context.workspaceState);
   const sync = new SyncActions(repositories);
   const actions = new GitActions(repositories, sync);

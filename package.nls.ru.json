@@ -76,5 +76,6 @@
   "command.review.compareNewer": "Сравнить с новой версией",
   "command.review.switchToNewer": "Перейти на новую версию",
   "command.review.stayOnVersion": "Досмотреть эту версию",
-  "command.remotes.manage": "Управление remote…"
+  "command.remotes.manage": "Управление remote…",
+  "command.showLog": "Показать журнал"
 }

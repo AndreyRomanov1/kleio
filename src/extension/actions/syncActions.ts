@@ -194,14 +194,17 @@ export class SyncActions {
       );
       return;
     }
-    const slash = upstreamRef.name.indexOf('/');
-    const remote = upstreamRef.name.slice(0, slash);
-    const remoteBranch = upstreamRef.name.slice(slash + 1);
-    const fetched = await this.withProgress(`Kleio: fetch ${upstreamRef.name}`, async () => {
-      await repository.git.run(['fetch', remote, remoteBranch], { timeoutMs: FETCH_TIMEOUT_MS });
-      return true;
-    });
-    if (!fetched) return;
+    // A branch may track another local branch (`branch.<name>.remote = .`): nothing to fetch then.
+    if (upstreamRef.kind === 'remote') {
+      const slash = upstreamRef.name.indexOf('/');
+      const remote = upstreamRef.name.slice(0, slash);
+      const remoteBranch = upstreamRef.name.slice(slash + 1);
+      const fetched = await this.withProgress(`Kleio: fetch ${upstreamRef.name}`, async () => {
+        await repository.git.run(['fetch', remote, remoteBranch], { timeoutMs: FETCH_TIMEOUT_MS });
+        return true;
+      });
+      if (!fetched) return;
+    }
     const [local, upstream] = await Promise.all([
       repository.revParse(ref.fullName),
       repository.revParse(upstreamRef.fullName),

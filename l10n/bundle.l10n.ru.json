@@ -742,5 +742,7 @@
   "Manage remotes…": "Управление remote…",
   "A {0} is committed with whole files: git does not commit a part of the changes during it.": "Во время {0} коммитятся только целые файлы: git не даёт закоммитить часть изменений.",
   "{0} new file(s) will leave the index and go to the trash.": "{0} новых файл(ов) уйдут из индекса в корзину.",
-  "{0}: git found nothing to stash, yet local changes are in the way. Check git status.": "{0}: git не нашёл, что спрятать в stash, но локальные изменения мешают. Проверьте git status."
+  "{0}: git found nothing to stash, yet local changes are in the way. Check git status.": "{0}: git не нашёл, что спрятать в stash, но локальные изменения мешают. Проверьте git status.",
+  "Kleio could not run git. Install git or point the git.path setting to it.": "Kleio не смог запустить git. Установите git или укажите путь к нему в настройке git.path.",
+  "Kleio needs git {0} or newer, and git {1} is installed: repositories are not opened.": "Kleio нужен git {0} или новее, а установлен git {1}: репозитории не открываются."
 }
