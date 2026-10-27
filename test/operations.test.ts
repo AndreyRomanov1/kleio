@@ -203,10 +203,14 @@ describe('Repository operations', () => {
     commitFile(dir, 'b.txt', 'b\n', 'b');
     const before = git(dir, 'rev-parse', 'HEAD').trim();
     git(dir, 'reset', '-q', '--hard', 'HEAD~1');
+    // Switching branches moves HEAD, not main: it is no state of main to return to.
+    git(dir, 'checkout', '-q', '-b', 'other');
+    commitFile(dir, 'c.txt', 'c\n', 'c');
+    git(dir, 'checkout', '-q', 'main');
     writeFileSync(path.join(dir, 'a.txt'), 'local\n');
     const repository = (await Repository.open(dir))!;
 
-    const reflog = await repository.reflog();
+    const reflog = await repository.reflog('main');
     expect(reflog[0].action).toMatch(/^reset: moving to HEAD~1/);
     expect(reflog[1]).toMatchObject({ hash: before, subject: 'b' });
     expect(reflog[1].date).toBeGreaterThan(0);
@@ -214,6 +218,32 @@ describe('Repository operations', () => {
     await repository.reset(reflog[1].hash, 'keep');
     expect(git(dir, 'rev-parse', 'HEAD').trim()).toBe(before);
     expect(readFileSync(path.join(dir, 'a.txt'), 'utf8')).toBe('local\n');
+  });
+
+  it('stops a revert on conflicts as an operation', async () => {
+    const dir = init('revert');
+    commitFile(dir, 'a.txt', 'one\n', 'one');
+    commitFile(dir, 'a.txt', 'two\n', 'two');
+    const two = git(dir, 'rev-parse', 'HEAD').trim();
+    commitFile(dir, 'a.txt', 'three\n', 'three');
+    const repository = (await Repository.open(dir))!;
+
+    expect(await repository.revert(two)).toBe('conflicts');
+    expect(await repository.operation()).toMatchObject({ kind: 'revert', conflicted: ['a.txt'] });
+  });
+
+  it('rolls back a new file by taking it out of the index without deleting it', async () => {
+    const dir = init('rollback-added');
+    commitFile(dir, 'a.txt', 'a\n', 'a');
+    writeFileSync(path.join(dir, 'new.txt'), 'new\n');
+    git(dir, 'add', 'new.txt');
+    writeFileSync(path.join(dir, 'a.txt'), 'changed\n');
+    const repository = (await Repository.open(dir))!;
+
+    await repository.rollback(['a.txt'], ['new.txt']);
+    expect(readFileSync(path.join(dir, 'a.txt'), 'utf8')).toBe('a\n');
+    expect(readFileSync(path.join(dir, 'new.txt'), 'utf8')).toBe('new\n');
+    expect((await repository.workingChanges()).untracked).toEqual(['new.txt']);
   });
 
   it('saves commits as a patch and applies it as commits or as changes only', async () => {

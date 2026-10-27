@@ -359,16 +359,16 @@ export class GitActions {
   }
 
   async revert(repository: Repository, hash: string, parents: string[]): Promise<void> {
-    const args = ['revert', '--no-edit'];
+    let mainline: number | undefined;
     if (parents.length > 1) {
       const picked = await vscode.window.showQuickPick(
         parents.map((p, i) => ({ label: t('Parent {0}', i + 1), description: shorten(p), number: i + 1 })),
         { title: t('Merge commit: revert relative to which parent?') },
       );
       if (!picked) return;
-      args.push('-m', String(picked.number));
+      mainline = picked.number;
     }
-    await this.run(repository, `Revert ${shorten(hash)}`, [...args, hash]);
+    await this.sync.revert(repository, hash, mainline);
   }
 
   async fetch(repository: Repository, remoteBranch?: Ref): Promise<void> {
@@ -428,6 +428,8 @@ export class GitActions {
       'Smart checkout',
     );
     if (!ok) return false;
+    const stashTop = () => repository.revParse('refs/stash');
+    const before = await stashTop();
     try {
       await repository.git.run([
         'stash',
@@ -438,6 +440,14 @@ export class GitActions {
       ]);
     } catch (error) {
       this.report(error);
+      return false;
+    }
+    // Changes git cannot stash (e.g. of skip-worktree files) leave the stash as it was: popping it then
+    // would bring back an unrelated older entry.
+    if ((await stashTop()) === before) {
+      void vscode.window.showErrorMessage(
+        t('{0}: git found nothing to stash, yet local changes are in the way. Check git status.', title),
+      );
       return false;
     }
     try {

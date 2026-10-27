@@ -85,6 +85,12 @@ export class SyncActions {
     return true;
   }
 
+  async revert(repository: Repository, hash: string, mainline?: number): Promise<void> {
+    await this.operation(repository, `Revert ${shorten(hash)}`, 'revert', () =>
+      repository.revert(hash, mainline),
+    );
+  }
+
   async continueOperation(repository: Repository, kind: OperationKind): Promise<void> {
     await this.operation(repository, t('{0}: continue', operationNames[kind]), kind, () =>
       repository.continueOperation(kind),
@@ -279,11 +285,8 @@ export class SyncActions {
    * `reset --keep`, which keeps uncommitted changes and refuses when they are in the way.
    */
   async undo(repository: Repository): Promise<void> {
-    const [entries, head, state] = await Promise.all([
-      repository.reflog(),
-      repository.head(),
-      repository.operation(),
-    ]);
+    const [head, state] = await Promise.all([repository.head(), repository.operation()]);
+    const entries = await repository.reflog(head.branch);
     if (state) {
       void vscode.window.showWarningMessage(t('Finish or abort the {0} first.', operationNames[state.kind]));
       return;

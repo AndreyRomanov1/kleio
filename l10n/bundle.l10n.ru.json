@@ -740,5 +740,7 @@
   "Remote {0} already exists": "Remote {0} уже есть",
   "Fetch {0}": "Fetch {0}",
   "Manage remotes…": "Управление remote…",
-  "A {0} is committed with whole files: git does not commit a part of the changes during it.": "Во время {0} коммитятся только целые файлы: git не даёт закоммитить часть изменений."
+  "A {0} is committed with whole files: git does not commit a part of the changes during it.": "Во время {0} коммитятся только целые файлы: git не даёт закоммитить часть изменений.",
+  "{0} new file(s) will leave the index and go to the trash.": "{0} новых файл(ов) уйдут из индекса в корзину.",
+  "{0}: git found nothing to stash, yet local changes are in the way. Check git status.": "{0}: git не нашёл, что спрятать в stash, но локальные изменения мешают. Проверьте git status."
 }

@@ -468,8 +468,13 @@ export class Repository {
     });
   }
 
-  /** Discards changes of tracked files, including newly added ones. */
-  async rollback(paths: string[]): Promise<void> {
+  /**
+   * Discards changes of tracked files. Files absent from HEAD (added, or the new name of a rename) are only
+   * taken out of the index: `git restore` would delete them from the disk for good, so the caller moves them
+   * to the trash as it does with untracked files.
+   */
+  async rollback(paths: string[], added: string[] = []): Promise<void> {
+    if (added.length) await this.git.run(['rm', '--cached', '-q', '--', ...added]);
     if (paths.length)
       await this.git.run(['restore', '--source=HEAD', '--staged', '--worktree', '--', ...paths]);
   }
@@ -741,6 +746,11 @@ export class Repository {
     return Number(all.trim()) - Number(local.trim());
   }
 
+  /** Reverts a commit; `mainline` is the parent number a merge commit is reverted relative to. */
+  revert(hash: string, mainline?: number): Promise<OperationOutcome> {
+    return this.runOperation(['revert', '--no-edit', ...(mainline ? ['-m', String(mainline)] : []), hash]);
+  }
+
   /** Applies commits in the given order; a stop for conflicts leaves the rest to `--continue`. */
   cherryPick(...hashes: string[]): Promise<OperationOutcome> {
     return this.runOperation(['cherry-pick', ...hashes]);
@@ -795,10 +805,14 @@ export class Repository {
     await this.git.run(['update-ref', '-m', `kleio: update ${branch}`, `refs/heads/${branch}`, to, from]);
   }
 
-  /** The latest states of HEAD, newest first: where it pointed and what moved it there. */
-  async reflog(limit = 50): Promise<ReflogEntry[]> {
+  /**
+   * The latest states of a branch (of HEAD when detached), newest first: where it pointed and what moved it
+   * there. The reflog of HEAD would also list checkouts, which move HEAD between branches, not the branch.
+   */
+  async reflog(branch?: string, limit = 50): Promise<ReflogEntry[]> {
+    const ref = branch ? `refs/heads/${branch}` : 'HEAD';
     const output = await this.git.run(
-      ['log', '-g', `-n${limit}`, '--date=unix', '--format=%H%x1f%gd%x1f%gs%x1f%s%x1e', 'HEAD', '--'],
+      ['log', '-g', `-n${limit}`, '--date=unix', '--format=%H%x1f%gd%x1f%gs%x1f%s%x1e', ref, '--'],
       { allowExitCodes: [128] },
     );
     return output

@@ -245,13 +245,19 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
     const selected = this.files.filter((f) => paths.includes(f.path));
     const untracked = selected.filter((f) => f.kind === 'untracked');
     const tracked = selected.filter((f) => f.kind !== 'untracked');
+    // Files HEAD does not have: rolling them back means deleting them, so they go to the trash.
+    const isNew = (f: CommitFile) => f.status === 'A' || f.status === 'R' || f.status === 'C';
+    const added = tracked.filter(isNew);
+    const toTrash = [...untracked, ...added];
     const pieces = parts.reduce((sum, [, keys]) => sum + keys.length, 0);
+    const changed = tracked.length - added.length;
     const detail = [
-      tracked.length ? t('Changes in {0} file(s) will be discarded.', tracked.length) : '',
+      changed ? t('Changes in {0} file(s) will be discarded.', changed) : '',
       parts.length
         ? t('{0} hunk(s) in {1} file(s) will be discarded, other changes stay.', pieces, parts.length)
         : '',
       untracked.length ? t('{0} untracked file(s) will go to the trash.', untracked.length) : '',
+      added.length ? t('{0} new file(s) will leave the index and go to the trash.', added.length) : '',
     ]
       .filter(Boolean)
       .join('\n');
@@ -276,8 +282,13 @@ export class CommitView implements vscode.WebviewViewProvider, vscode.Disposable
         );
       else await repository.rollbackHunks(filePath, keys);
     }
-    await repository.rollback(tracked.flatMap((f) => (f.oldPath ? [f.path, f.oldPath] : [f.path])));
-    for (const file of untracked) {
+    await repository.rollback(
+      tracked.flatMap((f) =>
+        isNew(f) ? (f.oldPath ? [f.oldPath] : []) : f.oldPath ? [f.path, f.oldPath] : [f.path],
+      ),
+      added.map((f) => f.path),
+    );
+    for (const file of toTrash) {
       await vscode.workspace.fs.delete(workingFileUri(repository.root, file.path), {
         recursive: true,
         useTrash: true,
