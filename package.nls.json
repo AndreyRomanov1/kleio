@@ -77,5 +77,5 @@
   "command.review.switchToNewer": "Go to the Newer Version",
   "command.review.stayOnVersion": "Finish This Version",
   "command.remotes.manage": "Manage Remotes…",
-  "command.showLog": "Show Log"
+  "command.showLog": "Show Git Command Log"
 }

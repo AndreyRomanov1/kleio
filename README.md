@@ -10,7 +10,7 @@ Built for a day where code is mostly written by agents and colleagues, and your 
 change opens in the native diff editor with the language server working, and the file on the right side
 stays editable.
 
-[Русская версия](README.ru.md) · The interface is in Russian for now; English is planned.
+[Русская версия](README.ru.md)
 
 ![Commit log](docs/images/log.png)
 
@@ -42,7 +42,8 @@ stays editable.
   of files or hunks, stashes (all changes or only the checked files). By default it works as in Rider: checked files and hunks are committed as
   they are on disk, through a temporary index, and what you staged yourself stays as it is. With
   **Stage** checked, the checkboxes show and change the git index, and the commit takes what is staged,
-  as `git commit` does.
+  as `git commit` does. During a merge, cherry-pick or revert the view shows the operation with Continue /
+  Abort, fills in the message git prepared and commits the merge as a whole, as git requires.
 
   ![Commit parts of a file](docs/images/commit.png)
 
@@ -54,7 +55,8 @@ stays editable.
   any of them with `git reset --keep`.
 - **Patches**: save commits as a patch, apply a patch as commits or as changes.
 - **Update Project** fetches every remote and brings the current branch up to its upstream — merge or
-  rebase, asked the first time; another branch without own commits is updated without checking it out.
+  rebase as `git pull` would by your git config (`pull.rebase`, `branch.<name>.rebase`), or asked the
+  first time; another branch without own commits is updated without checking it out.
   Uncommitted changes are stashed for the time of an operation; if they come back with conflicts, Kleio
   says so and opens the conflicts.
 - **Push dialog**: outgoing commits of every branch with their diffs; a diverged branch goes only with
@@ -110,29 +112,54 @@ Install from VSIX. Kleio works in trusted local folders only: git runs the hooks
 repository.
 
 GitLab access is taken from the [GitLab Workflow](https://open-vsx.org/extension/GitLab/gitlab-workflow)
-extension when it is signed in, or from a personal access token (command «Подключить GitLab…», scope
+extension when it is signed in, or from a personal access token (command **Connect GitLab…**, scope
 `api`), kept in the editor's secret storage.
+
+## Requirements
+
+- VS Code or VSCodium 1.100 or newer, a trusted local folder.
+- git 2.31 or newer; 2.38 or newer for stacked branches in a rebase (`--update-refs`) and for comparing
+  versions of a merge request after a rebase. Kleio runs the git of the `git.path` setting, or `git` from
+  `PATH`, and says at the start if it cannot.
+
+## Getting started
+
+- **Log**: the **Git Log** tab of the bottom panel; drag it to the side bar or anywhere else as any view.
+  **Open Log in a Tab** in its title bar opens it as an editor tab, the button next to it in a new window.
+- **Commit**: the commit icon in the activity bar — changes, commit, stashes.
+- **Status bar**: the current branch with ↑↓; a click gives the branches and the common actions.
+- Commands are under **Kleio** in the command palette: Update Project, Push…, Undo via Reflog…, Manage
+  Remotes…, Connect GitLab… / GitHub….
+- Kleio works next to the built-in Git of the editor and does not need it turned off.
+
+## Access to remotes
+
+Fetch and push run the git of your system with its configuration. When git or ssh need something — the
+user name and password of an HTTPS remote, the passphrase of an SSH key, whether to trust a new server — Kleio
+asks in the editor, as the built-in Git does. To be asked once and not every time, keep the password in a
+credential helper (`git config --global credential.helper` — `manager`, `libsecret`, `osxkeychain`,
+`cache`) and the SSH key in `ssh-agent`. Every network command can be cancelled from its notification.
 
 ## Settings
 
-| Setting                                | Default                               | What it does                                                                                 |
-| -------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `kleio.autolinks`                      | `[]`                                  | Rules turning text into links: `{"pattern": "\\bPROJ-\\d+\\b", "url": "https://tracker/$0"}` |
-| `kleio.hosting.instances`              | `{}`                                  | Hosting type of your own servers, e.g. `{"git.example.com": "gitlab"}`                       |
-| `kleio.update.method`                  | `ask`                                 | How Update Project brings a branch with own commits up to date: `merge` or `rebase`          |
-| `kleio.commit.stagingArea`             | `false`                               | The commit view works with the git index (the **Stage** checkbox)                            |
-| `kleio.hosting.backgroundRefresh`      | `true`                                | Ask the server for merge request refs every few minutes; turn off if SSH asks for a password |
-| `kleio.push.protectedBranches`         | `["master", "main"]`                  | Branches never force-pushed; `*` works, e.g. `release/*`                                     |
-| `kleio.worktree.path`                  | `${repoParent}/${repoName}-${branch}` | Folder of a new worktree                                                                     |
-| `kleio.worktree.copyFiles`             | `[]`                                  | Untracked files copied into a new worktree, e.g. local settings with secrets                 |
-| `kleio.codeLens.authors`               | `true`                                | The main author and the number of others above classes and methods                           |
-| `kleio.history.showDiffOnSelect`       | `true`                                | Show the diff of the selected commit in a history tab                                        |
-| `kleio.language`                       | `auto`                                | Language of Kleio: the editor's, or `en`, `ru` without a language pack                       |
-| `kleio.statusBar.branch`               | `true`                                | The current branch with ↑↓ in the status bar                                                 |
-| `kleio.blame.ignoreWhitespaceAndMoves` | `false`                               | Blame ignores whitespace changes and moved lines                                             |
-| `kleio.rebase.updateRefs`              | `true`                                | A rebase moves the stacked branches along (`--update-refs`, git 2.38+)                       |
-| `kleio.review.ctrlEnter`               | `publish`                             | `Ctrl+Enter` in a review comment: `publish` it or save a `draft`                             |
-| `kleio.navigation.history`             | `false`                               | Go Back / Go Forward through files and review diffs in one history                           |
+| Setting                                | Default                               | What it does                                                                                                                  |
+| -------------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `kleio.autolinks`                      | `[]`                                  | Rules turning text into links: `{"pattern": "\\bPROJ-\\d+\\b", "url": "https://tracker/$0"}`                                  |
+| `kleio.hosting.instances`              | `{}`                                  | Hosting type of your own servers, e.g. `{"git.example.com": "gitlab"}`                                                        |
+| `kleio.update.method`                  | `ask`                                 | How Update Project brings a branch with own commits up to date: `merge`, `rebase`; `ask` follows `pull.rebase` of git or asks |
+| `kleio.commit.stagingArea`             | `false`                               | The commit view works with the git index (the **Stage** checkbox)                                                             |
+| `kleio.hosting.backgroundRefresh`      | `true`                                | Ask the server for merge request refs every few minutes; turn off if SSH asks for a password                                  |
+| `kleio.push.protectedBranches`         | `["master", "main"]`                  | Branches never force-pushed; `*` works, e.g. `release/*`                                                                      |
+| `kleio.worktree.path`                  | `${repoParent}/${repoName}-${branch}` | Folder of a new worktree                                                                                                      |
+| `kleio.worktree.copyFiles`             | `[]`                                  | Untracked files copied into a new worktree, e.g. local settings with secrets                                                  |
+| `kleio.codeLens.authors`               | `true`                                | The main author and the number of others above classes and methods                                                            |
+| `kleio.history.showDiffOnSelect`       | `true`                                | Show the diff of the selected commit in a history tab                                                                         |
+| `kleio.language`                       | `auto`                                | Language of Kleio: the editor's, or `en`, `ru` without a language pack                                                        |
+| `kleio.statusBar.branch`               | `true`                                | The current branch with ↑↓ in the status bar                                                                                  |
+| `kleio.blame.ignoreWhitespaceAndMoves` | `false`                               | Blame ignores whitespace changes and moved lines                                                                              |
+| `kleio.rebase.updateRefs`              | `true`                                | A rebase moves the stacked branches along (`--update-refs`, git 2.38+)                                                        |
+| `kleio.review.ctrlEnter`               | `publish`                             | `Ctrl+Enter` in a review comment: `publish` it or save a `draft`                                                              |
+| `kleio.navigation.history`             | `false`                               | Go Back / Go Forward through files and review diffs in one history                                                            |
 
 ## Key bindings
 
@@ -165,6 +192,21 @@ place. The last two lines above put them on `Ctrl+Alt+←/→`, as the IntelliJ 
 the comment, or saves a draft with `kleio.review.ctrlEnter` set to `draft`; `Enter` starts a new line.
 
 In the merge editor `Ctrl+Enter` completes the merge and marks the file resolved.
+
+## Limitations
+
+- Interactive rebase does not go through merge commits: the range must be linear.
+- A part of a file (hunks, lines) can be committed for modified files; new, deleted and renamed files go
+  whole. During a merge files go whole too.
+- A patch applied as commits (`git am`) is rolled back on conflicts instead of stopping for them.
+- Comments in the code of GitHub pull requests are not there yet; GitLab has the full review.
+
+## Troubleshooting
+
+**Kleio: Show Git Command Log** opens the output channel of Kleio: every failed git command with what git
+said. To see all commands with their duration, choose **Debug** in the log level menu of the Output panel.
+Please attach it to an [issue](https://github.com/AndreyRomanov1/kleio/issues) — user names and tokens in
+URLs are hidden.
 
 ## Development
 

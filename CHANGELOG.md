@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.27.0
+
+Stability before a wider audience: a review of the whole extension against what git does.
+
+- Commit messages keep lines starting with `#` (e.g. `#42`): commits, amend and reword now use the cleanup
+  git uses for a message from a file, not the one of its editor.
+- A merge, cherry-pick or revert can be committed from the commit view: it shows the operation with
+  Continue / Abort, fills in the message git prepared (`MERGE_MSG`, `SQUASH_MSG`, or `commit.template`)
+  and commits the files whole, as git requires. Before, the commit failed with "cannot do a partial commit
+  during a merge".
+- Rolling back a new file that is in the index moves it to the trash instead of deleting it for good.
+- Undo via reflog lists the states of the current branch: checkouts of other branches are no longer offered
+  as states to return the branch to.
+- Revert stops for conflicts as an operation, with the conflicts window, instead of an error.
+- Smart checkout never brings back an older stash when git had nothing to stash.
+- Hunks and lines are staged, committed and rolled back whatever `diff.noprefix` or `color.diff` the user
+  has, and at the end of a file without a line break.
+- Diffs show the contents of Git LFS files, not their pointers: files are read through their filters.
+- Passwords of HTTPS remotes, passphrases of SSH keys and new host keys are asked in the editor, as the
+  built-in Git does; a credential helper or ssh-agent saves asking again.
+- Fetch, push and Update Project have a cancel button instead of a two-minute timeout that cut long pushes.
+- Update Project follows `pull.rebase`, `branch.<name>.rebase` and `pull.ff=only` of the git config, unless
+  `kleio.update.method` says otherwise.
+- **Kleio: Show Git Command Log**: every failed git command with what git said, all of them at the Debug
+  level; user names and tokens in URLs are hidden.
+- Kleio checks git at the start and says when it is missing or older than 2.31; reword works on git older
+  than 2.36.
+- The log leaves out git notes and refs prefetched by `git maintenance`; a folder removed from the workspace
+  leaves the list of repositories; a branch that tracks a local branch is updated and pushed correctly.
+- README: requirements, getting started, access to remotes, limitations, troubleshooting.
+
 ## 0.26.0
 
 - Remotes are managed from the branch panel, as Rider's Manage Remotes: "+" at the Remote section adds one
