@@ -19,6 +19,9 @@
   const details = $derived(store.details);
   const autolinks = $derived(store.hosting?.autolinks ?? []);
   const single = $derived(details?.commits.length === 1 ? details.commits[0] : undefined);
+  /** Collapsed folders outlive the file list of one commit: the next commit shows the same folders closed. */
+  let collapsed = $state<ReadonlySet<string>>(new Set());
+  let files: FileList | undefined = $state();
 </script>
 
 <div class="details">
@@ -76,6 +79,14 @@
     <div class="files-toolbar">
       <span class="count">{t('{0} file(s)', details.changeSet.files.length)}</span>
       <span class="spacer"></span>
+      {#if fileView === 'tree'}
+        <button class="icon" title={t('Expand all')} onclick={() => files?.expandAll()}
+          ><i class="codicon codicon-expand-all"></i></button
+        >
+        <button class="icon" title={t('Collapse all')} onclick={() => files?.collapseAll()}
+          ><i class="codicon codicon-collapse-all"></i></button
+        >
+      {/if}
       <button
         class="toggle"
         class:on={fileView === 'tree'}
@@ -99,6 +110,8 @@
     </div>
     {#key details.changeSet.id}
       <FileList
+        bind:this={files}
+        bind:collapsed
         changeSet={details.changeSet}
         view={fileView}
         {groupByDirectory}
@@ -200,5 +213,19 @@
   .toggle.on {
     opacity: 1;
     border-color: var(--vscode-focusBorder);
+  }
+  .icon {
+    display: flex;
+    padding: 2px;
+    border: none;
+    border-radius: 3px;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+    opacity: 0.8;
+  }
+  .icon:hover {
+    background: var(--vscode-toolbar-hoverBackground);
+    opacity: 1;
   }
 </style>

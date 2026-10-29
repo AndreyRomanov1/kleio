@@ -748,5 +748,6 @@
   "Branch {0} has diverged from {1}: {2} own commits, {3} new. The git config allows only fast-forward (pull.ff=only), as git pull does.": "Ветка {0} разошлась с {1}: своих коммитов {2}, новых {3}. В git config разрешена только перемотка (pull.ff=only) — как и git pull, Kleio не обновляет такую ветку.",
   "Yes, connect": "Да, подключиться",
   "Git: unknown server": "Git: незнакомый сервер",
-  "cancelled": "отменено"
+  "cancelled": "отменено",
+  "Alt+click: with all folders inside": "Alt+клик — вместе со всеми вложенными папками"
 }

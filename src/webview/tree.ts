@@ -84,3 +84,20 @@ export function flatten<T>(
   }
   return out;
 }
+
+/** Keys of the folders among the nodes and under them, the nodes themselves included. */
+export function folderKeys<T>(nodes: readonly TreeNode<T>[], out: string[] = []): string[] {
+  for (const node of nodes) {
+    if (node.kind !== 'folder') continue;
+    out.push(node.key);
+    folderKeys(node.children, out);
+  }
+  return out;
+}
+
+/** Items of all leaves under a node. */
+export function leavesOf<T>(node: TreeNode<T>, out: T[] = []): T[] {
+  if (node.kind === 'leaf') out.push(node.item);
+  else for (const child of node.children) leavesOf(child, out);
+  return out;
+}
