@@ -19,8 +19,6 @@
   const details = $derived(store.details);
   const autolinks = $derived(store.hosting?.autolinks ?? []);
   const single = $derived(details?.commits.length === 1 ? details.commits[0] : undefined);
-  /** Collapsed folders outlive the file list of one commit: the next commit shows the same folders closed. */
-  let collapsed = $state<ReadonlySet<string>>(new Set());
   let files: FileList | undefined = $state();
 </script>
 
@@ -111,7 +109,7 @@
     {#key details.changeSet.id}
       <FileList
         bind:this={files}
-        bind:collapsed
+        bind:collapsed={store.collapsedFolders}
         changeSet={details.changeSet}
         view={fileView}
         {groupByDirectory}

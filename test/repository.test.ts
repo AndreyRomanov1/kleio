@@ -534,6 +534,20 @@ describe('Repository', () => {
     expect((await repository.snapshot()).commits.map((c) => c.subject)).toEqual(['b', 'a']);
   });
 
+  it('reads the details of the commits of a range in one run, as one by one', async () => {
+    const dir = path.join(work, 'range-details');
+    git(work, 'init', '-q', '-b', 'main', dir);
+    commitFile(dir, 'a.txt', 'a\n', 'base');
+    commitFile(dir, 'a.txt', 'b\n', 'second\n\nbody with\nlines');
+    commitFile(dir, 'a.txt', 'c\n', 'third');
+    const repository = (await Repository.open(dir))!;
+
+    const commits = await repository.commitsDetails('HEAD~2..HEAD', 10);
+    expect(commits.map((c) => c.message)).toEqual(['third', 'second\n\nbody with\nlines']);
+    expect(commits[1]).toEqual(await repository.commitDetails('HEAD~1'));
+    expect(await repository.commitsDetails('HEAD~2..HEAD', 1)).toHaveLength(1);
+  });
+
   it('stages single lines of a deletion and of an addition at the top of a file', async () => {
     const dir = path.join(work, 'line-edges');
     git(work, 'init', '-q', '-b', 'main', dir);

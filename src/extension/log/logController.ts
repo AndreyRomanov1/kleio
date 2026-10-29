@@ -262,7 +262,7 @@ export class LogController implements vscode.Disposable {
       case 'showStash':
         return this.showStash(message.requestId, message.hash);
       case 'showBranchDetails':
-        return this.showBranchDetails(message.requestId, message.fullName);
+        return this.showBranchDetails(message.requestId, message.fullName, message.orTip);
       case 'fileAction':
         return this.fileAction(message);
       case 'commitAction':
@@ -533,30 +533,33 @@ export class LogController implements vscode.Disposable {
   private async branchChanges(
     repository: Repository,
     ref: Ref,
+    quiet = false,
   ): Promise<{ changeSet: ChangeSet; base: string } | undefined> {
     const target = await this.branchTarget(repository, ref);
     if (!target) {
-      void vscode.window.showWarningMessage(t('Kleio: the branch to compare {0} with is unknown.', ref.name));
+      if (!quiet)
+        void vscode.window.showWarningMessage(
+          t('Kleio: the branch to compare {0} with is unknown.', ref.name),
+        );
       return undefined;
     }
     const base = (await repository.git.run(['merge-base', target, ref.hash])).trim();
+    if (quiet && base === ref.hash) return undefined;
     const changeSet = await rangeChangeSet(repository, base, ref.name, t('{0} since {1}', ref.name, target));
     return { changeSet, base };
   }
 
   /** The changes of a branch in the details pane: the files to look through and its commits above them. */
-  private async showBranchDetails(requestId: number, fullName: string): Promise<void> {
+  private async showBranchDetails(requestId: number, fullName: string, orTip = false): Promise<void> {
     const repository = this.repository;
     const ref = this.snapshot?.refs.find((r) => r.fullName === fullName);
     if (!repository || !ref) return;
-    const changes = await this.branchChanges(repository, ref);
-    if (!changes) return;
-    const hashes = (
-      await repository.git.run(['rev-list', `-n${BRANCH_COMMITS}`, `${changes.base}..${ref.hash}`])
-    )
-      .split('\n')
-      .filter(Boolean);
-    const commits = await Promise.all(hashes.map((hash) => repository.commitDetails(hash)));
+    const changes = await this.branchChanges(repository, ref, orTip);
+    if (!changes) {
+      if (orTip) await this.selectCommits(requestId, [ref.hash]);
+      return;
+    }
+    const commits = await repository.commitsDetails(`${changes.base}..${ref.hash}`, BRANCH_COMMITS);
     this.post({ type: 'details', requestId, commits, changeSet: this.register(changes.changeSet) });
   }
 

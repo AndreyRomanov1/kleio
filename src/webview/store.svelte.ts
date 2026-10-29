@@ -54,6 +54,11 @@ export class LogStore {
   filterText = $state('');
   selected = $state.raw<ReadonlySet<string>>(new Set());
   details = $state.raw<Details | undefined>(undefined);
+  /**
+   * Folders collapsed in the file tree of the details, by path. Kept here, not in the tree, so that they
+   * outlive the tree: it is created anew for every commit and when the details move under the log.
+   */
+  collapsedFolders = $state.raw<ReadonlySet<string>>(new Set());
   /** Merged merge requests the API found for older history, kept across reloads of the hosting details. */
   private merged?: Extract<HostMessage, { type: 'mergedMergeRequests' }>;
   private mergedPending = false;
@@ -326,10 +331,19 @@ export class LogStore {
   }
 
   /** Shows the changes of a branch in the details pane and selects its commits that the log shows. */
-  showBranchDetails(fullName: string): void {
+  showBranchDetails(fullName: string, orTip = false): void {
     this.details = undefined;
     this.branchRequest = ++this.requestId;
-    post({ type: 'showBranchDetails', requestId: this.requestId, fullName });
+    post({ type: 'showBranchDetails', requestId: this.requestId, fullName, orTip });
+  }
+
+  /**
+   * A click on a branch: the log goes to its tip and the details show what the branch changes, as its merge
+   * request would; a branch without own changes shows its last commit.
+   */
+  showBranch(ref: Ref): void {
+    this.reveal(ref.hash);
+    if (ref.kind !== 'tag') this.showBranchDetails(ref.fullName, true);
   }
 
   showStash(stash: Stash): void {

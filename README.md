@@ -101,7 +101,8 @@ stays editable.
   merge request (one per push, those you looked at marked) and compares any two of them, as GitLab does —
   after a rebase too: the old changes are moved onto the new base first. The comments of the earlier
   version stand on its side, next to how they were dealt with; outdated ones open in their own version.
-- **Changes of a branch** from the context menu of a branch or of a commit with one: from where it left the
+- **Changes of a branch** on a click in the branch panel, or from the context menu of a branch or of a commit
+  with one: from where it left the
   target of its merge request, or the default branch when there is none yet. The details pane shows its
   commits and the tree of its files, as the Changes tab of a merge request; **Changes of the branch in the
   diff** opens them right away. **Show changes** of one commit or of several selected.

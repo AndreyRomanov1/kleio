@@ -118,7 +118,7 @@
   function activate(entry: Entry): void {
     switch (entry.kind) {
       case 'ref':
-        store.reveal(entry.ref.hash);
+        store.showBranch(entry.ref);
         break;
       case 'worktree':
         if (entry.worktree.head) store.reveal(entry.worktree.head);

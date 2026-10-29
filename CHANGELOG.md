@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.29.0
+
+- A click on a branch in the branch panel shows what the branch changes in the details pane — its commits and
+  the tree of its files, as with Changes of the branch — and the log goes to its tip. A branch without changes
+  of its own, e.g. the default branch, shows its last commit, as before.
+- Opening a file from the details no longer expands all folders again: a log tab hidden behind the diff
+  measured zero width, the details moved under the log and back and were created anew. Collapsed folders
+  are now kept by the log, and a hidden tab keeps its layout.
+- The commits of a branch are read in one git run.
+
 ## 0.28.0
 
 - **Changes of the branch** in the context menu of a branch (and of a commit with one) shows the branch in the

@@ -379,12 +379,26 @@ async function handle(repository: Repository, message: WebviewMessage): Promise<
           target = name;
           break;
         }
-      if (!target) return [];
-      const base = (await repository.git.run(['merge-base', target, ref.hash])).trim();
-      const hashes = (await repository.git.run(['rev-list', '-n200', `${base}..${ref.hash}`]))
-        .split('\n')
-        .filter(Boolean);
-      const commits = await Promise.all(hashes.map((h) => repository.commitDetails(h)));
+      const base = target && (await repository.git.run(['merge-base', target, ref.hash])).trim();
+      if (!base || base === ref.hash) {
+        if (!message.orTip) return [];
+        const tip = await repository.commitDetails(ref.hash);
+        const changeSet = await commitChangeSet(repository, tip.hash, tip.parents);
+        return [
+          {
+            type: 'details',
+            requestId: message.requestId,
+            commits: [tip],
+            changeSet: {
+              id: ++changeSetId,
+              title: changeSet.title,
+              range: describeRange(changeSet),
+              files: changeSet.files,
+            },
+          },
+        ];
+      }
+      const commits = await repository.commitsDetails(`${base}..${ref.hash}`, 200);
       const changeSet = await rangeChangeSet(repository, base, ref.name, `${ref.name} since ${target}`);
       return [
         {

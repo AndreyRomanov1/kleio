@@ -18,6 +18,19 @@
   let width = $state(1200);
   let height = $state(600);
 
+  /**
+   * The size of the view for the layout. A hidden tab (e.g. the log tab behind a diff opened in its place)
+   * measures 0×0; taking that for a narrow view would move the details under the log and back, recreating
+   * them and losing what they showed.
+   */
+  function measure(node: HTMLElement, onsize: (width: number, height: number) => void) {
+    const observer = new ResizeObserver(() => {
+      if (node.clientWidth > 0 && node.clientHeight > 0) onsize(node.clientWidth, node.clientHeight);
+    });
+    observer.observe(node);
+    return { destroy: () => observer.disconnect() };
+  }
+
   // Details move under the log when the log itself would get too narrow next to them.
   const showBranches = $derived(ui.showBranches && !store.history);
   // Details never squeeze the log below a readable width: a wide details panel shrinks instead of moving the
@@ -104,7 +117,13 @@
   }}
 />
 
-<div class="app" bind:clientWidth={width} bind:clientHeight={height}>
+<div
+  class="app"
+  use:measure={(w, h) => {
+    width = w;
+    height = h;
+  }}
+>
   <div class="toolbar">
     {#if store.repositories.length > 1}
       <select

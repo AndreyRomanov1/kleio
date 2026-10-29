@@ -38,6 +38,23 @@ import {
 } from './parse';
 import { t } from '../../shared/l10n';
 
+const DETAILS_FORMAT = ['%H', '%P', '%an', '%ae', '%at', '%cn', '%ce', '%ct', '%B'].join('%x1f');
+
+function parseDetails(output: string): CommitDetails {
+  const [h, parents, an, ae, at, cn, ce, ct, ...message] = output.split(FIELD);
+  return {
+    hash: h,
+    parents: parents ? parents.split(' ') : [],
+    authorName: an,
+    authorEmail: ae,
+    authorDate: Number(at),
+    committerName: cn,
+    committerEmail: ce,
+    commitDate: Number(ct),
+    message: message.join(FIELD).trimEnd(),
+  };
+}
+
 /** Pseudo-revision for files on disk. */
 export const WORKTREE = 'WORKTREE';
 
@@ -170,20 +187,18 @@ export class Repository {
   }
 
   async commitDetails(hash: string): Promise<CommitDetails> {
-    const format = ['%H', '%P', '%an', '%ae', '%at', '%cn', '%ce', '%ct', '%B'].join('%x1f');
-    const output = await this.git.run(['show', '-s', `--format=${format}`, hash, '--']);
-    const [h, parents, an, ae, at, cn, ce, ct, ...message] = output.split(FIELD);
-    return {
-      hash: h,
-      parents: parents ? parents.split(' ') : [],
-      authorName: an,
-      authorEmail: ae,
-      authorDate: Number(at),
-      committerName: cn,
-      committerEmail: ce,
-      commitDate: Number(ct),
-      message: message.join(FIELD).trimEnd(),
-    };
+    const output = await this.git.run(['show', '-s', `--format=${DETAILS_FORMAT}`, hash, '--']);
+    return parseDetails(output);
+  }
+
+  /** Details of the commits of a range, newest first, in one git run. */
+  async commitsDetails(range: string, limit: number): Promise<CommitDetails[]> {
+    const output = await this.git.run(['log', `-n${limit}`, `--format=${DETAILS_FORMAT}%x1e`, range, '--']);
+    return output
+      .split(RECORD)
+      .map((record) => record.replace(/^\n/, ''))
+      .filter(Boolean)
+      .map(parseDetails);
   }
 
   /** Files changed between two revisions; `left` undefined means an empty tree. */
