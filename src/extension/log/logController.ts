@@ -19,6 +19,8 @@ import { t } from '../../shared/l10n';
 const FOCUS_KEY = 'kleio.focus';
 /** Commits loaded at once; huge histories are loaded further as the log is scrolled down. */
 const LOG_PAGE = 10_000;
+/** Commits of a branch listed above its changes; an older branch shows its newest ones. */
+const BRANCH_COMMITS = 200;
 const FAVORITES_KEY = 'kleio.favorites';
 
 export interface HistoryTarget {
@@ -259,6 +261,8 @@ export class LogController implements vscode.Disposable {
         return this.selectCommits(message.requestId, message.hashes);
       case 'showStash':
         return this.showStash(message.requestId, message.hash);
+      case 'showBranchDetails':
+        return this.showBranchDetails(message.requestId, message.fullName);
       case 'fileAction':
         return this.fileAction(message);
       case 'commitAction':
@@ -525,6 +529,37 @@ export class LogController implements vscode.Disposable {
     return undefined;
   }
 
+  /** What a branch changes since it left its target (see {@link branchTarget}), and the commits that did it. */
+  private async branchChanges(
+    repository: Repository,
+    ref: Ref,
+  ): Promise<{ changeSet: ChangeSet; base: string } | undefined> {
+    const target = await this.branchTarget(repository, ref);
+    if (!target) {
+      void vscode.window.showWarningMessage(t('Kleio: the branch to compare {0} with is unknown.', ref.name));
+      return undefined;
+    }
+    const base = (await repository.git.run(['merge-base', target, ref.hash])).trim();
+    const changeSet = await rangeChangeSet(repository, base, ref.name, t('{0} since {1}', ref.name, target));
+    return { changeSet, base };
+  }
+
+  /** The changes of a branch in the details pane: the files to look through and its commits above them. */
+  private async showBranchDetails(requestId: number, fullName: string): Promise<void> {
+    const repository = this.repository;
+    const ref = this.snapshot?.refs.find((r) => r.fullName === fullName);
+    if (!repository || !ref) return;
+    const changes = await this.branchChanges(repository, ref);
+    if (!changes) return;
+    const hashes = (
+      await repository.git.run(['rev-list', `-n${BRANCH_COMMITS}`, `${changes.base}..${ref.hash}`])
+    )
+      .split('\n')
+      .filter(Boolean);
+    const commits = await Promise.all(hashes.map((hash) => repository.commitDetails(hash)));
+    this.post({ type: 'details', requestId, commits, changeSet: this.register(changes.changeSet) });
+  }
+
   /** The changes of several commits together: from the parent of the oldest to the newest. */
   private async openRangeDiff(hashes: string[]): Promise<void> {
     const repository = this.repository;
@@ -672,21 +707,9 @@ export class LogController implements vscode.Disposable {
           ref.kind === 'remote' ? ref : snapshot.refs.find((r) => r.fullName === ref.upstream),
         );
       case 'showBranchChanges': {
-        const target = await this.branchTarget(repository, ref);
-        if (!target) {
-          void vscode.window.showWarningMessage(
-            t('Kleio: the branch to compare {0} with is unknown.', ref.name),
-          );
-          return;
-        }
-        const base = (await repository.git.run(['merge-base', target, ref.hash])).trim();
-        const changeSet = await rangeChangeSet(
-          repository,
-          base,
-          ref.name,
-          t('{0} since {1}', ref.name, target),
-        );
-        return this.openChangeSet(changeSet);
+        const changes = await this.branchChanges(repository, ref);
+        if (changes) return this.openChangeSet(changes.changeSet);
+        return;
       }
       case 'showDiffWithCurrent': {
         const head = snapshot.head.branch ?? snapshot.head.hash;

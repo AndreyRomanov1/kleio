@@ -749,5 +749,6 @@
   "Yes, connect": "Да, подключиться",
   "Git: unknown server": "Git: незнакомый сервер",
   "cancelled": "отменено",
-  "Alt+click: with all folders inside": "Alt+клик — вместе со всеми вложенными папками"
+  "Alt+click: with all folders inside": "Alt+клик — вместе со всеми вложенными папками",
+  "Changes of the branch in the diff": "Изменения ветки в diff"
 }

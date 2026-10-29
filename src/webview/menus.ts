@@ -200,6 +200,11 @@ export function refMenu(ref: Ref, store: LogStore): MenuEntry[] {
       : [
           {
             label: t('Changes of the branch'),
+            icon: 'list-tree',
+            run: () => store.showBranchDetails(fullName),
+          },
+          {
+            label: t('Changes of the branch in the diff'),
             icon: 'diff',
             run: run({ type: 'refAction', action: 'showBranchChanges', fullName }),
           },

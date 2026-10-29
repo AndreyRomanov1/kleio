@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.28.0
+
+- **Changes of the branch** in the context menu of a branch (and of a commit with one) shows the branch in the
+  details pane: its commits, selected in the log, and the tree of its files since it left the target of its
+  merge request or the default branch. The diff of a file opens from there with the arrows through all
+  files; **Changes of the branch in the diff** opens the diff right away, as before.
+- The file tree of the details has **Expand all** and **Collapse all**; `Alt+click` (and `Alt+→/←`) opens or
+  closes a folder with all folders inside; the arrow keys, Home and End work as in the trees of VS Code.
+- A collapsed folder shows how many files it has and colored dots of the kinds of changes inside, so a
+  collapsed tree tells which folders a merge request touched and how much.
+- Folders collapsed in one commit stay collapsed when another commit is selected.
+
 ## 0.27.0
 
 Stability before a wider audience: a review of the whole extension against what git does.

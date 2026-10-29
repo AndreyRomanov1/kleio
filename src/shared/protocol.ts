@@ -265,4 +265,6 @@ export type WebviewMessage =
   | { type: 'playJob'; jobId: number; name: string; projectId?: number; number: number }
   /** Double click on a commit: its diff, or in a history view the diff of the file in that commit. */
   | { type: 'openCommitDiff'; hash: string }
-  | { type: 'showStash'; requestId: number; hash: string };
+  | { type: 'showStash'; requestId: number; hash: string }
+  /** The changes of a branch in the details pane, as its merge request shows them. */
+  | { type: 'showBranchDetails'; requestId: number; fullName: string };

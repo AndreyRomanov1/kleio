@@ -101,8 +101,13 @@ stays editable.
   merge request (one per push, those you looked at marked) and compares any two of them, as GitLab does —
   after a rebase too: the old changes are moved onto the new base first. The comments of the earlier
   version stand on its side, next to how they were dealt with; outdated ones open in their own version.
-- **Changes of a branch** from the context menu: from where it left the target of its merge request, or the
-  default branch when there is none yet; **Show changes** of one commit or of several selected.
+- **Changes of a branch** from the context menu of a branch or of a commit with one: from where it left the
+  target of its merge request, or the default branch when there is none yet. The details pane shows its
+  commits and the tree of its files, as the Changes tab of a merge request; **Changes of the branch in the
+  diff** opens them right away. **Show changes** of one commit or of several selected.
+- **The file tree** of the details: expand or collapse all, `Alt+click` for a folder with everything inside,
+  the counts of changes of a collapsed folder, arrow keys as in the trees of VS Code; folders stay collapsed
+  from one commit to the next.
 
 ## Install
 

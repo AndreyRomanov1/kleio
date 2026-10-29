@@ -370,6 +370,36 @@ async function handle(repository: Repository, message: WebviewMessage): Promise<
         },
       ];
     }
+    case 'showBranchDetails': {
+      const ref = (await repository.refs()).find((r) => r.fullName === message.fullName);
+      if (!ref) return [];
+      let target: string | undefined;
+      for (const name of ['origin/main', 'origin/master', 'main', 'master'])
+        if (name !== ref.name && (await repository.revParse(name))) {
+          target = name;
+          break;
+        }
+      if (!target) return [];
+      const base = (await repository.git.run(['merge-base', target, ref.hash])).trim();
+      const hashes = (await repository.git.run(['rev-list', '-n200', `${base}..${ref.hash}`]))
+        .split('\n')
+        .filter(Boolean);
+      const commits = await Promise.all(hashes.map((h) => repository.commitDetails(h)));
+      const changeSet = await rangeChangeSet(repository, base, ref.name, `${ref.name} since ${target}`);
+      return [
+        {
+          type: 'details',
+          requestId: message.requestId,
+          commits,
+          changeSet: {
+            id: ++changeSetId,
+            title: changeSet.title,
+            range: describeRange(changeSet),
+            files: changeSet.files,
+          },
+        },
+      ];
+    }
     case 'loadMergedMergeRequests': {
       const api = previewApi(previewLinks);
       if (!api) return [{ type: 'mergedMergeRequests', byCommit: {}, info: {}, done: true }];

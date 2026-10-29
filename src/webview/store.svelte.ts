@@ -65,6 +65,8 @@ export class LogStore {
   private anchor?: string;
   private drag?: { from: string; base: ReadonlySet<string>; moved: boolean };
   private requestId = 0;
+  /** The request of {@link showBranchDetails}, whose answer also selects the commits. */
+  private branchRequest = -1;
   private pendingReveal?: string;
 
   layout: GraphLayout = $derived(layoutGraph(this.snapshot?.commits ?? []));
@@ -186,8 +188,11 @@ export class LogStore {
         this.loading = message.value;
         break;
       case 'details':
-        if (message.requestId === this.requestId)
-          this.details = { commits: message.commits, changeSet: message.changeSet };
+        if (message.requestId !== this.requestId) break;
+        this.details = { commits: message.commits, changeSet: message.changeSet };
+        // Selected without asking for their details again: the pane shows the branch, not the range.
+        if (message.requestId === this.branchRequest)
+          this.selected = new Set(message.commits.map((c) => c.hash).filter((h) => this.indexByHash.has(h)));
         break;
       case 'revealCommit':
         this.reveal(message.hash);
@@ -318,6 +323,13 @@ export class LogStore {
 
   closeCard(): void {
     this.card = undefined;
+  }
+
+  /** Shows the changes of a branch in the details pane and selects its commits that the log shows. */
+  showBranchDetails(fullName: string): void {
+    this.details = undefined;
+    this.branchRequest = ++this.requestId;
+    post({ type: 'showBranchDetails', requestId: this.requestId, fullName });
   }
 
   showStash(stash: Stash): void {
