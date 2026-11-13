@@ -16,7 +16,7 @@ export class GitHubApiError extends Error {
 
 type Fetch = (
   url: string,
-  init: { method: string; headers: Record<string, string>; body?: string },
+  init: { method: string; headers: Record<string, string>; body?: string; signal?: AbortSignal },
 ) => Promise<{
   ok: boolean;
   status: number;
@@ -234,6 +234,7 @@ export class GitHubApi {
   private async rest(method: string, path: string) {
     const response = await this.fetchImpl(`${this.restBase}/repos/${this.owner}/${this.name}${path}`, {
       method,
+      signal: AbortSignal.timeout(15_000),
       headers: {
         Authorization: `Bearer ${this.token}`,
         Accept: 'application/vnd.github+json',
@@ -257,6 +258,7 @@ export class GitHubApi {
   private async query<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
     const response = await this.fetchImpl(this.endpoint, {
       method: 'POST',
+      signal: AbortSignal.timeout(15_000),
       headers: {
         Authorization: `Bearer ${this.token}`,
         'Content-Type': 'application/json',

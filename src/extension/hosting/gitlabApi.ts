@@ -465,6 +465,7 @@ export class GitLabApi {
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     const response = await this.fetchImpl(`${this.base}${path}`, {
       method,
+      signal: AbortSignal.timeout(15_000),
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
     });

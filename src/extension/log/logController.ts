@@ -14,6 +14,7 @@ import type { PushDialog } from '../push/pushDialog';
 import type { RebaseDialog } from '../rebase/rebaseDialog';
 import type { MergeRequestCards } from '../hosting/mergeRequestCards';
 import type { ReviewController } from '../review/reviewController';
+import { cardRequest } from '../hosting/cardRequest';
 import { t } from '../../shared/l10n';
 
 const FOCUS_KEY = 'kleio.focus';
@@ -62,6 +63,7 @@ export class LogController implements vscode.Disposable {
   private readonly changeSets = new Map<number, ChangeSet>();
   private nextChangeSetId = 1;
   private loadVersion = 0;
+  private cardLoadVersion = 0;
   private logLimit = LOG_PAGE;
   private query: LogQuery = {};
   private readonly disposables: vscode.Disposable[] = [];
@@ -413,13 +415,18 @@ export class LogController implements vscode.Disposable {
   }
 
   private async loadCard(number: number): Promise<void> {
+    const version = ++this.cardLoadVersion;
     const repository = this.repository;
-    if (!repository) return;
-    const result = await this.services.cards.card(repository, number);
-    if ('card' in result) {
-      result.card.reviewing = this.services.review.activeMergeRequest === number;
-      if (result.card.kind !== 'github') result.card.versions = await this.versions(repository, number);
-    }
+    const result = await cardRequest(async () => {
+      if (!repository) throw new Error(t('No repository is selected.'));
+      const result = await this.services.cards.card(repository, number);
+      if ('card' in result) {
+        result.card.reviewing = this.services.review.activeMergeRequest === number;
+        if (result.card.kind !== 'github') result.card.versions = await this.versions(repository, number);
+      }
+      return result;
+    });
+    if (version !== this.cardLoadVersion || repository !== this.repository) return;
     this.post({ type: 'mergeRequestCard', number, ...result });
   }
 

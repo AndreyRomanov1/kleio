@@ -2,7 +2,7 @@
   "name": "kleio",
   "displayName": "Kleio",
   "description": "Git the JetBrains way: commit graph, one diff viewer for any changes, history, blame, interactive rebase, conflicts, GitLab merge requests and review",
-  "version": "0.29.0",
+  "version": "0.30.1",
   "publisher": "aroma",
   "license": "MIT",
   "repository": {
@@ -380,6 +380,11 @@
         "title": "%command.conflicts.markResolved%",
         "category": "Kleio",
         "icon": "$(check)"
+      },
+      {
+        "command": "kleio.git.configurePull",
+        "title": "%command.git.configurePull%",
+        "category": "Kleio"
       }
     ],
     "menus": {
@@ -785,10 +790,10 @@
     },
     "keybindings": [
       {
-        "command": "workbench.action.submitComment",
+        "command": "editor.action.submitComment",
         "key": "ctrl+enter",
         "mac": "cmd+enter",
-        "when": "commentEditorFocused"
+        "when": "commentEditorFocused && commentController == kleio.review"
       },
       {
         "command": "kleio.navigate.back",
@@ -901,21 +906,6 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "%config.rebase.updateRefs%"
-        },
-        "kleio.update.method": {
-          "type": "string",
-          "enum": [
-            "ask",
-            "merge",
-            "rebase"
-          ],
-          "default": "ask",
-          "enumDescriptions": [
-            "%config.update.method.ask%",
-            "%config.update.method.merge%",
-            "%config.update.method.rebase%"
-          ],
-          "markdownDescription": "%config.update.method%"
         },
         "kleio.push.protectedBranches": {
           "type": "array",

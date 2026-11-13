@@ -39,6 +39,19 @@ async function headChangeSet(api: KleioApi) {
 
 const tests: Test[] = [
   [
+    'uses an available editor command to submit review comments',
+    async () => {
+      const commands = await vscode.commands.getCommands(true);
+      assert.ok(commands.includes('editor.action.submitComment'));
+      const manifest = vscode.extensions.getExtension('aroma.kleio')!.packageJSON;
+      const binding = manifest.contributes.keybindings.find(
+        (b: { command: string }) => b.command === 'editor.action.submitComment',
+      );
+      assert.ok(binding);
+      assert.ok(binding.when.includes('commentController == kleio.review'));
+    },
+  ],
+  [
     'goes back and forward through review diffs and files in one history',
     async (api) => {
       const at = () => {

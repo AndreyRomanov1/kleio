@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { Repository } from '../src/extension/git/repository';
+import { localChangesInTheWay, Repository } from '../src/extension/git/repository';
 import { matchesBranchPattern, pushArgs, readPushState, retarget } from '../src/extension/push/pushState';
 
 let work: string;
@@ -432,5 +432,84 @@ describe('Repository operations', () => {
     expect(matchesBranchPattern(['master', 'release/*'], 'master')).toBe(true);
     expect(matchesBranchPattern(['master', 'release/*'], 'release/1.2')).toBe(true);
     expect(matchesBranchPattern(['master', 'release/*'], 'master-fix')).toBe(false);
+  });
+});
+
+describe('Git pull', () => {
+  function tracked(name: string): { remote: string; local: string } {
+    const remote = init(`${name}-remote`);
+    commitFile(remote, 'base.txt', 'base\n', 'base');
+    const local = path.join(work, `${name}-local`);
+    git(work, 'clone', '-q', remote, local);
+    git(local, 'config', 'user.name', 'T');
+    git(local, 'config', 'user.email', 't@x');
+    return { remote, local };
+  }
+
+  it('pulls the upstream without fetching unrelated remotes', async () => {
+    const { remote, local } = tracked('pull-ff');
+    git(local, 'remote', 'add', 'unreachable', path.join(work, 'missing-remote'));
+    git(local, 'config', 'pull.ff', 'only');
+    commitFile(remote, 'incoming.txt', 'incoming\n', 'incoming');
+    const repository = (await Repository.open(local))!;
+    expect(await repository.pull()).toBe('done');
+    expect(git(local, 'rev-parse', 'HEAD')).toBe(git(remote, 'rev-parse', 'HEAD'));
+  });
+
+  it('obeys ff-only and leaves divergent local history intact', async () => {
+    const { remote, local } = tracked('pull-only');
+    commitFile(local, 'local.txt', 'local\n', 'local');
+    commitFile(remote, 'incoming.txt', 'incoming\n', 'incoming');
+    git(local, 'config', 'pull.ff', 'only');
+    const before = git(local, 'rev-parse', 'HEAD');
+    await expect((await Repository.open(local))!.pull()).rejects.toThrow();
+    expect(git(local, 'rev-parse', 'HEAD')).toBe(before);
+  });
+
+  it('honors branch rebase over pull.rebase and restores configured autostash', async () => {
+    const { remote, local } = tracked('pull-rebase');
+    commitFile(local, 'local.txt', 'local\n', 'local');
+    commitFile(remote, 'incoming.txt', 'incoming\n', 'incoming');
+    git(local, 'config', 'pull.rebase', 'false');
+    git(local, 'config', 'branch.main.rebase', 'true');
+    git(local, 'config', 'rebase.autoStash', 'true');
+    writeFileSync(path.join(local, 'base.txt'), 'uncommitted\n');
+    expect(await (await Repository.open(local))!.pull()).toBe('done');
+    expect(git(local, 'rev-parse', 'HEAD^')).toBe(git(remote, 'rev-parse', 'HEAD'));
+    expect(readFileSync(path.join(local, 'base.txt'), 'utf8')).toBe('uncommitted\n');
+    expect(git(local, 'stash', 'list').trim()).toBe('');
+  });
+
+  it('recognizes local changes in the way and pulls them through with --autostash', async () => {
+    const { remote, local } = tracked('pull-dirty');
+    commitFile(local, 'local.txt', 'local\n', 'local');
+    commitFile(remote, 'base.txt', 'incoming\n', 'incoming');
+    git(local, 'config', 'pull.rebase', 'true');
+    writeFileSync(path.join(local, 'local.txt'), 'uncommitted\n');
+    const repository = (await Repository.open(local))!;
+    const error = await repository.pull().catch((e: unknown) => e);
+    expect(localChangesInTheWay(error)).toBe(true);
+    expect(await repository.pull(undefined, ['--autostash'])).toBe('done');
+    expect(readFileSync(path.join(local, 'local.txt'), 'utf8')).toBe('uncommitted\n');
+  });
+
+  it('does not silently accept an interactive rebase instead of invoking the configured editor', async () => {
+    const { remote, local } = tracked('pull-interactive');
+    commitFile(local, 'local.txt', 'local\n', 'local');
+    commitFile(remote, 'incoming.txt', 'incoming\n', 'incoming');
+    git(local, 'config', 'pull.rebase', 'interactive');
+    git(local, 'config', 'sequence.editor', 'false');
+    const before = git(local, 'rev-parse', 'HEAD');
+    await expect((await Repository.open(local))!.pull()).rejects.toThrow();
+    expect(git(local, 'rev-parse', 'HEAD')).toBe(before);
+  });
+
+  it('honors pull.ff=false even when fast-forward would be possible', async () => {
+    const { remote, local } = tracked('pull-no-ff');
+    git(local, 'config', 'pull.rebase', 'false');
+    git(local, 'config', 'pull.ff', 'false');
+    commitFile(remote, 'incoming.txt', 'incoming\n', 'incoming');
+    expect(await (await Repository.open(local))!.pull()).toBe('done');
+    expect(git(local, 'log', '-1', '--format=%P').trim().split(' ')).toHaveLength(2);
   });
 });

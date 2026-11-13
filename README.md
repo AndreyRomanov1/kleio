@@ -54,11 +54,14 @@ stays editable.
 - **Undo via reflog**: the latest states of the branch — before a rebase, a reset, an update — and back to
   any of them with `git reset --keep`.
 - **Patches**: save commits as a patch, apply a patch as commits or as changes.
-- **Update Project** fetches every remote and brings the current branch up to its upstream — merge or
-  rebase as `git pull` would by your git config (`pull.rebase`, `branch.<name>.rebase`), or asked the
-  first time; another branch without own commits is updated without checking it out.
-  Uncommitted changes are stashed for the time of an operation; if they come back with conflicts, Kleio
-  says so and opens the conflicts.
+- **Pull** runs `git pull` as Git is configured, without strategy, autostash or update-refs flags of its own.
+  Fetch is a separate action (`git fetch --all --prune`). When the histories have diverged and Git has no
+  rule for that (`pull.rebase`, `branch.<name>.rebase`, `pull.ff`), Kleio asks once, Rebase or Merge, and
+  saves the answer with `git config --local pull.rebase`, so `git pull` in a terminal does the same. If
+  uncommitted changes are in the way, **Stash and retry** runs `git pull --autostash`. **Pull Strategy…**
+  shows the current rule and the config it comes from and changes it for the repository or, explicitly,
+  for all repositories. Merge commits use the prepared Git message without opening an editor; conflicts
+  open in the usual conflict workflow. The former `kleio.update.method` setting is no longer used.
 - **Push dialog**: outgoing commits of every branch with their diffs; a diverged branch goes only with
   force-with-lease against what the dialog showed, never into protected branches. Any branch goes to any
   remote under any name, e.g. to a mirror, and the upstream stays as it is.
@@ -134,7 +137,7 @@ extension when it is signed in, or from a personal access token (command **Conne
   **Open Log in a Tab** in its title bar opens it as an editor tab, the button next to it in a new window.
 - **Commit**: the commit icon in the activity bar — changes, commit, stashes.
 - **Status bar**: the current branch with ↑↓; a click gives the branches and the common actions.
-- Commands are under **Kleio** in the command palette: Update Project, Push…, Undo via Reflog…, Manage
+- Commands are under **Kleio** in the command palette: Pull, Push…, Undo via Reflog…, Manage
   Remotes…, Connect GitLab… / GitHub….
 - Kleio works next to the built-in Git of the editor and does not need it turned off.
 
@@ -148,24 +151,23 @@ credential helper (`git config --global credential.helper` — `manager`, `libse
 
 ## Settings
 
-| Setting                                | Default                               | What it does                                                                                                                  |
-| -------------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `kleio.autolinks`                      | `[]`                                  | Rules turning text into links: `{"pattern": "\\bPROJ-\\d+\\b", "url": "https://tracker/$0"}`                                  |
-| `kleio.hosting.instances`              | `{}`                                  | Hosting type of your own servers, e.g. `{"git.example.com": "gitlab"}`                                                        |
-| `kleio.update.method`                  | `ask`                                 | How Update Project brings a branch with own commits up to date: `merge`, `rebase`; `ask` follows `pull.rebase` of git or asks |
-| `kleio.commit.stagingArea`             | `false`                               | The commit view works with the git index (the **Stage** checkbox)                                                             |
-| `kleio.hosting.backgroundRefresh`      | `true`                                | Ask the server for merge request refs every few minutes; turn off if SSH asks for a password                                  |
-| `kleio.push.protectedBranches`         | `["master", "main"]`                  | Branches never force-pushed; `*` works, e.g. `release/*`                                                                      |
-| `kleio.worktree.path`                  | `${repoParent}/${repoName}-${branch}` | Folder of a new worktree                                                                                                      |
-| `kleio.worktree.copyFiles`             | `[]`                                  | Untracked files copied into a new worktree, e.g. local settings with secrets                                                  |
-| `kleio.codeLens.authors`               | `true`                                | The main author and the number of others above classes and methods                                                            |
-| `kleio.history.showDiffOnSelect`       | `true`                                | Show the diff of the selected commit in a history tab                                                                         |
-| `kleio.language`                       | `auto`                                | Language of Kleio: the editor's, or `en`, `ru` without a language pack                                                        |
-| `kleio.statusBar.branch`               | `true`                                | The current branch with ↑↓ in the status bar                                                                                  |
-| `kleio.blame.ignoreWhitespaceAndMoves` | `false`                               | Blame ignores whitespace changes and moved lines                                                                              |
-| `kleio.rebase.updateRefs`              | `true`                                | A rebase moves the stacked branches along (`--update-refs`, git 2.38+)                                                        |
-| `kleio.review.ctrlEnter`               | `publish`                             | `Ctrl+Enter` in a review comment: `publish` it or save a `draft`                                                              |
-| `kleio.navigation.history`             | `false`                               | Go Back / Go Forward through files and review diffs in one history                                                            |
+| Setting                                | Default                               | What it does                                                                                 |
+| -------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `kleio.autolinks`                      | `[]`                                  | Rules turning text into links: `{"pattern": "\\bPROJ-\\d+\\b", "url": "https://tracker/$0"}` |
+| `kleio.hosting.instances`              | `{}`                                  | Hosting type of your own servers, e.g. `{"git.example.com": "gitlab"}`                       |
+| `kleio.commit.stagingArea`             | `false`                               | The commit view works with the git index (the **Stage** checkbox)                            |
+| `kleio.hosting.backgroundRefresh`      | `true`                                | Ask the server for merge request refs every few minutes; turn off if SSH asks for a password |
+| `kleio.push.protectedBranches`         | `["master", "main"]`                  | Branches never force-pushed; `*` works, e.g. `release/*`                                     |
+| `kleio.worktree.path`                  | `${repoParent}/${repoName}-${branch}` | Folder of a new worktree                                                                     |
+| `kleio.worktree.copyFiles`             | `[]`                                  | Untracked files copied into a new worktree, e.g. local settings with secrets                 |
+| `kleio.codeLens.authors`               | `true`                                | The main author and the number of others above classes and methods                           |
+| `kleio.history.showDiffOnSelect`       | `true`                                | Show the diff of the selected commit in a history tab                                        |
+| `kleio.language`                       | `auto`                                | Language of Kleio: the editor's, or `en`, `ru` without a language pack                       |
+| `kleio.statusBar.branch`               | `true`                                | The current branch with ↑↓ in the status bar                                                 |
+| `kleio.blame.ignoreWhitespaceAndMoves` | `false`                               | Blame ignores whitespace changes and moved lines                                             |
+| `kleio.rebase.updateRefs`              | `true`                                | Explicit Rebase moves stacked branches (`--update-refs`, git 2.38+); Pull uses Git config    |
+| `kleio.review.ctrlEnter`               | `publish`                             | `Ctrl+Enter` in a review comment: `publish` it or save a `draft`                             |
+| `kleio.navigation.history`             | `false`                               | Go Back / Go Forward through files and review diffs in one history                           |
 
 ## Key bindings
 
@@ -255,3 +257,6 @@ To add a language, translate two files and name them with the language code, e.g
 ## License
 
 [MIT](LICENSE)
+
+The Comments panel opens according to the editor setting `comments.openView`. Set it to `never`
+to open the panel only manually; inline review comments remain available.

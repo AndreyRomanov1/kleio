@@ -802,9 +802,18 @@ export class Repository {
    * Runs a command that may stop half-way. A stop for conflicts or for an edit is a normal outcome, not an
    * error; any other failure, e.g. local changes in the way, is thrown.
    */
-  private async runOperation(args: string[], env: NodeJS.ProcessEnv = {}): Promise<OperationOutcome> {
+  pull(signal?: AbortSignal, args: string[] = []): Promise<OperationOutcome> {
+    return this.runOperation(['pull', ...args], {}, signal);
+  }
+
+  private async runOperation(
+    args: string[],
+    env: NodeJS.ProcessEnv = {},
+    signal?: AbortSignal,
+  ): Promise<OperationOutcome> {
     try {
-      await this.git.run(args, { env: { ...NO_EDITOR, ...env } });
+      const editor = args[0] === 'pull' ? { GIT_MERGE_AUTOEDIT: 'no' } : NO_EDITOR;
+      await this.git.run(args, { env: { ...editor, ...env }, signal });
     } catch (error) {
       if (!(error instanceof GitError)) throw error;
       const state = await this.operation();
@@ -896,4 +905,12 @@ export class Repository {
       .then((h) => h.trim());
     return this.emptyTree;
   }
+}
+
+/** git refuses to pull over uncommitted changes (messages are in English: git runs with LC_ALL=C). */
+export function localChangesInTheWay(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : '';
+  return /local changes to the following files would be overwritten|cannot pull with rebase: (You have unstaged changes|Your index contains uncommitted changes)/.test(
+    message,
+  );
 }

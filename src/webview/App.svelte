@@ -227,9 +227,8 @@
       >
       <button
         class="tool"
-        title={t('Update project: fetch and pull the current branch from its upstream')}
-        onclick={() => post({ type: 'updateProject' })}
-        ><i class="codicon codicon-repo-pull"></i> {t('Update')}</button
+        title={t('git pull: update the current branch using Git configuration')}
+        onclick={() => post({ type: 'updateProject' })}><i class="codicon codicon-repo-pull"></i> Pull</button
       >
       <button class="tool" title="Push…" onclick={() => post({ type: 'push' })}
         ><i class="codicon codicon-repo-push"></i> Push</button

@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { GitActions } from './actions/gitActions';
+import { PullSettings } from './actions/pullSettings';
 import { SyncActions } from './actions/syncActions';
+import { t } from '../shared/l10n';
 import { AuthorLens } from './blame/authorLens';
 import { BlameAnnotations } from './blame/blameAnnotations';
 import { NavigationHistory } from './changes/navigationHistory';
@@ -123,6 +125,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<KleioA
     }),
     vscode.commands.registerCommand('kleio.log.openInEditor', () => logs.openInEditor()),
     vscode.commands.registerCommand('kleio.log.openInNewWindow', () => logs.openInNewWindow()),
+    vscode.commands.registerCommand('kleio.git.configurePull', async () => {
+      const repository = await pickRepository(repositories);
+      if (!repository) return;
+      const branch = (await repository.head()).branch;
+      if (branch) await new PullSettings(repository).choose(branch);
+      else void vscode.window.showWarningMessage(t('HEAD has no branch: check out a branch first.'));
+    }),
     vscode.commands.registerCommand('kleio.git.updateProject', async () => {
       const repository = await pickRepository(repositories);
       if (repository) await sync.updateProject(repository);

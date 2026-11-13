@@ -30,7 +30,7 @@
   "command.review.openJournal": "Журнал комментариев ревью",
   "command.review.previousComment": "Предыдущее замечание ревью",
   "command.review.nextComment": "Следующее замечание ревью",
-  "command.git.updateProject": "Обновить проект",
+  "command.git.updateProject": "Pull",
   "command.conflicts.show": "Конфликты",
   "command.conflicts.markResolved": "Завершить слияние и отметить как разрешённый",
   "capabilities.untrusted": "Kleio запускает git, а git выполняет хуки и настройки из репозитория.",
@@ -40,7 +40,6 @@
   "config.history.showDiffOnSelect": "Во вкладке истории сразу показывать diff выбранного коммита в соседней группе редактора.",
   "config.autolinks": "Правила, превращающие текст сообщений коммитов в ссылки: регулярное выражение и адрес с `$0` (всё совпадение), `$1`… (группы). Например, `{\"pattern\": \"PROJ-\\\\d+\", \"url\": \"https://tracker.example.com/issue/$0\"}`. Удобно задать в `.vscode/settings.json` репозитория — правило будет у всей команды. Ссылки на MR (`!12`) и issues (`#12`) GitLab и GitHub добавляются сами.",
   "config.hosting.instances": "Тип хостинга для своих серверов, если Kleio не определил его сам: `{\"git.example.com\": \"gitlab\"}`. github.com и gitlab.com известны; сервер GitLab обычно определяется сам по ссылкам на merge requests.",
-  "config.update.method": "Как «Обновить проект» подтягивает текущую ветку из upstream, когда в ней есть свои коммиты. Без своих коммитов ветка просто переезжает вперёд (fast-forward).",
   "config.push.protectedBranches": "Ветки на сервере, в которые push с force запрещён. Можно использовать `*`, например `release/*`.",
   "config.worktree.path": "Папка нового worktree при «Checkout в новый worktree…». `${repoParent}` — папка, где лежит основная папка репозитория, `${repoName}` — её имя, `${branch}` — имя ветки (`/` заменяется на `-`). Путь можно поправить перед созданием.",
   "config.worktree.copyFiles": "Файлы, которые копируются из основной папки в новый worktree, — то, что git не хранит, но без чего проект не запустить, например `.env.local`. Пути относительно корня репозитория.",
@@ -48,9 +47,6 @@
   "config.commit.stagingArea": "Окно коммита работает с индексом git (stage), как `git commit` и встроенный Git VS Code: галочки показывают, что в stage, и меняют его, а коммитится содержимое stage. Выключено — как в Rider: коммитятся отмеченные файлы и куски в том виде, в каком они на диске, stage не учитывается. Переключается и галкой «Stage» в окне коммита.",
   "config.autolinks.pattern": "Регулярное выражение (JavaScript).",
   "config.autolinks.url": "Адрес ссылки, `$0` — совпадение, `$1`… — группы.",
-  "config.update.method.ask": "Как настроен git pull в git config (`pull.rebase`, `branch.<имя>.rebase`, `pull.ff=only`), а если не настроен — спросить при первом обновлении и запомнить ответ",
-  "config.update.method.merge": "Пришедшие коммиты вливаются merge-коммитом, как git pull",
-  "config.update.method.rebase": "Свои коммиты перебазируются поверх пришедших, как git pull --rebase",
   "config.language": "Язык Kleio: `auto` — как у редактора; `en`, `ru` или другой язык с переводом в `l10n/` работает и без языкового пакета. Команды и настройки следуют языку редактора. Применяется после перезагрузки окна.",
   "command.git.undo": "Отменить через reflog…",
   "config.statusBar.branch": "Показывать текущую ветку с ↑↓ в строке состояния; по клику — ветки и основные действия, как виджет веток в Rider.",
@@ -77,5 +73,6 @@
   "command.review.switchToNewer": "Перейти на новую версию",
   "command.review.stayOnVersion": "Досмотреть эту версию",
   "command.remotes.manage": "Управление remote…",
-  "command.showLog": "Журнал команд git"
+  "command.showLog": "Журнал команд git",
+  "command.git.configurePull": "Стратегия Pull…"
 }

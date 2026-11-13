@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.30.1
+
+- Merge request cards leave the loading state on every failure, including authentication and version
+  lookup errors. Loading has an overall deadline, and GitLab/GitHub API requests have network timeouts.
+  A late response from an older card request no longer replaces a more recent response.
+- Pull now runs native `git pull`, respecting Git configuration instead of fetching every remote and
+  choosing a strategy in Kleio. Only when the histories have diverged and Git has no rule for it does
+  Kleio ask Rebase or Merge, saving the answer in the repository Git config. Uncommitted changes in the
+  way can be stashed and the pull retried. Pull Strategy… shows and changes the rule.
+  `kleio.update.method` is retired.
+- Ctrl+Enter submits review comments using the correct built-in editor command; the binding applies
+  only to Kleio review comments.
+
 ## 0.29.0
 
 - A click on a branch in the branch panel shows what the branch changes in the details pane — its commits and
