@@ -92,6 +92,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<KleioA
     remotes,
     cards,
     review,
+    log: output.channel,
   });
   const history = new HistoryCommands(repositories, logs, navigator);
   const blame = new BlameAnnotations(repositories, {

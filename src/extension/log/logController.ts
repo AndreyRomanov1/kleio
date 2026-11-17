@@ -48,10 +48,14 @@ export interface LogServices {
   remotes: RemoteActions;
   cards: MergeRequestCards;
   review: ReviewController;
+  log: vscode.LogOutputChannel;
 }
 
 /** Serves one log webview, wherever it is placed, or a history view of a file or of a fragment. */
 export class LogController implements vscode.Disposable {
+  private static count = 0;
+  /** Number of this view in the Kleio log, to follow what each one receives and when it goes away. */
+  private readonly id = ++LogController.count;
   private repository?: Repository;
   private snapshot?: RepositorySnapshot;
   private pendingReveal?: string;
@@ -74,6 +78,7 @@ export class LogController implements vscode.Disposable {
     private readonly history?: HistoryTarget,
   ) {
     this.repository = history?.repository;
+    services.log.debug(`log view #${this.id}: created${history ? ` for ${history.title}` : ''}`);
     this.disposables.push(
       webview.onDidReceiveMessage((message: WebviewMessage) => this.handle(message)),
       services.repositories.onDidChangeRepository((repository) => {
@@ -115,6 +120,7 @@ export class LogController implements vscode.Disposable {
   }
 
   private async handle(message: WebviewMessage): Promise<void> {
+    this.services.log.debug(`log view #${this.id} ← ${message.type}`);
     try {
       await this.dispatch(message);
     } catch (error) {
@@ -774,10 +780,13 @@ export class LogController implements vscode.Disposable {
   }
 
   private post(message: HostMessage): void {
-    void this.webview.postMessage(message);
+    void this.webview.postMessage(message).then((delivered) => {
+      if (!delivered) this.services.log.warn(`log view #${this.id}: ${message.type} not delivered`);
+    });
   }
 
   dispose(): void {
+    this.services.log.debug(`log view #${this.id}: disposed`);
     clearTimeout(this.historyDiffTimer);
     for (const d of this.disposables) d.dispose();
   }
