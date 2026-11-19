@@ -182,7 +182,7 @@ Code выбирает непредсказуемо. Пользовательск
   },
   { "key": "ctrl+alt+left", "command": "kleio.navigate.back", "when": "config.kleio.navigation.history" },
   { "key": "ctrl+alt+right", "command": "kleio.navigate.forward", "when": "config.kleio.navigation.history" },
-  { "key": "ctrl+enter", "command": "workbench.action.submitComment", "when": "commentEditorFocused" }
+  { "key": "ctrl+enter", "command": "editor.action.submitComment", "when": "commentEditorFocused" }
 ]
 ```
 
