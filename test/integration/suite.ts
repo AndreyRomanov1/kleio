@@ -52,7 +52,7 @@ const tests: Test[] = [
     },
   ],
   [
-    'goes back and forward through review diffs and files in one history',
+    'goes back and forward through review diffs, jumps inside them and files in one history',
     async (api) => {
       const at = () => {
         const editor = vscode.window.activeTextEditor;
@@ -72,6 +72,9 @@ const tests: Test[] = [
       await waitFor(() => at().startsWith('diff a.txt') || undefined, 'diff of a.txt');
       await vscode.commands.executeCommand('kleio.diff.nextChange');
       await waitFor(() => at() === 'diff a.txt@24' || undefined, 'second change of a.txt');
+      await wait(450);
+      vscode.window.activeTextEditor!.selection = new vscode.Selection(2, 0, 2, 0);
+      await waitFor(() => at() === 'diff a.txt@2' || undefined, 'jump inside the diff of a.txt');
       for (const name of ['b.txt', 'c.txt']) {
         await wait(450);
         await vscode.commands.executeCommand('kleio.diff.nextFile');
@@ -94,11 +97,13 @@ const tests: Test[] = [
       await vscode.commands.executeCommand('kleio.navigate.back');
       await waitFor(() => at().startsWith('diff b.txt') || undefined, 'back in b.txt');
       await wait(450);
+      await step('kleio.navigate.back', 'diff a.txt@2');
       await step('kleio.navigate.back', 'diff a.txt@24');
       await vscode.commands.executeCommand('kleio.navigate.back');
       await wait(450);
       assert.equal(at(), 'diff a.txt@24', 'nothing before the first place');
 
+      await step('kleio.navigate.forward', 'diff a.txt@2');
       await vscode.commands.executeCommand('kleio.navigate.forward');
       await waitFor(() => at().startsWith('diff b.txt') || undefined, 'forward to b.txt');
       await wait(450);

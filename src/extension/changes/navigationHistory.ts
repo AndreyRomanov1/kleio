@@ -56,11 +56,13 @@ export class NavigationHistory implements vscode.Disposable {
     if (!place) return;
     const current = this.places[this.position];
     if (!current || !same(current, place)) return this.arrive(place);
-    // Typing and arrow keys move the place along; a far jump by a click or a command (Go to Definition
-    // inside the file, F7 in a diff) leaves the old line to come back to.
+    // Typing, arrow keys and F7 through the changes of a diff move the place along; a far jump by a click or
+    // a command (Go to Definition inside the file) leaves the old line to come back to, in a diff as well.
     const jump =
-      e.kind !== vscode.TextEditorSelectionChangeKind.Keyboard && Math.abs(line - current.line) >= JUMP_LINES;
-    if (jump && place.kind === 'file') this.push(place);
+      e.kind !== vscode.TextEditorSelectionChangeKind.Keyboard &&
+      Math.abs(line - current.line) >= JUMP_LINES &&
+      !this.navigator.isStep(e.textEditor.document.uri, line);
+    if (jump) this.push(place);
     else current.line = line;
   }
 
