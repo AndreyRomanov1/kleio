@@ -52,7 +52,7 @@ const tests: Test[] = [
     },
   ],
   [
-    'goes back and forward through review diffs, jumps inside them and files in one history',
+    'goes back and forward through review diffs, jumps and F7 inside them and files in one history',
     async (api) => {
       const at = () => {
         const editor = vscode.window.activeTextEditor;
@@ -99,10 +99,12 @@ const tests: Test[] = [
       await wait(450);
       await step('kleio.navigate.back', 'diff a.txt@2');
       await step('kleio.navigate.back', 'diff a.txt@24');
+      await step('kleio.navigate.back', 'diff a.txt@4');
       await vscode.commands.executeCommand('kleio.navigate.back');
       await wait(450);
-      assert.equal(at(), 'diff a.txt@24', 'nothing before the first place');
+      assert.equal(at(), 'diff a.txt@4', 'nothing before the first place');
 
+      await step('kleio.navigate.forward', 'diff a.txt@24');
       await step('kleio.navigate.forward', 'diff a.txt@2');
       await vscode.commands.executeCommand('kleio.navigate.forward');
       await waitFor(() => at().startsWith('diff b.txt') || undefined, 'forward to b.txt');

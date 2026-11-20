@@ -64,8 +64,6 @@ const EDGE_HINT_MS = 4000;
 export class ChangeSetNavigator implements vscode.Disposable {
   private current?: OpenedFile;
   private edgeHint?: EdgeHint;
-  /** Where F7 or Shift+F7 put the cursor last: walking through changes is not a jump to come back from. */
-  private step?: string;
   private readonly opened = new vscode.EventEmitter<ChangeSetFile & { line: number }>();
   private waitingForTabs = false;
   /** True while a file is being opened: tabs come and go for a moment then. */
@@ -184,11 +182,6 @@ export class ChangeSetNavigator implements vscode.Disposable {
   /** The file of a change set shown last. */
   get shownFile(): ChangeSetFile | undefined {
     return this.current && { changeSet: this.current.changeSet, index: this.current.index };
-  }
-
-  /** Whether the cursor on this line was put there by the last step through changes. */
-  isStep(uri: vscode.Uri, line: number): boolean {
-    return this.step === `${uri.toString()}#${line}`;
   }
 
   /** The file of a change set an editor shows, on either side of the diff. */
@@ -397,7 +390,6 @@ export class ChangeSetNavigator implements vscode.Disposable {
       direction === 1 ? lines.find((l) => l > cursor) : [...lines].reverse().find((l) => l < cursor);
 
     if (next !== undefined) {
-      this.step = `${editor.document.uri.toString()}#${next}`;
       editor.selection = new vscode.Selection(next, 0, next, 0);
       editor.revealRange(
         new vscode.Range(next, 0, next, 0),
