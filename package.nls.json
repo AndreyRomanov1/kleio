@@ -7,6 +7,8 @@
   "command.diff.previousFile": "Previous File",
   "command.diff.nextFile": "Next File",
   "command.diff.selectFile": "Files of the Change Set…",
+  "command.diff.defer": "Defer the File",
+  "command.diff.undefer": "Bring the File Back from Deferred",
   "command.diff.openCurrent": "Open the Current Version for Editing",
   "command.blame.show": "Git Annotations (Blame)",
   "command.blame.hide": "Hide Git Annotations",

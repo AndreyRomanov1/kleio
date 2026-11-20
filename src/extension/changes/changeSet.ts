@@ -16,6 +16,8 @@ export interface ChangeSet {
   rightUris?: ReadonlyMap<string, Uri>;
   /** Shown in the tab instead of the two revisions, e.g. `MR !12 v2`. */
   caption?: string;
+  /** The merge request the set belongs to, whatever its versions, e.g. `gitlab.com/group/project!12`. */
+  reviewKey?: string;
 }
 
 export function shortRevision(revision: string | undefined): string {

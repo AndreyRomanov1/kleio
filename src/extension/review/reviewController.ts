@@ -494,6 +494,7 @@ export class ReviewController implements vscode.Disposable {
           ? t('!{0} since the last review', session.iid)
           : t('!{0}: {1} → {2}', session.iid, versionName(session, from), versionName(session, to)),
       caption: `!${session.iid} ${versionName(session, from)} → ${versionName(session, to)}`,
+      reviewKey: session.label,
       left,
       right: to.headSha,
       files,
@@ -539,6 +540,7 @@ export class ReviewController implements vscode.Disposable {
       repository,
       title: t('!{0}, version {1}', session.iid, version.headSha.slice(0, 8)),
       caption: `!${session.iid} ${versionName(session, version)}`,
+      reviewKey: session.label,
       left: version.baseSha,
       right: version.headSha,
       files: await repository.changes(version.baseSha, version.headSha),
@@ -732,6 +734,7 @@ export class ReviewController implements vscode.Disposable {
         repository,
         title: `MR !${iid}`,
         caption: number ? `MR !${iid} v${number}` : undefined,
+        reviewKey: label,
         left: refs.baseSha,
         right: refs.headSha,
         files: changes,

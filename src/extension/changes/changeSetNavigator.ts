@@ -7,6 +7,7 @@ import { WORKTREE } from '../git/repository';
 import { emptyUri, revisionUri, workingFileUri } from '../content/revisionUri';
 import type { RepositoryManager } from '../git/repositoryManager';
 import { describeRange, shortRevision, type ChangeSet } from './changeSet';
+import { DeferredFiles } from './deferredFiles';
 import { t } from '../../shared/l10n';
 
 interface OpenedFile {
@@ -37,6 +38,7 @@ interface EdgeHint {
 }
 
 const CONTEXT_KEY = 'kleio.inChangeSet';
+const DEFERRED_CONTEXT_KEY = 'kleio.fileDeferred';
 /** The change set and file shown last, to pick up the diff tab the editor restores after a reload. */
 const SHOWN_KEY = 'kleio.navigator.shown';
 
@@ -47,6 +49,7 @@ interface SavedChangeSet {
   right: string;
   files: FileChange[];
   rightUris?: [string, string][];
+  reviewKey?: string;
   index: number;
 }
 
@@ -64,6 +67,9 @@ const EDGE_HINT_MS = 4000;
 export class ChangeSetNavigator implements vscode.Disposable {
   private current?: OpenedFile;
   private edgeHint?: EdgeHint;
+  private readonly deferred: DeferredFiles;
+  /** F7 went on from the end of the set to the deferred files: now it goes through them only. */
+  private deferredPass = false;
   private readonly opened = new vscode.EventEmitter<ChangeSetFile & { line: number }>();
   private waitingForTabs = false;
   /** True while a file is being opened: tabs come and go for a moment then. */
@@ -89,6 +95,7 @@ export class ChangeSetNavigator implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[] = [];
 
   constructor(private readonly state?: vscode.Memento) {
+    this.deferred = new DeferredFiles(state);
     this.disposables.push(
       vscode.window.tabGroups.onDidChangeTabs(() => this.updateContext()),
       vscode.window.onDidChangeActiveTextEditor(() => this.updateContext()),
@@ -101,6 +108,8 @@ export class ChangeSetNavigator implements vscode.Disposable {
       vscode.commands.registerCommand('kleio.diff.nextFile', () => this.moveFile(1)),
       vscode.commands.registerCommand('kleio.diff.previousFile', () => this.moveFile(-1)),
       vscode.commands.registerCommand('kleio.diff.selectFile', () => this.selectFile()),
+      vscode.commands.registerCommand('kleio.diff.defer', () => this.toggleDeferred()),
+      vscode.commands.registerCommand('kleio.diff.undefer', () => this.toggleDeferred()),
       this.opened,
       vscode.commands.registerCommand('kleio.diff.openCurrent', () => this.openCurrentFromDiff()),
     );
@@ -113,6 +122,7 @@ export class ChangeSetNavigator implements vscode.Disposable {
     show: ShowOptions = {},
   ): Promise<void> {
     this.opening = true;
+    this.deferredPass = false;
     try {
       await this.show(changeSet, index, edge, show);
     } finally {
@@ -138,6 +148,7 @@ export class ChangeSetNavigator implements vscode.Disposable {
       left: saved.left,
       right: saved.right,
       files: saved.files,
+      reviewKey: saved.reviewKey,
       rightUris: saved.rightUris && new Map(saved.rightUris.map(([p, u]) => [p, vscode.Uri.parse(u)])),
     };
     const change = set.files[saved.index];
@@ -247,6 +258,7 @@ export class ChangeSetNavigator implements vscode.Disposable {
       right,
       files: changeSet.files,
       rightUris: changeSet.rightUris && [...changeSet.rightUris].map(([p, u]) => [p, u.toString()]),
+      reviewKey: changeSet.reviewKey,
       index,
     } satisfies SavedChangeSet);
   }
@@ -407,24 +419,48 @@ export class ChangeSetNavigator implements vscode.Disposable {
       await this.moveFile(direction);
       return;
     }
-    const target = current.changeSet.files[current.index + direction];
-    if (!target) {
-      this.showEdgeHint(
-        editor,
-        direction,
-        current.index,
-        direction === 1 ? t('The last change of the set') : t('The first change of the set'),
-      );
-      return;
+    this.showEdgeHint(editor, direction, current.index, this.edgeText(direction));
+  }
+
+  /**
+   * The file F7 goes on to. Past the end of the set it goes to the deferred files, and then only through them;
+   * on the way through the set deferred files are not skipped, as they are deferred while being looked at.
+   */
+  private neighbour(direction: 1 | -1): { index: number; deferred: boolean } | undefined {
+    const current = this.current;
+    if (!current) return undefined;
+    const { changeSet, index } = current;
+    const deferred = this.deferred.indexes(changeSet);
+    if (this.deferredPass) {
+      const next =
+        direction === 1 ? deferred.find((i) => i > index) : [...deferred].reverse().find((i) => i < index);
+      return next === undefined ? undefined : { index: next, deferred: true };
     }
-    this.showEdgeHint(
-      editor,
-      direction,
-      current.index,
-      direction === 1
-        ? t('Once more for the next file: {0}', path.basename(target.path))
-        : t('Once more for the previous file: {0}', path.basename(target.path)),
-    );
+    if (changeSet.files[index + direction]) return { index: index + direction, deferred: false };
+    const first = direction === 1 ? deferred.find((i) => i !== index) : undefined;
+    return first === undefined ? undefined : { index: first, deferred: true };
+  }
+
+  private edgeText(direction: 1 | -1): string {
+    const current = this.current!;
+    const neighbour = this.neighbour(direction);
+    if (!neighbour) {
+      if (this.deferredPass)
+        return direction === 1 ? t('The last deferred file') : t('The first deferred file');
+      return direction === 1 ? t('The last change of the set') : t('The first change of the set');
+    }
+    const name = path.basename(current.changeSet.files[neighbour.index].path);
+    if (!neighbour.deferred)
+      return direction === 1
+        ? t('Once more for the next file: {0}', name)
+        : t('Once more for the previous file: {0}', name);
+    if (!this.deferredPass) {
+      const count = this.deferred.indexes(current.changeSet).filter((i) => i !== current.index).length;
+      return t('The last change of the set. Once more for the deferred files ({0}): {1}', count, name);
+    }
+    return direction === 1
+      ? t('Once more for the next deferred file: {0}', name)
+      : t('Once more for the previous deferred file: {0}', name);
   }
 
   private showEdgeHint(editor: vscode.TextEditor, direction: 1 | -1, index: number, text: string): void {
@@ -456,38 +492,70 @@ export class ChangeSetNavigator implements vscode.Disposable {
   private async moveFile(direction: 1 | -1): Promise<void> {
     const current = this.current;
     if (!current) return;
-    const index = current.index + direction;
-    if (index < 0 || index >= current.changeSet.files.length) {
+    const neighbour = this.neighbour(direction);
+    if (!neighbour) {
       vscode.window.setStatusBarMessage(
-        direction === 1
-          ? t('Kleio: this is the last change of the set')
-          : t('Kleio: this is the first change of the set'),
+        this.deferredPass
+          ? direction === 1
+            ? t('Kleio: this is the last deferred file')
+            : t('Kleio: this is the first deferred file')
+          : direction === 1
+            ? t('Kleio: this is the last change of the set')
+            : t('Kleio: this is the first change of the set'),
         3000,
       );
       return;
     }
-    await this.open(current.changeSet, index, direction === 1 ? 'first' : 'last');
+    await this.open(current.changeSet, neighbour.index, direction === 1 ? 'first' : 'last');
+    this.deferredPass = neighbour.deferred;
+  }
+
+  private async toggleDeferred(): Promise<void> {
+    const current = this.current;
+    if (!current || !this.isShowingCurrent()) return;
+    const file = current.changeSet.files[current.index];
+    const deferred = await this.deferred.toggle(current.changeSet, file.path);
+    this.updateContext();
+    const name = path.basename(file.path);
+    const count = this.deferred.indexes(current.changeSet).length;
+    vscode.window.setStatusBarMessage(
+      deferred
+        ? t('Kleio: {0} is deferred, {1} in the set; F7 comes to them after the last change', name, count)
+        : t('Kleio: {0} is no longer deferred', name),
+      4000,
+    );
   }
 
   /** The files numbered as in the title of the diff, opened at the current one. */
   private async selectFile(): Promise<void> {
     const current = this.current;
     if (!current) return;
-    const items = current.changeSet.files.map((file, index) => {
-      const dir = path.dirname(file.path) === '.' ? '' : path.dirname(file.path);
-      return {
-        label: `${index + 1}. ${path.basename(file.path)}`,
-        description: [file.status, file.oldPath ? `${dir}  ← ${file.oldPath}` : dir]
-          .filter(Boolean)
-          .join('  '),
-        index,
-      };
-    });
+    const deferred = this.deferred.indexes(current.changeSet);
+    const items: (vscode.QuickPickItem & { index?: number })[] = current.changeSet.files.map(
+      (file, index) => {
+        const dir = path.dirname(file.path) === '.' ? '' : path.dirname(file.path);
+        return {
+          label: `${deferred.includes(index) ? '$(flag) ' : ''}${index + 1}. ${path.basename(file.path)}`,
+          description: [file.status, file.oldPath ? `${dir}  ← ${file.oldPath}` : dir]
+            .filter(Boolean)
+            .join('  '),
+          index,
+        };
+      },
+    );
     const pick = vscode.window.createQuickPick<(typeof items)[number]>();
-    pick.title = `${current.changeSet.title}: ${describeRange(current.changeSet)} — ${current.index + 1}/${items.length}`;
+    pick.title = `${current.changeSet.title}: ${describeRange(current.changeSet)} — ${current.index + 1}/${items.length}${deferred.length ? `, ${t('deferred: {0}', deferred.length)}` : ''}`;
     pick.placeholder = t('File of the change set: name, folder or number');
     pick.matchOnDescription = true;
-    pick.items = items;
+    const separator = (label: string) => ({ label, kind: vscode.QuickPickItemKind.Separator });
+    pick.items = deferred.length
+      ? [
+          separator(t('Deferred')),
+          ...deferred.map((index) => ({ ...items[index] })),
+          separator(t('All files')),
+          ...items,
+        ]
+      : items;
     pick.activeItems = [items[current.index]];
     const picked = await new Promise<(typeof items)[number] | undefined>((resolve) => {
       pick.onDidAccept(() => resolve(pick.selectedItems[0]));
@@ -495,7 +563,7 @@ export class ChangeSetNavigator implements vscode.Disposable {
       pick.show();
     });
     pick.dispose();
-    if (picked) await this.open(current.changeSet, picked.index);
+    if (picked?.index !== undefined) await this.open(current.changeSet, picked.index);
   }
 
   private async openCurrentFromDiff(): Promise<void> {
@@ -516,7 +584,14 @@ export class ChangeSetNavigator implements vscode.Disposable {
   }
 
   private updateContext(): void {
-    void vscode.commands.executeCommand('setContext', CONTEXT_KEY, this.isShowingCurrent());
+    const showing = this.isShowingCurrent();
+    void vscode.commands.executeCommand('setContext', CONTEXT_KEY, showing);
+    const current = this.current;
+    const deferred =
+      showing &&
+      !!current &&
+      this.deferred.paths(current.changeSet).has(current.changeSet.files[current.index].path);
+    void vscode.commands.executeCommand('setContext', DEFERRED_CONTEXT_KEY, deferred);
   }
 
   dispose(): void {

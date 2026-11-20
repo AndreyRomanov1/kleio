@@ -7,6 +7,8 @@
   "command.diff.previousFile": "Предыдущий файл",
   "command.diff.nextFile": "Следующий файл",
   "command.diff.selectFile": "Файлы набора изменений…",
+  "command.diff.defer": "Отложить файл",
+  "command.diff.undefer": "Вернуть файл из отложенных",
   "command.diff.openCurrent": "Открыть текущую версию для правки",
   "command.blame.show": "Аннотации Git (blame)",
   "command.blame.hide": "Скрыть аннотации Git",

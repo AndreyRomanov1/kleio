@@ -189,6 +189,44 @@ const tests: Test[] = [
     },
   ],
   [
+    'goes on from the end of the set to the deferred files, and then only through them',
+    async (api) => {
+      const diffOf = (name: string) => () => {
+        const diff = activeDiff();
+        return diff && path.basename(diff.modified.fsPath) === name ? diff : undefined;
+      };
+      const changeSet = await headChangeSet(api);
+      await api.navigator.open(changeSet, 0);
+      await waitFor(diffOf('a.txt'), 'diff of a.txt');
+      await vscode.commands.executeCommand('kleio.diff.defer');
+      await vscode.commands.executeCommand('kleio.diff.nextFile');
+      await waitFor(diffOf('b.txt'), 'deferred files are not skipped on the way: b.txt');
+      await vscode.commands.executeCommand('kleio.diff.nextFile');
+      await waitFor(diffOf('c.txt'), 'c.txt');
+      await vscode.commands.executeCommand('kleio.diff.defer');
+      await vscode.commands.executeCommand('kleio.diff.nextFile');
+      await waitFor(diffOf('greeter.ts'), 'the last file of the set');
+
+      await vscode.commands.executeCommand('kleio.diff.nextChange');
+      await wait(300);
+      assert.ok(diffOf('greeter.ts')(), 'the first press at the last change stays in the file');
+      await vscode.commands.executeCommand('kleio.diff.nextChange');
+      await waitFor(diffOf('a.txt'), 'the first deferred file after the end of the set');
+      await vscode.commands.executeCommand('kleio.diff.nextFile');
+      await waitFor(diffOf('c.txt'), 'the next deferred file, past b.txt');
+      await vscode.commands.executeCommand('kleio.diff.nextFile');
+      await wait(300);
+      assert.ok(diffOf('c.txt')(), 'nothing after the last deferred file');
+
+      await vscode.commands.executeCommand('kleio.diff.undefer');
+      await api.navigator.open(changeSet, 0);
+      await waitFor(diffOf('a.txt'), 'back to a.txt');
+      await vscode.commands.executeCommand('kleio.diff.undefer');
+      await vscode.commands.executeCommand('kleio.diff.nextFile');
+      await waitFor(diffOf('b.txt'), 'out of the pass, the set goes on in order');
+    },
+  ],
+  [
     'shows an added file against an empty left side',
     async (api) => {
       await api.navigator.open(await headChangeSet(api), 2);

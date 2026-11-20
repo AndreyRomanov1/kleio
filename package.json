@@ -2,7 +2,7 @@
   "name": "kleio",
   "displayName": "Kleio",
   "description": "Git the JetBrains way: commit graph, one diff viewer for any changes, history, blame, interactive rebase, conflicts, GitLab merge requests and review",
-  "version": "0.30.1",
+  "version": "0.31.0",
   "publisher": "aroma",
   "license": "MIT",
   "repository": {
@@ -136,6 +136,23 @@
         "title": "%command.diff.selectFile%",
         "category": "Kleio",
         "icon": "$(list-tree)",
+        "enablement": "kleio.inChangeSet"
+      },
+      {
+        "command": "kleio.diff.defer",
+        "title": "%command.diff.defer%",
+        "category": "Kleio",
+        "icon": "$(flag)",
+        "enablement": "kleio.inChangeSet"
+      },
+      {
+        "command": "kleio.diff.undefer",
+        "title": "%command.diff.undefer%",
+        "category": "Kleio",
+        "icon": {
+          "light": "media/flag-filled-light.svg",
+          "dark": "media/flag-filled-dark.svg"
+        },
         "enablement": "kleio.inChangeSet"
       },
       {
@@ -457,6 +474,16 @@
           "group": "navigation@-18"
         },
         {
+          "command": "kleio.diff.defer",
+          "when": "kleio.inChangeSet && !kleio.fileDeferred",
+          "group": "navigation@-17.5"
+        },
+        {
+          "command": "kleio.diff.undefer",
+          "when": "kleio.inChangeSet && kleio.fileDeferred",
+          "group": "navigation@-17.5"
+        },
+        {
           "command": "kleio.diff.previousChange",
           "when": "kleio.inChangeSet",
           "group": "navigation@-17"
@@ -527,6 +554,14 @@
         {
           "command": "kleio.diff.selectFile",
           "when": "kleio.inChangeSet"
+        },
+        {
+          "command": "kleio.diff.defer",
+          "when": "kleio.inChangeSet && !kleio.fileDeferred"
+        },
+        {
+          "command": "kleio.diff.undefer",
+          "when": "kleio.inChangeSet && kleio.fileDeferred"
         },
         {
           "command": "kleio.diff.openCurrent",
@@ -823,6 +858,16 @@
         "command": "kleio.diff.openCurrent",
         "key": "f4",
         "when": "kleio.inChangeSet && textCompareEditorVisible"
+      },
+      {
+        "command": "kleio.diff.defer",
+        "key": "ctrl+alt+d",
+        "when": "kleio.inChangeSet && !kleio.fileDeferred && textCompareEditorVisible"
+      },
+      {
+        "command": "kleio.diff.undefer",
+        "key": "ctrl+alt+d",
+        "when": "kleio.inChangeSet && kleio.fileDeferred && textCompareEditorVisible"
       },
       {
         "key": "ctrl+enter",

@@ -761,5 +761,16 @@
   "git pull: uncommitted changes are in the way.": "git pull: мешают незакоммиченные изменения.",
   "Kleio can stash them, pull and bring them back (git pull --autostash). If they conflict with the new commits, they stay in the stash.": "Kleio может спрятать их, выполнить pull и вернуть обратно (git pull --autostash). Если они конфликтуют с новыми коммитами, копия останется в stash.",
   "You have {0} commit(s), the server has {1} new.": "У вас коммитов: {0}, на сервере новых: {1}.",
-  "The choice is saved for this repository (git config pull.rebase).": "Выбор сохранится для этого репозитория (git config pull.rebase)."
+  "The choice is saved for this repository (git config pull.rebase).": "Выбор сохранится для этого репозитория (git config pull.rebase).",
+  "The last deferred file": "Последний отложенный файл",
+  "The first deferred file": "Первый отложенный файл",
+  "The last change of the set. Once more for the deferred files ({0}): {1}": "Последнее изменение набора. Ещё раз — отложенные файлы ({0}): {1}",
+  "Once more for the next deferred file: {0}": "Ещё раз — следующий отложенный файл: {0}",
+  "Once more for the previous deferred file: {0}": "Ещё раз — предыдущий отложенный файл: {0}",
+  "Kleio: this is the last deferred file": "Kleio: это последний отложенный файл",
+  "Kleio: this is the first deferred file": "Kleio: это первый отложенный файл",
+  "Kleio: {0} is deferred, {1} in the set; F7 comes to them after the last change": "Kleio: {0} отложен, в наборе отложено {1}; F7 вернётся к ним после последнего изменения",
+  "Kleio: {0} is no longer deferred": "Kleio: {0} больше не отложен",
+  "deferred: {0}": "отложено: {0}",
+  "Deferred": "Отложено"
 }

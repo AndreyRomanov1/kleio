@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.31.0
+
+- **Defer a file** while going through a diff: the flag in the diff title or `Ctrl+Alt+D` puts the file off
+  and brings it back. Deferred files are not skipped; after the last change of the set `F7` warns and goes
+  on to the first of them, and then only through them. Files of the Change Set… lists them on top. The marks
+  of a merge request outlive its new versions; they are kept for the last 50 sets.
+- Go Back / Go Forward: a far jump within a file — `F7` in a diff, a click, Go to Definition in the same
+  file — leaves a place in the history; arrow keys and typing move the current place along.
+
 ## 0.30.1
 
 - Merge request cards leave the loading state on every failure, including authentication and version

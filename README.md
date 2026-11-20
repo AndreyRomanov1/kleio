@@ -27,7 +27,9 @@ stays editable.
   counters; **focus** limits the log to chosen branches.
 - **One diff viewer for any set of changes** on the native diff editor: `F7` / `Shift+F7` go through
   changes and on into the next file, `F4` opens the file for editing. When a revision matches the file on
-  disk, the right side _is_ that file.
+  disk, the right side _is_ that file. A file can be **deferred** with the flag in the diff title
+  (`Ctrl+Alt+D`): after the last change of the set `F7` goes on through the deferred files, and the list of
+  files shows them on top.
 - **History and blame**: history of a file, of a folder or of selected lines with the diff beside it,
   blame annotations linked to the log, the main author above declarations.
 - **Compare branches** as lists of commits missing on either side, or as one diff.
@@ -195,7 +197,7 @@ unpredictably. User key bindings always win, so add these to `keybindings.json` 
 
 With `kleio.navigation.history` on, **Go Back / Go Forward** (`Ctrl+Alt+-` / `Ctrl+Shift+-`, `Alt+←/→` on
 Windows) go through one history of files and of the files of review diffs: the editor's own history loses a diff once Kleio shows the next file in its
-place. The last two lines above put them on `Ctrl+Alt+←/→`, as the IntelliJ keymap has them, and make
+place. A far jump within a file, `F7` in a diff included, leaves a place to come back to; arrow keys and typing do not. The last two lines above put them on `Ctrl+Alt+←/→`, as the IntelliJ keymap has them, and make
 `Ctrl+Enter` send a review comment there (that keymap takes it for Go to Declaration). `Ctrl+Enter` publishes
 the comment, or saves a draft with `kleio.review.ctrlEnter` set to `draft`; `Enter` starts a new line.
 
