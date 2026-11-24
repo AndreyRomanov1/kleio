@@ -367,9 +367,9 @@ const tests: Test[] = [
       ).json()) as { id: string; notes: { id: number; body: string }[] }[];
       const own = discussions.find((d) => d.notes[0].body === 'Один раз')!;
       await vscode.commands.executeCommand('kleio.review.saveComment', {
-        source: { discussionId: own.id, noteId: own.notes[0].id, mine: true },
+        note: { ref: { kind: 'note', discussionId: own.id, id: own.notes[0].id }, text: 'Один раз' },
         text: 'Один раз',
-        body: 'Один раз, исправлено',
+        edited: 'Один раз, исправлено',
       });
       const put = (await requests()).filter((r) => r.method === 'PUT' && r.url.includes('/notes/'));
       assert.equal(put.at(-1)!.body.body, 'Один раз, исправлено');
@@ -420,9 +420,8 @@ const tests: Test[] = [
 
       // The version reviewed last time: its comments stand on the left of what changed since then, and the
       // next comment stays in that diff.
-      const session = (api.review as unknown as { session: { previous?: object; since?: unknown } }).session;
+      const session = (api.review as unknown as { session: { previous?: object } }).session;
       session.previous = { baseSha: (await repository.revParse('HEAD~1'))!, headSha: earlier };
-      session.since = undefined;
       await vscode.commands.executeCommand('kleio.review.refresh');
       await vscode.commands.executeCommand('kleio.review.sinceLastReview');
       const since = await waitFor(
