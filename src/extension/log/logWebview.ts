@@ -20,7 +20,7 @@ export class LogWebviews implements vscode.WebviewViewProvider, vscode.Disposabl
         webviewOptions: { retainContextWhenHidden: true },
       }),
       vscode.window.registerWebviewPanelSerializer(PANEL_TYPE, {
-        deserializeWebviewPanel: async (panel) => this.attachPanel(panel),
+        deserializeWebviewPanel: async (panel) => this.attachPanel(panel, true),
       }),
     );
   }
@@ -29,6 +29,7 @@ export class LogWebviews implements vscode.WebviewViewProvider, vscode.Disposabl
     view.webview.options = webviewOptions(this.services.context.extensionUri);
     view.webview.html = renderHtml(view.webview, this.services.context.extensionUri, 'log');
     const controller = this.track(new LogController(view.webview, this.services), () => view.show(true));
+    this.services.log.info(`log view #${controller.id}: created in the panel`);
     view.onDidDispose(() => this.untrack(controller));
   }
 
@@ -74,12 +75,15 @@ export class LogWebviews implements vscode.WebviewViewProvider, vscode.Disposabl
     });
   }
 
-  private attachPanel(panel: vscode.WebviewPanel): void {
+  private attachPanel(panel: vscode.WebviewPanel, restored = false): void {
     panel.iconPath = vscode.Uri.joinPath(this.services.context.extensionUri, 'media', 'kleio.svg');
     panel.webview.options = webviewOptions(this.services.context.extensionUri);
     panel.webview.html = renderHtml(panel.webview, this.services.context.extensionUri, 'log');
     const controller = this.track(new LogController(panel.webview, this.services), () =>
       panel.reveal(undefined, true),
+    );
+    this.services.log.info(
+      `log view #${controller.id}: ${restored ? 'restored' : 'created'} in an editor tab`,
     );
     panel.onDidDispose(() => this.untrack(controller));
   }

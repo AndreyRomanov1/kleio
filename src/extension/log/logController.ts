@@ -55,7 +55,7 @@ export interface LogServices {
 export class LogController implements vscode.Disposable {
   private static count = 0;
   /** Number of this view in the Kleio log, to follow what each one receives and when it goes away. */
-  private readonly id = ++LogController.count;
+  readonly id = ++LogController.count;
   private repository?: Repository;
   private snapshot?: RepositorySnapshot;
   private pendingReveal?: string;
@@ -78,7 +78,7 @@ export class LogController implements vscode.Disposable {
     private readonly history?: HistoryTarget,
   ) {
     this.repository = history?.repository;
-    services.log.debug(`log view #${this.id}: created${history ? ` for ${history.title}` : ''}`);
+    if (history) services.log.info(`log view #${this.id}: created for ${history.title}`);
     this.disposables.push(
       webview.onDidReceiveMessage((message: WebviewMessage) => this.handle(message)),
       services.repositories.onDidChangeRepository((repository) => {
@@ -120,7 +120,9 @@ export class LogController implements vscode.Disposable {
   }
 
   private async handle(message: WebviewMessage): Promise<void> {
-    this.services.log.debug(`log view #${this.id} ← ${message.type}`);
+    // Kept at info: a tab whose buttons stopped working leaves no other trace.
+    const frequent = message.type === 'selectCommits' || message.type === 'setQuery';
+    this.services.log[frequent ? 'debug' : 'info'](`log view #${this.id} ← ${message.type}`);
     try {
       await this.dispatch(message);
     } catch (error) {
@@ -135,10 +137,12 @@ export class LogController implements vscode.Disposable {
       case 'refresh':
         return this.load();
       case 'fetch':
-        if (this.repository) {
-          await this.services.actions.fetch(this.repository);
-          void this.loadHosting(true);
+        if (!this.repository) {
+          this.services.log.warn(`log view #${this.id}: fetch without a repository`);
+          return;
         }
+        await this.services.actions.fetch(this.repository);
+        void this.loadHosting(true);
         return;
       case 'updateProject':
         if (this.repository) await this.services.sync.updateProject(this.repository);
@@ -786,7 +790,7 @@ export class LogController implements vscode.Disposable {
   }
 
   dispose(): void {
-    this.services.log.debug(`log view #${this.id}: disposed`);
+    this.services.log.info(`log view #${this.id}: disposed`);
     clearTimeout(this.historyDiffTimer);
     for (const d of this.disposables) d.dispose();
   }
