@@ -289,6 +289,7 @@ export class LogController implements vscode.Disposable {
           return this.services.sync.cherryPick(this.repository, ...hashes);
         }
         if (message.action === 'showChanges') return this.openRangeDiff(message.hashes);
+        if (message.action === 'reviewLocally') return this.reviewRange(message.hashes);
         if (message.action === 'squash')
           return this.services.rebase.open(this.repository, { kind: 'squash', hashes: message.hashes });
         return this.services.rebase.drop(this.repository, message.hashes);
@@ -524,35 +525,13 @@ export class LogController implements vscode.Disposable {
     return index < 0 ? undefined : index;
   }
 
-  /**
-   * What a branch changes, as its merge request shows it: from where it left the branch it goes into — the
-   * target of its open merge request, e.g. the lower branch of a stack, or else the default branch.
-   */
-  private async branchTarget(repository: Repository, ref: Ref): Promise<string | undefined> {
-    const hosting = await this.services.hosting.hosting(repository, false).catch(() => undefined);
-    const iid = hosting?.mergeRequests[ref.hash]?.find(
-      (n) => hosting.mergeRequestInfo[n]?.state === 'opened',
-    );
-    const target = iid === undefined ? undefined : hosting?.mergeRequestInfo[iid]?.targetBranch;
-    const candidates = [
-      ...(target ? [`${hosting?.remoteName ?? 'origin'}/${target}`, target] : []),
-      ...(hosting?.defaultBranch ? [hosting.defaultBranch] : []),
-      'origin/main',
-      'origin/master',
-      'main',
-      'master',
-    ].filter((name) => name !== ref.name);
-    for (const name of candidates) if (await repository.revParse(name)) return name;
-    return undefined;
-  }
-
-  /** What a branch changes since it left its target (see {@link branchTarget}), and the commits that did it. */
+  /** What a branch changes since it left its target (see {@link HostingService.branchTarget}), and the commits that did it. */
   private async branchChanges(
     repository: Repository,
     ref: Ref,
     quiet = false,
   ): Promise<{ changeSet: ChangeSet; base: string } | undefined> {
-    const target = await this.branchTarget(repository, ref);
+    const target = await this.services.hosting.branchTarget(repository, ref);
     if (!target) {
       if (!quiet)
         void vscode.window.showWarningMessage(
@@ -583,18 +562,39 @@ export class LogController implements vscode.Disposable {
   /** The changes of several commits together: from the parent of the oldest to the newest. */
   private async openRangeDiff(hashes: string[]): Promise<void> {
     const repository = this.repository;
-    if (!repository || !hashes.length) return;
-    const order = new Map(this.snapshot?.commits.map((c, i) => [c.hash, i]));
-    const sorted = [...hashes].sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
-    const newest = sorted[0];
-    const oldest = await repository.commitDetails(sorted[sorted.length - 1]);
+    const range = await this.selectedRange(hashes);
+    if (!repository || !range) return;
     const changeSet = await rangeChangeSet(
       repository,
-      oldest.parents[0],
-      newest,
-      t('Commits {0}…{1}', oldest.hash.slice(0, 8), newest.slice(0, 8)),
+      range.base,
+      range.head,
+      t('Commits {0}…{1}', range.oldest.slice(0, 8), range.head.slice(0, 8)),
     );
     return this.openChangeSet(changeSet);
+  }
+
+  /** A local review of the commits: their changes together, with threads kept on this machine. */
+  private async reviewRange(hashes: string[]): Promise<void> {
+    const repository = this.repository;
+    const range = await this.selectedRange(hashes);
+    if (!repository || !range) return;
+    if (!range.base) {
+      void vscode.window.showWarningMessage(t('Kleio: a local review starts from a commit with a parent.'));
+      return;
+    }
+    await this.services.review.startLocal(repository, { kind: 'range', base: range.base, head: range.head });
+  }
+
+  /** Selected commits as a range: from the parent of the oldest (none for a root commit) to the newest. */
+  private async selectedRange(
+    hashes: string[],
+  ): Promise<{ base: string | undefined; oldest: string; head: string } | undefined> {
+    const repository = this.repository;
+    if (!repository || !hashes.length) return undefined;
+    const order = new Map(this.snapshot?.commits.map((c, i) => [c.hash, i]));
+    const sorted = [...hashes].sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
+    const oldest = await repository.commitDetails(sorted[sorted.length - 1]);
+    return { base: oldest.parents[0], oldest: oldest.hash, head: sorted[0] };
   }
 
   private async openCommitDiff(hash: string): Promise<void> {
@@ -678,6 +678,8 @@ export class LogController implements vscode.Disposable {
         return this.services.actions.savePatch(repository, [hash]);
       case 'showChanges':
         return this.openCommitDiff(hash);
+      case 'reviewLocally':
+        return this.reviewRange([hash]);
       case 'copySubject': {
         const details = await repository.commitDetails(hash);
         await vscode.env.clipboard.writeText(details.message.split('\n')[0]);
@@ -730,6 +732,16 @@ export class LogController implements vscode.Disposable {
         const changes = await this.branchChanges(repository, ref);
         if (changes) return this.openChangeSet(changes.changeSet);
         return;
+      }
+      case 'reviewLocally': {
+        const target = await this.services.hosting.branchTarget(repository, ref);
+        if (!target) {
+          void vscode.window.showWarningMessage(
+            t('Kleio: the branch to compare {0} with is unknown.', ref.name),
+          );
+          return;
+        }
+        return this.services.review.startLocal(repository, { kind: 'branch', branch: ref.name, target });
       }
       case 'showDiffWithCurrent': {
         const head = snapshot.head.branch ?? snapshot.head.hash;

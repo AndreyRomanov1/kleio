@@ -522,6 +522,34 @@ const tests: Test[] = [
     },
   ],
   [
+    'reviews commits locally: threads kept on this machine come back after a reload',
+    async (api) => {
+      const repository = await api.repositories.get(root());
+      assert.ok(repository);
+      const base = (await repository.revParse('HEAD~1'))!;
+      const head = (await repository.revParse('HEAD'))!;
+      await api.review.startLocal(repository, { kind: 'range', base, head });
+      const diff = await waitFor(activeDiff, 'diff of the commits');
+      assert.equal(api.review.activeMergeRequest, undefined);
+
+      await vscode.commands.executeCommand('kleio.review.comment', {
+        thread: { uri: diff.modified, range: new vscode.Range(0, 0, 0, 0), comments: [], dispose() {} },
+        text: 'Локальное замечание',
+      });
+      const local = () => api.review.openThreads().find((t) => t.comments[0] === 'Локальное замечание');
+      const kept = await waitFor(local, 'the local thread');
+      assert.equal(kept.uri, diff.modified.toString());
+      assert.equal(kept.line, 1);
+
+      const internals = api.review as unknown as { end(forget: boolean): void };
+      internals.end(false);
+      assert.equal(local(), undefined);
+      await api.review.restore(api.repositories);
+      await waitFor(local, 'the local thread after a reload');
+      await vscode.commands.executeCommand('kleio.review.end');
+    },
+  ],
+  [
     'renames and removes a remote; the choice of the hosting remote follows',
     async (api) => {
       const repository = await api.repositories.get(root());

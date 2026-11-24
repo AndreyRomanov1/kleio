@@ -772,5 +772,21 @@
   "Kleio: {0} is deferred, {1} in the set; F7 comes to them after the last change": "Kleio: {0} отложен, в наборе отложено {1}; F7 вернётся к ним после последнего изменения",
   "Kleio: {0} is no longer deferred": "Kleio: {0} больше не отложен",
   "deferred: {0}": "отложено: {0}",
-  "Deferred": "Отложено"
+  "Deferred": "Отложено",
+  "Kleio: a local review starts from a commit with a parent.": "Kleio: локальное ревью начинается с коммита, у которого есть родитель.",
+  "{0}, version {1}": "{0}, версия {1}",
+  "Kleio: the local review did not open: {0}": "Kleio: локальное ревью не открылось: {0}",
+  "Kleio: branch {0} is not found.": "Kleio: ветка {0} не найдена.",
+  "Kleio: the base of the review is not in the repository.": "Kleio: базы ревью нет в репозитории.",
+  "Go to them": "Перейти к ним",
+  "{0} has new commits. The review stays on the version open until you choose.": "В {0} новые коммиты. Ревью остаётся на открытой версии, пока вы не выберете.",
+  "Delete the local comment?": "Удалить локальный комментарий?",
+  "Branch {0} locally": "Ветка {0} локально",
+  "comments are kept on this computer": "комментарии хранятся на этом компьютере",
+  "Another branch locally…": "Другая ветка локально…",
+  "What to review": "Что ревьюить",
+  "Branch to review": "Ветка для ревью",
+  "Review {0} commits locally": "Ревью {0} коммитов локально",
+  "Review locally": "Ревью локально",
+  "Review the branch locally": "Ревью ветки локально"
 }

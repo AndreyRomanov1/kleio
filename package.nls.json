@@ -22,6 +22,8 @@
   "command.gitlab.connect": "Connect GitLab…",
   "command.gitlab.disconnect": "Remove the GitLab Token from Kleio…",
   "command.review.publish": "Publish",
+  "command.review.comment": "Comment",
+  "command.review.startReview": "Start Review…",
   "command.review.draft": "Save Draft",
   "command.review.resolve": "Resolve",
   "command.review.unresolve": "Reopen",

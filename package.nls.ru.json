@@ -22,6 +22,8 @@
   "command.gitlab.connect": "Подключить GitLab…",
   "command.gitlab.disconnect": "Удалить токен GitLab из Kleio…",
   "command.review.publish": "Опубликовать",
+  "command.review.comment": "Комментировать",
+  "command.review.startReview": "Начать ревью…",
   "command.review.draft": "В черновик",
   "command.review.resolve": "Решено",
   "command.review.unresolve": "Открыть снова",

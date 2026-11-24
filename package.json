@@ -252,6 +252,17 @@
         "category": "Kleio"
       },
       {
+        "command": "kleio.review.comment",
+        "title": "%command.review.comment%",
+        "category": "Kleio"
+      },
+      {
+        "command": "kleio.review.startReview",
+        "title": "%command.review.startReview%",
+        "category": "Kleio",
+        "icon": "$(comment-discussion)"
+      },
+      {
         "command": "kleio.review.resolve",
         "title": "%command.review.resolve%",
         "category": "Kleio",
@@ -505,7 +516,7 @@
         },
         {
           "command": "kleio.review.publishDrafts",
-          "when": "kleio.reviewActive && kleio.inChangeSet",
+          "when": "kleio.reviewActive && kleio.reviewMode != local && kleio.inChangeSet",
           "group": "1_kleio_review@2"
         },
         {
@@ -515,7 +526,7 @@
         },
         {
           "command": "kleio.review.sinceLastReview",
-          "when": "kleio.reviewActive && kleio.inChangeSet",
+          "when": "kleio.reviewActive && kleio.reviewMode != local && kleio.inChangeSet",
           "group": "1_kleio_review@4"
         },
         {
@@ -588,6 +599,10 @@
           "when": "false"
         },
         {
+          "command": "kleio.review.comment",
+          "when": "false"
+        },
+        {
           "command": "kleio.review.resolve",
           "when": "false"
         },
@@ -617,7 +632,7 @@
         },
         {
           "command": "kleio.review.publishDrafts",
-          "when": "kleio.reviewActive"
+          "when": "kleio.reviewActive && kleio.reviewMode != local"
         },
         {
           "command": "kleio.review.refresh",
@@ -629,7 +644,7 @@
         },
         {
           "command": "kleio.review.newVersion",
-          "when": "kleio.reviewActive"
+          "when": "kleio.reviewActive && kleio.reviewMode != local"
         },
         {
           "command": "kleio.review.compareNewer",
@@ -645,7 +660,7 @@
         },
         {
           "command": "kleio.review.sinceLastReview",
-          "when": "kleio.reviewActive"
+          "when": "kleio.reviewActive && kleio.reviewMode != local"
         },
         {
           "command": "kleio.review.previousComment",
@@ -763,41 +778,46 @@
         {
           "command": "kleio.review.publish",
           "group": "inline@1",
-          "when": "commentController == kleio.review && config.kleio.review.ctrlEnter != draft"
+          "when": "commentController == kleio.review && kleio.reviewMode != local && commentThread != local-resolved && commentThread != local-unresolved && config.kleio.review.ctrlEnter != draft"
         },
         {
           "command": "kleio.review.draft",
           "group": "inline@2",
-          "when": "commentController == kleio.review && commentThread != draft && config.kleio.review.ctrlEnter != draft"
+          "when": "commentController == kleio.review && kleio.reviewMode != local && commentThread != local-resolved && commentThread != local-unresolved && commentThread != draft && config.kleio.review.ctrlEnter != draft"
         },
         {
           "command": "kleio.review.draft",
           "group": "inline@1",
-          "when": "commentController == kleio.review && commentThread != draft && config.kleio.review.ctrlEnter == draft"
+          "when": "commentController == kleio.review && kleio.reviewMode != local && commentThread != local-resolved && commentThread != local-unresolved && commentThread != draft && config.kleio.review.ctrlEnter == draft"
         },
         {
           "command": "kleio.review.publish",
           "group": "inline@2",
-          "when": "commentController == kleio.review && (commentThread == draft || config.kleio.review.ctrlEnter == draft)"
+          "when": "commentController == kleio.review && kleio.reviewMode != local && commentThread != local-resolved && commentThread != local-unresolved && (commentThread == draft || config.kleio.review.ctrlEnter == draft)"
+        },
+        {
+          "command": "kleio.review.comment",
+          "group": "inline@1",
+          "when": "commentController == kleio.review && (kleio.reviewMode == local || commentThread =~ /^local-/)"
         }
       ],
       "comments/commentThread/title": [
         {
           "command": "kleio.review.resolve",
           "group": "inline@1",
-          "when": "commentController == kleio.review && commentThread == unresolved"
+          "when": "commentController == kleio.review && commentThread =~ /^(local-)?unresolved$/"
         },
         {
           "command": "kleio.review.unresolve",
           "group": "inline@1",
-          "when": "commentController == kleio.review && commentThread == resolved"
+          "when": "commentController == kleio.review && commentThread =~ /^(local-)?resolved$/"
         }
       ],
       "comments/comment/title": [
         {
           "command": "kleio.review.editComment",
           "group": "inline@1",
-          "when": "commentController == kleio.review && comment =~ /^(mine|draft)$/"
+          "when": "commentController == kleio.review && comment =~ /^(mine|draft|local)$/"
         },
         {
           "command": "kleio.review.deleteDraft",
@@ -807,7 +827,7 @@
         {
           "command": "kleio.review.deleteComment",
           "group": "inline@2",
-          "when": "commentController == kleio.review && comment == mine"
+          "when": "commentController == kleio.review && comment =~ /^(mine|local)$/"
         }
       ],
       "comments/comment/context": [

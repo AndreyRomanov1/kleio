@@ -325,6 +325,31 @@ export class HostingService implements vscode.Disposable {
     this.changed.fire();
   }
 
+  /**
+   * What a branch changes, as its merge request shows it: from where it left the branch it goes into — the
+   * target of its open merge request, e.g. the lower branch of a stack, or else the default branch.
+   */
+  async branchTarget(
+    repository: Repository,
+    branch: { name: string; hash: string },
+  ): Promise<string | undefined> {
+    const hosting = await this.hosting(repository, false).catch(() => undefined);
+    const iid = hosting?.mergeRequests[branch.hash]?.find(
+      (n) => hosting.mergeRequestInfo[n]?.state === 'opened',
+    );
+    const target = iid === undefined ? undefined : hosting?.mergeRequestInfo[iid]?.targetBranch;
+    const candidates = [
+      ...(target ? [`${hosting?.remoteName ?? 'origin'}/${target}`, target] : []),
+      ...(hosting?.defaultBranch ? [hosting.defaultBranch] : []),
+      'origin/main',
+      'origin/master',
+      'main',
+      'master',
+    ].filter((name) => name !== branch.name);
+    for (const name of candidates) if (await repository.revParse(name)) return name;
+    return undefined;
+  }
+
   private async defaultBranch(repository: Repository, remote: string): Promise<string | undefined> {
     const head = await repository.git.run(['symbolic-ref', '-q', '--short', `refs/remotes/${remote}/HEAD`], {
       allowExitCodes: [1, 128],

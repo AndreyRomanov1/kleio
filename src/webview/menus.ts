@@ -35,6 +35,17 @@ export function commitMenu(commit: Commit, store: LogStore): MenuEntry[] {
           hint: t('double-click'),
           run: action({ type: 'commitAction', action: 'showChanges', hash }),
         },
+    selection.length > 1
+      ? {
+          label: t('Review {0} commits locally', selection.length),
+          icon: 'comment-discussion',
+          run: () => post({ type: 'commitsAction', action: 'reviewLocally', hashes: selection }),
+        }
+      : {
+          label: t('Review locally'),
+          icon: 'comment-discussion',
+          run: action({ type: 'commitAction', action: 'reviewLocally', hash }),
+        },
     'separator',
     { label: t('Copy hash'), run: action({ type: 'commitAction', action: 'copyHash', hash }) },
     { label: t('Copy subject'), run: action({ type: 'commitAction', action: 'copySubject', hash }) },
@@ -207,6 +218,11 @@ export function refMenu(ref: Ref, store: LogStore): MenuEntry[] {
             label: t('Changes of the branch in the diff'),
             icon: 'diff',
             run: run({ type: 'refAction', action: 'showBranchChanges', fullName }),
+          },
+          {
+            label: t('Review the branch locally'),
+            icon: 'comment-discussion',
+            run: run({ type: 'refAction', action: 'reviewLocally', fullName }),
           },
         ]),
     {

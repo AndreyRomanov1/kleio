@@ -18,7 +18,9 @@ import { startAskpass, type Askpass } from './askpass';
 import type { Repository } from './git/repository';
 import { RepositoryManager } from './git/repositoryManager';
 import { ReviewController } from './review/reviewController';
+import { LocalReviewStore } from './review/local/localReview';
 import { ReviewJournal } from './review/reviewJournal';
+import { startReview } from './review/startReview';
 import { HistoryCommands } from './history/historyCommands';
 import { GitHubAuth } from './hosting/githubAuth';
 import { GitLabAuth } from './hosting/gitlabAuth';
@@ -76,6 +78,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<KleioA
     hosting,
     navigator,
     new ReviewJournal(context.globalStorageUri),
+    new LocalReviewStore(vscode.Uri.joinPath(context.globalStorageUri, 'reviews').fsPath),
     context.globalState,
     context.workspaceState,
   );
@@ -144,6 +147,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<KleioA
     vscode.commands.registerCommand('kleio.git.undo', async () => {
       const repository = await pickRepository(repositories);
       if (repository) await sync.undo(repository);
+    }),
+    vscode.commands.registerCommand('kleio.review.startReview', async () => {
+      const repository = await pickRepository(repositories);
+      if (repository) await startReview(repository, hosting, review);
     }),
     vscode.commands.registerCommand('kleio.git.push', async () => {
       const repository = await pickRepository(repositories);

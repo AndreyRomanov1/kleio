@@ -31,7 +31,8 @@ export type CommitAction =
   | 'reword'
   | 'fixupIntoParent'
   | 'savePatch'
-  | 'showChanges';
+  | 'showChanges'
+  | 'reviewLocally';
 
 export type RefAction =
   | 'checkout'
@@ -41,6 +42,7 @@ export type RefAction =
   | 'fetchBranch'
   | 'showDiffWithCurrent'
   | 'showBranchChanges'
+  | 'reviewLocally'
   | 'copyName'
   | 'openInHosting'
   | 'createMergeRequest'
@@ -227,7 +229,7 @@ export type WebviewMessage =
   /** Rewrites several commits of the current branch at once. */
   | {
       type: 'commitsAction';
-      action: 'squash' | 'drop' | 'cherryPick' | 'savePatch' | 'showChanges';
+      action: 'squash' | 'drop' | 'cherryPick' | 'savePatch' | 'showChanges' | 'reviewLocally';
       hashes: string[];
     }
   | { type: 'refAction'; action: RefAction; fullName: string }

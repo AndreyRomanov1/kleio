@@ -1,10 +1,8 @@
-import { existsSync } from 'node:fs';
-import * as path from 'node:path';
 import type * as vscode from 'vscode';
 import type { FileChange } from '../../../shared/model';
 import { t } from '../../../shared/l10n';
 import type { ChangeSet } from '../../changes/changeSet';
-import { revisionUri, workingFileUri } from '../../content/revisionUri';
+import { revisionUri } from '../../content/revisionUri';
 import type { Hunk } from '../../git/parse';
 import type { Repository } from '../../git/repository';
 import type { DiffPosition, DiffRefs, Discussion, DraftNote, GitLabApi } from '../../hosting/gitlabApi';
@@ -19,6 +17,7 @@ import {
   type ReviewFile,
 } from '../anchor';
 import { lineCounters, linePair, type Side } from '../positions';
+import { documentsOf, reviewFiles } from '../reviewFiles';
 import type { ShownNote, ShownThread } from '../threadBoard';
 import type { SeenVersions, Version } from './seenVersions';
 
@@ -64,7 +63,7 @@ export class MergeRequestSession {
   /** Outdated discussions by id: where they were made. */
   readonly outdated = new Map<string, Anchor>();
   /** Document URI → file and side, for placing comments. */
-  readonly documents = new Map<string, { file: ReviewFile; side: Side }>();
+  readonly documents: Map<string, { file: ReviewFile; side: Side }>;
 
   /** Diffs of earlier versions by `base..head`, for its outdated discussions. */
   private readonly versions = new Map<string, Promise<ChangeSet | undefined>>();
@@ -91,10 +90,7 @@ export class MergeRequestSession {
     public numbers: Map<string, number>,
     seen: SeenVersions,
   ) {
-    for (const file of files) {
-      if (file.left) this.documents.set(file.left.toString(), { file, side: 'old' });
-      if (file.right) this.documents.set(file.right.toString(), { file, side: 'new' });
-    }
+    this.documents = documentsOf(files);
     const { previous, changed } = seen.before(label, refs.headSha);
     this.previous = previous;
     this.changed = changed;
@@ -114,30 +110,7 @@ export class MergeRequestSession {
     if (!refs) return 'noVersions';
     if (!(await ensureCommits(repository, remote, iid, details.targetBranch, refs))) return 'noCommits';
 
-    const changes = await repository.changes(refs.baseSha, refs.headSha);
-    // One call tells which files on disk are the same as in the merge request: those open as real files.
-    const differing = new Set(
-      (await repository.git.run(['diff', '--name-only', '-z', refs.headSha, '--']))
-        .split('\0')
-        .filter(Boolean),
-    );
-    const files: ReviewFile[] = changes.map((change) => {
-      const onDisk = !differing.has(change.path) && existsSync(path.join(repository.root, change.path));
-      return {
-        change,
-        left:
-          change.status === 'A'
-            ? undefined
-            : revisionUri(repository.root, refs.baseSha, change.oldPath ?? change.path),
-        right:
-          change.status === 'D'
-            ? undefined
-            : onDisk
-              ? workingFileUri(repository.root, change.path)
-              : revisionUri(repository.root, refs.headSha, change.path),
-      };
-    });
-    const rightUris = new Map(files.filter((f) => f.right).map((f) => [f.change.path, f.right!] as const));
+    const { files, rightUris } = await reviewFiles(repository, refs.baseSha, refs.headSha);
     const numbers = await versionNumbers(api, iid);
     const number = numbers.get(refs.headSha);
     const me = await api
@@ -151,7 +124,7 @@ export class MergeRequestSession {
       reviewKey: label,
       left: refs.baseSha,
       right: refs.headSha,
-      files: changes,
+      files: files.map((f) => f.change),
       rightUris,
     };
     return new MergeRequestSession(

@@ -3,11 +3,15 @@ import { t } from '../../shared/l10n';
 import { displayLanguage } from '../language';
 import type { Anchor, Place } from './anchor';
 
-/** Which thread it is where it is kept: a GitLab discussion, or a GitLab draft that starts one. */
-export type ThreadRef = { kind: 'discussion'; id: string } | { kind: 'draft'; id: number };
+/** Which thread it is where it is kept: a GitLab discussion, a GitLab draft that starts one, or a local thread. */
+export type ThreadRef =
+  { kind: 'discussion'; id: string } | { kind: 'draft'; id: number } | { kind: 'local'; id: number };
 
-/** Which comment it is: a note of a GitLab discussion, or a GitLab draft. */
-export type NoteRef = { kind: 'note'; discussionId: string; id: number } | { kind: 'draft'; id: number };
+/** Which comment it is: a note of a GitLab discussion, a GitLab draft, or a note kept on this machine. */
+export type NoteRef =
+  | { kind: 'note'; discussionId: string; id: number }
+  | { kind: 'draft'; id: number }
+  | { kind: 'local'; id: number };
 
 export interface ShownNote {
   ref: NoteRef;
@@ -46,8 +50,8 @@ export class ReviewComment implements vscode.Comment {
     this.author = { name: note.author };
     const draft = note.ref.kind === 'draft';
     this.label = draft ? t('draft') : note.createdAt ? formatTime(note.createdAt) : undefined;
-    // Drafts and your own notes can be edited and deleted.
-    this.contextValue = draft ? 'draft' : note.mine ? 'mine' : 'note';
+    // Drafts, local notes and your own notes can be edited and deleted.
+    this.contextValue = draft ? 'draft' : note.ref.kind === 'local' ? 'local' : note.mine ? 'mine' : 'note';
   }
 
   get text(): string {
@@ -148,7 +152,9 @@ export class ThreadBoard implements vscode.Disposable {
         thread.state = shown.resolved
           ? vscode.CommentThreadState.Resolved
           : vscode.CommentThreadState.Unresolved;
-        thread.contextValue = shown.resolved ? 'resolved' : 'unresolved';
+        const state = shown.resolved ? 'resolved' : 'unresolved';
+        // A local thread is answered locally, whatever the review: the menus tell it by the prefix.
+        thread.contextValue = shown.ref.kind === 'local' ? `local-${state}` : state;
         thread.label = shown.resolved ? t('Resolved') : undefined;
         thread.collapsibleState = shown.resolved
           ? vscode.CommentThreadCollapsibleState.Collapsed
