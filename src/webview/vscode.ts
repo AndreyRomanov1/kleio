@@ -3,6 +3,7 @@ import type { WebviewMessage } from '../shared/protocol';
 import type { PushWebviewMessage } from '../shared/pushProtocol';
 import type { RebaseWebviewMessage } from '../shared/rebaseProtocol';
 import type { ConflictsWebviewMessage } from '../shared/conflictsProtocol';
+import type { WebviewErrorMessage } from '../shared/webviewError';
 
 interface VsCodeApi {
   postMessage(message: unknown): void;
@@ -32,6 +33,17 @@ export function postRebase(message: RebaseWebviewMessage): void {
 
 export function postConflicts(message: ConflictsWebviewMessage): void {
   api.postMessage(message);
+}
+
+/** Exceptions of the webview go to the log of the extension: its console is seen only in the developer tools. */
+export function reportErrors(): void {
+  const report = (reason: unknown) => {
+    const error =
+      reason instanceof Error ? (reason.stack ?? `${reason.name}: ${reason.message}`) : String(reason);
+    api.postMessage({ type: 'webviewError', error } satisfies WebviewErrorMessage);
+  };
+  window.addEventListener('error', (e) => report(e.error ?? e.message));
+  window.addEventListener('unhandledrejection', (e) => report(e.reason));
 }
 
 /** Per-view state of webviews other than the log (each webview keeps its own state). */

@@ -1,10 +1,18 @@
 import { randomBytes } from 'node:crypto';
 import * as vscode from 'vscode';
 import { l10nBundle } from '../shared/l10n';
+import type { WebviewErrorMessage } from '../shared/webviewError';
 import { displayLanguage } from './language';
 
 export function webviewOptions(extensionUri: vscode.Uri): vscode.WebviewOptions {
   return { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'dist')] };
+}
+
+let errorLog: vscode.LogOutputChannel | undefined;
+
+/** Where the exceptions caught in webviews are written. */
+export function logWebviewErrorsTo(channel: vscode.LogOutputChannel): void {
+  errorLog = channel;
 }
 
 /** One bundle serves every Kleio webview; `view` picks the interface it mounts. */
@@ -13,6 +21,9 @@ export function renderHtml(
   extensionUri: vscode.Uri,
   view: 'log' | 'commit' | 'push' | 'rebase' | 'conflicts',
 ): string {
+  webview.onDidReceiveMessage((message: Partial<WebviewErrorMessage>) => {
+    if (message.type === 'webviewError') errorLog?.error(`${view} webview: ${message.error}`);
+  });
   const nonce = randomBytes(16).toString('base64');
   const asset = (file: string) => webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'dist', file));
   const csp = [

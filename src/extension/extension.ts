@@ -14,6 +14,7 @@ import { watchGitPath } from './git/gitPath';
 import { BranchStatus } from './statusBar/branchStatus';
 import { loadLanguage } from './language';
 import { checkGit, createOutput } from './output';
+import { logWebviewErrorsTo } from './webviewHtml';
 import { startAskpass, type Askpass } from './askpass';
 import type { Repository } from './git/repository';
 import { RepositoryManager } from './git/repositoryManager';
@@ -59,6 +60,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<KleioA
   const output = createOutput();
   context.subscriptions.push(output.disposable);
   void checkGit(output.channel);
+  logWebviewErrorsTo(output.channel);
   const askpass = await startAskpass(context);
   context.subscriptions.push(askpass);
   const navigator = new ChangeSetNavigator(context.workspaceState);

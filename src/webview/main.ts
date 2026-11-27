@@ -7,6 +7,9 @@ import RebaseApp from './rebase/RebaseApp.svelte';
 import ConflictsApp from './conflicts/ConflictsApp.svelte';
 import '@vscode/codicons/dist/codicon.css';
 import './styles.css';
+import { reportErrors } from './vscode';
+
+reportErrors();
 
 const target = document.getElementById('app')!;
 const view = document.body.dataset.view;
