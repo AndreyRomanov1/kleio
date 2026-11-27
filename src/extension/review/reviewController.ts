@@ -61,12 +61,7 @@ export class ReviewController implements vscode.Disposable {
       placeHolder: t('Comment on the line'),
       prompt: t('Comment on the merge request'),
     };
-    this.comments.commentingRangeProvider = {
-      provideCommentingRanges: (document) =>
-        this.session?.documents.has(document.uri.toString())
-          ? [new vscode.Range(0, 0, Math.max(0, document.lineCount - 1), 0)]
-          : [],
-    };
+    this.askForCommentingRanges();
     this.board = new ThreadBoard(this.comments);
     this.disposables = [
       this.board,
@@ -409,6 +404,7 @@ export class ReviewController implements vscode.Disposable {
 
   private begin(session: ReviewSession): void {
     this.session = session;
+    this.askForCommentingRanges();
     this.offeredHead = undefined;
     const local = session instanceof LocalReviewSession;
     void vscode.commands.executeCommand('setContext', CONTEXT_KEY, true);
@@ -420,6 +416,19 @@ export class ReviewController implements vscode.Disposable {
           ? { root: session.repository.root, iid: session.iid }
           : undefined;
     void this.workspaceState?.update(ACTIVE_KEY, active);
+  }
+
+  /**
+   * The editor asks where comments go only when a document opens. Diffs still open after the extension host
+   * restarted were asked before the review came back, so a new provider makes it ask again.
+   */
+  private askForCommentingRanges(): void {
+    this.comments.commentingRangeProvider = {
+      provideCommentingRanges: (document) =>
+        this.session?.documents.has(document.uri.toString())
+          ? [new vscode.Range(0, 0, Math.max(0, document.lineCount - 1), 0)]
+          : [],
+    };
   }
 
   /**

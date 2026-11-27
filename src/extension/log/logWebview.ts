@@ -12,6 +12,8 @@ export class LogWebviews implements vscode.WebviewViewProvider, vscode.Disposabl
   private readonly controllers = new Map<LogController, () => void>();
   private readonly histories = new Set<LogController>();
   private pendingReveal?: string;
+  private readonly panels = new Set<vscode.WebviewPanel>();
+  private orphanTimer?: NodeJS.Timeout;
   private readonly disposables: vscode.Disposable[] = [];
 
   constructor(private readonly services: LogServices) {
@@ -22,7 +24,34 @@ export class LogWebviews implements vscode.WebviewViewProvider, vscode.Disposabl
       vscode.window.registerWebviewPanelSerializer(PANEL_TYPE, {
         deserializeWebviewPanel: async (panel) => this.attachPanel(panel, true),
       }),
+      vscode.window.tabGroups.onDidChangeTabs(() => this.lookForOrphans()),
     );
+    this.lookForOrphans();
+  }
+
+  /**
+   * A restart of the extension host leaves the log tabs in the editor, but the editor never hands them over to
+   * the new host: they stay on screen and no button works. Such a tab, once shown and still not taken up, is
+   * replaced by a new log in its place. The delay lets the editor hand over the tabs it does restore.
+   */
+  private lookForOrphans(): void {
+    clearTimeout(this.orphanTimer);
+    this.orphanTimer = setTimeout(() => void this.replaceOrphans(), 1500);
+  }
+
+  private async replaceOrphans(): Promise<void> {
+    for (const group of vscode.window.tabGroups.all) {
+      const tab = group.activeTab;
+      if (!(tab?.input instanceof vscode.TabInputWebview) || !tab.input.viewType.endsWith(PANEL_TYPE))
+        continue;
+      const shown = [...this.panels].some((p) => p.visible && p.viewColumn === group.viewColumn);
+      if (shown) continue;
+      const index = group.tabs.indexOf(tab);
+      this.services.log.info(`log tab in column ${group.viewColumn} was left by the previous host: replaced`);
+      await vscode.window.tabGroups.close(tab, true);
+      this.openInEditor(group.viewColumn).reveal(group.viewColumn);
+      await vscode.commands.executeCommand('moveActiveEditor', { to: 'position', value: index + 1 });
+    }
   }
 
   resolveWebviewView(view: vscode.WebviewView): void {
@@ -85,7 +114,11 @@ export class LogWebviews implements vscode.WebviewViewProvider, vscode.Disposabl
     this.services.log.info(
       `log view #${controller.id}: ${restored ? 'restored' : 'created'} in an editor tab`,
     );
-    panel.onDidDispose(() => this.untrack(controller));
+    this.panels.add(panel);
+    panel.onDidDispose(() => {
+      this.panels.delete(panel);
+      this.untrack(controller);
+    });
   }
 
   private track(controller: LogController, reveal: () => void): LogController {
@@ -103,6 +136,7 @@ export class LogWebviews implements vscode.WebviewViewProvider, vscode.Disposabl
   }
 
   dispose(): void {
+    clearTimeout(this.orphanTimer);
     for (const controller of [...this.controllers.keys(), ...this.histories]) controller.dispose();
     for (const d of this.disposables) d.dispose();
   }
