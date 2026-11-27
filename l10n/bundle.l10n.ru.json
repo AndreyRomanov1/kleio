@@ -805,5 +805,7 @@
   "\"files\" is not a list": "\"files\" не список",
   "a category without \"id\"": "категория без \"id\"",
   "a file without \"path\" or \"category\"": "файл без \"path\" или \"category\"",
-  "No category": "Без категории"
+  "No category": "Без категории",
+  "importance {0}": "значимость {0}",
+  "viewed {0} of {1}": "просмотрено {0} из {1}"
 }

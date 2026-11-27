@@ -183,6 +183,7 @@ of files is opened.
 `git diff --name-only` prints them. Files the guide does not mention go to _No category_ at the end. The
 diff title shows the category of the file; Files of the Change Set… groups by category (the button in its
 title switches back to the plain list) and the filter button hides categories from the list and from `F7`.
+Files are numbered in that order, as in the diff title, and the ones already opened are checked.
 
 ## Settings
 

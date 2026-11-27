@@ -7,6 +7,12 @@
   the file; Files of the Change Set… groups the files by category, with the agent's note, can switch back to
   the plain list and hide categories; `F7` goes in the same order. A guide for another revision of the
   branch is used and marked as such. The format is in the README.
+- Files of the Change Set… numbers the files in the order they are gone through, the same number as in the
+  diff title, and marks the files already opened: the title counts them, `✓` in the diff title too. Each
+  category is a row of its own with its importance and how many of its files are viewed; choosing it opens
+  its first file not viewed yet.
+- After Restart Extension Host a log tab the editor kept but did not hand over is replaced by a working one,
+  and comments can be added again in the diff of the restored review.
 
 ## 0.31.0
 

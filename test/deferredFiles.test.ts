@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import type * as vscode from 'vscode';
 import type { ChangeSet } from '../src/extension/changes/changeSet';
-import { DeferredFiles } from '../src/extension/changes/deferredFiles';
+import { DeferredFiles, ViewedFiles } from '../src/extension/changes/deferredFiles';
 
 function memento(): vscode.Memento {
   const values = new Map<string, unknown>();
@@ -49,4 +49,14 @@ it('forgets the sets touched longest ago', async () => {
   for (let i = 0; i < 50; i++) await deferred.toggle(set(`head${i}`, ['a.ts']), 'a.ts');
   expect(deferred.indexes(first)).toEqual([]);
   expect(deferred.indexes(set('head0', ['a.ts']))).toEqual([0]);
+});
+
+it('keeps viewed files for the very version, apart from deferred ones', async () => {
+  const state = memento();
+  const viewed = new ViewedFiles(state);
+  await viewed.mark(set('v1', ['a.ts', 'b.ts'], 'host/project!12'), 'b.ts');
+  await viewed.mark(set('v1', ['a.ts', 'b.ts'], 'host/project!12'), 'b.ts');
+  expect(new ViewedFiles(state).indexes(set('v1', ['a.ts', 'b.ts']))).toEqual([1]);
+  expect(viewed.indexes(set('v2', ['a.ts', 'b.ts'], 'host/project!12'))).toEqual([]);
+  expect(new DeferredFiles(state).indexes(set('v1', ['a.ts', 'b.ts']))).toEqual([]);
 });
