@@ -15,6 +15,7 @@ import type { RebaseDialog } from '../rebase/rebaseDialog';
 import type { MergeRequestCards } from '../hosting/mergeRequestCards';
 import type { ReviewController } from '../review/reviewController';
 import { cardRequest } from '../hosting/cardRequest';
+import { cardVersions } from '../hosting/mergeRequestCard';
 import { t } from '../../shared/l10n';
 
 const FOCUS_KEY = 'kleio.focus';
@@ -421,8 +422,7 @@ export class LogController implements vscode.Disposable {
     const api = await this.services.hosting.gitlab(repository, false).catch(() => undefined);
     const versions = await api?.versions(number).catch(() => undefined);
     if (!versions) return undefined;
-    const seen = new Set(await this.services.review.seenHeads(repository, number));
-    return [...versions].reverse().map((v) => ({ ...v, seen: seen.has(v.headSha) }));
+    return cardVersions(versions, new Set(await this.services.review.seenHeads(repository, number)));
   }
 
   private async loadCard(number: number): Promise<void> {

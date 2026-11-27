@@ -130,3 +130,19 @@ export function buildDiscussions(
   }
   return view;
 }
+
+/**
+ * The versions of a merge request for its card, the oldest first. GitLab repeats a version with the same base and
+ * head when something else about the merge request changes; one of them is enough.
+ */
+export function cardVersions(
+  versions: readonly { headSha: string; baseSha: string; createdAt: string }[],
+  seenHeads: ReadonlySet<string>,
+): NonNullable<MergeRequestCardView['versions']> {
+  const kept = new Map<string, { headSha: string; baseSha: string; createdAt: string; seen: boolean }>();
+  for (const v of [...versions].reverse()) {
+    const key = `${v.baseSha}..${v.headSha}`;
+    if (!kept.has(key)) kept.set(key, { ...v, seen: seenHeads.has(v.headSha) });
+  }
+  return [...kept.values()];
+}

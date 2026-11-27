@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildCard, buildDiscussions } from '../src/extension/hosting/mergeRequestCard';
+import { buildCard, buildDiscussions, cardVersions } from '../src/extension/hosting/mergeRequestCard';
 
 describe('buildCard', () => {
   it('groups jobs by stage and marks reviewers who approved', () => {
@@ -216,6 +216,25 @@ describe('buildCard', () => {
     expect(view.threads.map((t) => [t.body, t.replies, t.resolved, t.outdated])).toEqual([
       ['why?', 1, false, false],
       ['old', 0, true, true],
+    ]);
+  });
+});
+
+describe('cardVersions', () => {
+  it('keeps one of the versions GitLab repeats and those with a new base, the oldest first', () => {
+    const version = (headSha: string, baseSha: string, createdAt: string) => ({
+      headSha,
+      baseSha,
+      createdAt,
+    });
+    const versions = cardVersions(
+      [version('c', 'b2', '4'), version('a', 'b2', '3'), version('a', 'b1', '2'), version('a', 'b1', '1')],
+      new Set(['a']),
+    );
+    expect(versions).toEqual([
+      { headSha: 'a', baseSha: 'b1', createdAt: '1', seen: true },
+      { headSha: 'a', baseSha: 'b2', createdAt: '3', seen: true },
+      { headSha: 'c', baseSha: 'b2', createdAt: '4', seen: false },
     ]);
   });
 });

@@ -197,7 +197,7 @@
             <span class="muted">· {t('one for each push; the eye marks those you looked at')}</span>
           </div>
           <div class="versions">
-            {#each versions as v, i (v.headSha)}
+            {#each versions as v, i (`${v.baseSha}..${v.headSha}`)}
               <button
                 class="version"
                 class:seen={v.seen}
@@ -210,13 +210,13 @@
           <div class="compare">
             <select bind:value={from} aria-label={t('From version')}>
               <option value={-1}>{t('base')}</option>
-              {#each versions as v, i (v.headSha)}
+              {#each versions as v, i (`${v.baseSha}..${v.headSha}`)}
                 <option value={i} disabled={i >= to}>v{i + 1}{v.seen ? ' ✓' : ''}</option>
               {/each}
             </select>
             →
             <select bind:value={to} aria-label={t('To version')}>
-              {#each versions as v, i (v.headSha)}
+              {#each versions as v, i (`${v.baseSha}..${v.headSha}`)}
                 <option value={i} disabled={i <= from}>v{i + 1}{v.seen ? ' ✓' : ''}</option>
               {/each}
             </select>
