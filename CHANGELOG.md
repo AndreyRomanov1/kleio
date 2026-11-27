@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.32.0
+
+- **Review guide**: a JSON file in `<git common dir>/kleio/guides/<branch>.json` sorts the files of a diff
+  into categories with an importance of 1–10, as an agent sees them. The diff title shows the category of
+  the file; Files of the Change Set… groups the files by category, with the agent's note, can switch back to
+  the plain list and hide categories; `F7` goes in the same order. A guide for another revision of the
+  branch is used and marked as such. The format is in the README.
+
 ## 0.31.0
 
 - **Defer a file** while going through a diff: the flag in the diff title or `Ctrl+Alt+D` puts the file off

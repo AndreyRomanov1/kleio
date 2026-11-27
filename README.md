@@ -30,6 +30,9 @@ stays editable.
   disk, the right side _is_ that file. A file can be **deferred** with the flag in the diff title
   (`Ctrl+Alt+D`): after the last change of the set `F7` goes on through the deferred files, and the list of
   files shows them on top.
+- **Review guide**: an agent (or anyone) sorts the files of a diff into categories with an importance from 1
+  to 10 — "logic, look closely", "usings, nothing to see" — and the list of files groups them so, can hide
+  categories, and `F7` follows that order. See [Review guide](#review-guide).
 - **History and blame**: history of a file, of a folder or of selected lines with the diff beside it,
   blame annotations linked to the log, the main author above declarations.
 - **Compare branches** as lists of commits missing on either side, or as one diff.
@@ -150,6 +153,36 @@ user name and password of an HTTPS remote, the passphrase of an SSH key, whether
 asks in the editor, as the built-in Git does. To be asked once and not every time, keep the password in a
 credential helper (`git config --global credential.helper` — `manager`, `libsecret`, `osxkeychain`,
 `cache`) and the SSH key in `ssh-agent`. Every network command can be cancelled from its notification.
+
+## Review guide
+
+A guide is a JSON file in `<git common dir>/kleio/guides/<branch>.json` — outside the working tree and the
+commits, seen from every worktree of the repository (`git rev-parse --git-common-dir` prints the folder).
+Kleio takes the guide whose `head` is the newer revision of the diff; failing that, the guide of the branch
+under review, marked as made for another revision. A rewritten file is read again when the diff or the list
+of files is opened.
+
+```json
+{
+  "version": 1,
+  "base": "<base commit>",
+  "head": "<head commit, full or at least 7 characters>",
+  "summary": "One line on what the change does",
+  "categories": [
+    { "id": "logic", "title": "Logic", "description": "Behaviour changes", "importance": 9 },
+    { "id": "usings", "title": "Usings", "importance": 1 }
+  ],
+  "files": [
+    { "path": "src/Orders/Service.cs", "category": "logic", "importance": 10, "note": "new limit check" },
+    { "path": "src/Orders/Api.cs", "category": "usings" }
+  ]
+}
+```
+
+`importance` is 1–10; a file without one takes its category's. Paths are relative to the repository root, as
+`git diff --name-only` prints them. Files the guide does not mention go to _No category_ at the end. The
+diff title shows the category of the file; Files of the Change Set… groups by category (the button in its
+title switches back to the plain list) and the filter button hides categories from the list and from `F7`.
 
 ## Settings
 

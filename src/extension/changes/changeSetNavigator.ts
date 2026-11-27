@@ -8,6 +8,7 @@ import { emptyUri, revisionUri, workingFileUri } from '../content/revisionUri';
 import type { RepositoryManager } from '../git/repositoryManager';
 import { describeRange, shortRevision, type ChangeSet } from './changeSet';
 import { DeferredFiles } from './deferredFiles';
+import { categoryOrder, guideOrder, ReviewGuides, type FoundGuide, type GuidePlace } from './reviewGuide';
 import { t } from '../../shared/l10n';
 
 interface OpenedFile {
@@ -16,6 +17,7 @@ interface OpenedFile {
   left: vscode.Uri;
   right: vscode.Uri;
   hunks: Hunk[];
+  guide?: FoundGuide;
 }
 
 type Edge = 'first' | 'last';
@@ -41,6 +43,8 @@ const CONTEXT_KEY = 'kleio.inChangeSet';
 const DEFERRED_CONTEXT_KEY = 'kleio.fileDeferred';
 /** The change set and file shown last, to pick up the diff tab the editor restores after a reload. */
 const SHOWN_KEY = 'kleio.navigator.shown';
+/** The file list and F7 follow the categories of the review guide. */
+const BY_CATEGORY_KEY = 'kleio.navigator.byCategory';
 
 interface SavedChangeSet {
   root: string;
@@ -50,6 +54,7 @@ interface SavedChangeSet {
   files: FileChange[];
   rightUris?: [string, string][];
   reviewKey?: string;
+  branch?: string;
   index: number;
 }
 
@@ -70,6 +75,9 @@ export class ChangeSetNavigator implements vscode.Disposable {
   private readonly deferred: DeferredFiles;
   /** F7 went on from the end of the set to the deferred files: now it goes through them only. */
   private deferredPass = false;
+  private readonly guides = new ReviewGuides();
+  /** Categories left out of the file list and F7, by guide file. */
+  private readonly hidden = new Map<string, Set<string>>();
   private readonly opened = new vscode.EventEmitter<ChangeSetFile & { line: number }>();
   private waitingForTabs = false;
   /** True while a file is being opened: tabs come and go for a moment then. */
@@ -149,6 +157,7 @@ export class ChangeSetNavigator implements vscode.Disposable {
       right: saved.right,
       files: saved.files,
       reviewKey: saved.reviewKey,
+      branch: saved.branch,
       rightUris: saved.rightUris && new Map(saved.rightUris.map(([p, u]) => [p, vscode.Uri.parse(u)])),
     };
     const change = set.files[saved.index];
@@ -180,7 +189,8 @@ export class ChangeSetNavigator implements vscode.Disposable {
       return;
     }
     const hunks = await repository.hunks(set.left, set.right, change).catch(() => []);
-    this.current = { changeSet: set, index: saved.index, left, right, hunks };
+    const guide = await this.guides.find(set).catch(() => undefined);
+    this.current = { changeSet: set, index: saved.index, left, right, hunks, guide };
     this.markRename();
     this.updateContext();
   }
@@ -215,15 +225,18 @@ export class ChangeSetNavigator implements vscode.Disposable {
         : revisionUri(root, left, change.oldPath ?? change.path);
     const rightUri =
       change.status === 'D' ? emptyUri(root, change.path) : await this.rightSideUri(changeSet, change);
-    const hunks = await repository.hunks(left, right, change).catch(() => []);
+    const [hunks, guide] = await Promise.all([
+      repository.hunks(left, right, change).catch(() => []),
+      this.guides.find(changeSet).catch(() => undefined),
+    ]);
 
     const previous = this.replaceable(this.current, leftUri, rightUri);
-    this.current = { changeSet, index, left: leftUri, right: rightUri, hunks };
+    this.current = { changeSet, index, left: leftUri, right: rightUri, hunks, guide };
     this.clearEdgeHint();
     const target = edge === 'first' ? hunks[0] : hunks[hunks.length - 1];
     const line = show.line ?? (target ? hunkLine(target, 'right') : 0);
     const moved = change.oldPath && change.oldPath !== change.path ? t(' — moved') : '';
-    const title = `${path.basename(change.path)}${moved} (${changeSet.caption ?? describeRange(changeSet)}) — ${index + 1}/${changeSet.files.length}`;
+    const title = `${path.basename(change.path)}${moved} (${changeSet.caption ?? describeRange(changeSet)}) — ${index + 1}/${changeSet.files.length}${categoryLabel(guide, index)}`;
     const options: vscode.TextDocumentShowOptions = {
       preview: true,
       preserveFocus: show.preserveFocus,
@@ -259,6 +272,7 @@ export class ChangeSetNavigator implements vscode.Disposable {
       files: changeSet.files,
       rightUris: changeSet.rightUris && [...changeSet.rightUris].map(([p, u]) => [p, u.toString()]),
       reviewKey: changeSet.reviewKey,
+      branch: changeSet.branch,
       index,
     } satisfies SavedChangeSet);
   }
@@ -423,8 +437,9 @@ export class ChangeSetNavigator implements vscode.Disposable {
   }
 
   /**
-   * The file F7 goes on to. Past the end of the set it goes to the deferred files, and then only through them;
-   * on the way through the set deferred files are not skipped, as they are deferred while being looked at.
+   * The file F7 goes on to, in the order of the file list. Past the end of the set it goes to the deferred files,
+   * and then only through them; on the way through the set deferred files are not skipped, as they are deferred
+   * while being looked at.
    */
   private neighbour(direction: 1 | -1): { index: number; deferred: boolean } | undefined {
     const current = this.current;
@@ -436,7 +451,10 @@ export class ChangeSetNavigator implements vscode.Disposable {
         direction === 1 ? deferred.find((i) => i > index) : [...deferred].reverse().find((i) => i < index);
       return next === undefined ? undefined : { index: next, deferred: true };
     }
-    if (changeSet.files[index + direction]) return { index: index + direction, deferred: false };
+    const order = this.order(current);
+    const at = order.indexOf(index);
+    const next = at === -1 ? (direction === 1 ? order[0] : undefined) : order[at + direction];
+    if (next !== undefined) return { index: next, deferred: false };
     const first = direction === 1 ? deferred.find((i) => i !== index) : undefined;
     return first === undefined ? undefined : { index: first, deferred: true };
   }
@@ -526,44 +544,142 @@ export class ChangeSetNavigator implements vscode.Disposable {
     );
   }
 
-  /** The files numbered as in the title of the diff, opened at the current one. */
+  /** The files numbered as in the title of the diff, opened at the current one; by category when there is a guide. */
   private async selectFile(): Promise<void> {
     const current = this.current;
     if (!current) return;
-    const deferred = this.deferred.indexes(current.changeSet);
-    const items: (vscode.QuickPickItem & { index?: number })[] = current.changeSet.files.map(
-      (file, index) => {
-        const dir = path.dirname(file.path) === '.' ? '' : path.dirname(file.path);
-        return {
-          label: `${deferred.includes(index) ? '$(flag) ' : ''}${index + 1}. ${path.basename(file.path)}`,
-          description: [file.status, file.oldPath ? `${dir}  ← ${file.oldPath}` : dir]
-            .filter(Boolean)
-            .join('  '),
-          index,
-        };
-      },
-    );
-    const pick = vscode.window.createQuickPick<(typeof items)[number]>();
-    pick.title = `${current.changeSet.title}: ${describeRange(current.changeSet)} — ${current.index + 1}/${items.length}${deferred.length ? `, ${t('deferred: {0}', deferred.length)}` : ''}`;
-    pick.placeholder = t('File of the change set: name, folder or number');
-    pick.matchOnDescription = true;
-    const separator = (label: string) => ({ label, kind: vscode.QuickPickItemKind.Separator });
-    pick.items = deferred.length
-      ? [
-          separator(t('Deferred')),
-          ...deferred.map((index) => ({ ...items[index] })),
-          separator(t('All files')),
-          ...items,
+    const { changeSet, guide } = current;
+    const places = guide && 'places' in guide ? guide.places : undefined;
+    const deferred = this.deferred.indexes(changeSet);
+    type Item = vscode.QuickPickItem & { index?: number };
+    const itemOf = (index: number, byCategory: boolean): Item => {
+      const file = changeSet.files[index];
+      const dir = path.dirname(file.path) === '.' ? '' : path.dirname(file.path);
+      const place = byCategory ? places?.[index] : undefined;
+      return {
+        label: `${deferred.includes(index) ? '$(flag) ' : ''}${index + 1}. ${path.basename(file.path)}`,
+        description: [
+          place?.importance ? `[${place.importance}]` : '',
+          file.status,
+          file.oldPath ? `${dir}  ← ${file.oldPath}` : dir,
         ]
-      : items;
-    pick.activeItems = [items[current.index]];
-    const picked = await new Promise<(typeof items)[number] | undefined>((resolve) => {
+          .filter(Boolean)
+          .join('  '),
+        detail: place?.note,
+        index,
+      };
+    };
+    const separator = (label: string): Item => ({ label, kind: vscode.QuickPickItemKind.Separator });
+    const toggle: vscode.QuickInputButton = {
+      iconPath: new vscode.ThemeIcon('list-tree'),
+      tooltip: t('Group by the categories of the review guide'),
+    };
+    const plain: vscode.QuickInputButton = {
+      iconPath: new vscode.ThemeIcon('list-flat'),
+      tooltip: t('Plain list'),
+    };
+    const filter: vscode.QuickInputButton = {
+      iconPath: new vscode.ThemeIcon('filter'),
+      tooltip: t('Categories to show…'),
+    };
+
+    const pick = vscode.window.createQuickPick<Item>();
+    pick.matchOnDescription = true;
+    pick.matchOnDetail = true;
+    const fill = (): void => {
+      const byCategory = !!places && this.byCategory;
+      const hidden = guide ? this.hiddenOf(guide.file) : new Set<string>();
+      const items: Item[] = deferred.length
+        ? [separator(t('Deferred')), ...deferred.map((index) => itemOf(index, byCategory))]
+        : [];
+      if (byCategory) {
+        const order = guideOrder(places, hidden);
+        for (const category of categoryOrder(places).filter((c) => !hidden.has(c.id))) {
+          const count = order.filter((i) => places[i].category.id === category.id).length;
+          items.push(
+            separator(
+              `${category.title}${category.importance ? ` · ${category.importance}` : ''} (${count})`,
+            ),
+            ...order.filter((i) => places[i].category.id === category.id).map((i) => itemOf(i, true)),
+          );
+        }
+      } else {
+        if (deferred.length) items.push(separator(t('All files')));
+        items.push(...changeSet.files.map((_, index) => itemOf(index, false)));
+      }
+      pick.items = items;
+      pick.activeItems = [[...items].reverse().find((i) => i.index === current.index) ?? items[0]];
+      pick.buttons = places ? (byCategory ? [filter, plain] : [toggle]) : [];
+      pick.title = [
+        `${changeSet.title}: ${describeRange(changeSet)} — ${current.index + 1}/${changeSet.files.length}`,
+        deferred.length ? t('deferred: {0}', deferred.length) : '',
+        byCategory && hidden.size ? t('categories hidden: {0}', hidden.size) : '',
+        guideState(guide),
+      ]
+        .filter(Boolean)
+        .join(', ');
+      pick.placeholder =
+        (byCategory && guide && 'guide' in guide && guide.guide.summary) ||
+        t('File of the change set: name, folder or number');
+    };
+    fill();
+    const picked = await new Promise<Item | undefined>((resolve) => {
+      pick.onDidTriggerButton(async (button) => {
+        if (button === filter && places && guide) {
+          pick.hide();
+          await this.chooseCategories(guide.file, places);
+          resolve(undefined);
+          void this.selectFile();
+          return;
+        }
+        await this.state?.update(BY_CATEGORY_KEY, button === toggle);
+        fill();
+      });
       pick.onDidAccept(() => resolve(pick.selectedItems[0]));
       pick.onDidHide(() => resolve(undefined));
       pick.show();
     });
     pick.dispose();
-    if (picked?.index !== undefined) await this.open(current.changeSet, picked.index);
+    if (picked?.index !== undefined) await this.open(changeSet, picked.index);
+  }
+
+  private async chooseCategories(file: string, places: readonly GuidePlace[]): Promise<void> {
+    const hidden = this.hiddenOf(file);
+    const items = categoryOrder(places).map((category) => ({
+      label: category.title,
+      description: [
+        category.importance ? `[${category.importance}]` : '',
+        t('files: {0}', places.filter((p) => p.category.id === category.id).length),
+      ]
+        .filter(Boolean)
+        .join('  '),
+      detail: category.description,
+      picked: !hidden.has(category.id),
+      id: category.id,
+    }));
+    const chosen = await vscode.window.showQuickPick(items, {
+      canPickMany: true,
+      title: t('Categories to show in the file list and to go through with F7'),
+      matchOnDetail: true,
+    });
+    if (!chosen) return;
+    const shown = new Set(chosen.map((c) => c.id));
+    this.hidden.set(file, new Set(items.filter((c) => !shown.has(c.id)).map((c) => c.id)));
+  }
+
+  private get byCategory(): boolean {
+    return this.state?.get<boolean>(BY_CATEGORY_KEY, true) ?? true;
+  }
+
+  private hiddenOf(file: string): Set<string> {
+    return this.hidden.get(file) ?? new Set();
+  }
+
+  /** The files of the set in the order F7 goes through them. */
+  private order(file: OpenedFile): number[] {
+    const { guide } = file;
+    if (!this.byCategory || !guide || !('places' in guide)) return file.changeSet.files.map((_, i) => i);
+    return guideOrder(guide.places, this.hiddenOf(guide.file));
   }
 
   private async openCurrentFromDiff(): Promise<void> {
@@ -598,6 +714,19 @@ export class ChangeSetNavigator implements vscode.Disposable {
     clearTimeout(this.hintTimer);
     for (const d of this.disposables) d.dispose();
   }
+}
+
+/** The category of the file for the title of the diff. */
+function categoryLabel(guide: FoundGuide | undefined, index: number): string {
+  if (!guide || !('places' in guide)) return '';
+  const place = guide.places[index];
+  return place.category.importance ? ` · ${place.category.title}` : '';
+}
+
+function guideState(guide: FoundGuide | undefined): string {
+  if (!guide) return '';
+  if ('error' in guide) return t('the review guide cannot be read: {0}', guide.error);
+  return guide.stale ? t('the review guide is made for {0}', shortRevision(guide.guide.head)) : '';
 }
 
 function hunkLine(hunk: Hunk, side: 'left' | 'right'): number {

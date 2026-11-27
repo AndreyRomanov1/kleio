@@ -788,5 +788,22 @@
   "Branch to review": "Ветка для ревью",
   "Review {0} commits locally": "Ревью {0} коммитов локально",
   "Review locally": "Ревью локально",
-  "Review the branch locally": "Ревью ветки локально"
+  "Review the branch locally": "Ревью ветки локально",
+  "Group by the categories of the review guide": "Сгруппировать по категориям разметки",
+  "Plain list": "Простой список",
+  "Categories to show…": "Какие категории показывать…",
+  "categories hidden: {0}": "скрыто категорий: {0}",
+  "files: {0}": "файлов: {0}",
+  "Categories to show in the file list and to go through with F7": "Категории в списке файлов и при переходе по F7",
+  "the review guide cannot be read: {0}": "разметка не читается: {0}",
+  "the review guide is made for {0}": "разметка сделана для {0}, устарела",
+  "not JSON: {0}": "не JSON: {0}",
+  "not a JSON object": "не JSON-объект",
+  "format version {0} is expected": "ожидается версия формата {0}",
+  "\"head\" is missing": "нет \"head\"",
+  "\"categories\" is not a list": "\"categories\" не список",
+  "\"files\" is not a list": "\"files\" не список",
+  "a category without \"id\"": "категория без \"id\"",
+  "a file without \"path\" or \"category\"": "файл без \"path\" или \"category\"",
+  "No category": "Без категории"
 }

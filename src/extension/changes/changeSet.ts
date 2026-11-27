@@ -18,6 +18,8 @@ export interface ChangeSet {
   caption?: string;
   /** The merge request the set belongs to, whatever its versions, e.g. `gitlab.com/group/project!12`. */
   reviewKey?: string;
+  /** The branch under review, whose review guide is taken when none is made for {@link right}. */
+  branch?: string;
 }
 
 export function shortRevision(revision: string | undefined): string {
