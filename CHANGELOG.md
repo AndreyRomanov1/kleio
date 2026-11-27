@@ -13,6 +13,9 @@
   its first file not viewed yet.
 - After Restart Extension Host a log tab the editor kept but did not hand over is replaced by a working one,
   and comments can be added again in the diff of the restored review.
+- Go Back after opening the file of a diff (`F4`) and going on from it returns to that file, not to the diff.
+- The diff title bar has Open File (`F4`) again instead of the previous/next change arrows, which stay on
+  `F7` / `Shift+F7`; both review comment arrows fit.
 
 ## 0.31.0
 

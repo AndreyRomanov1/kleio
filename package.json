@@ -495,24 +495,9 @@
           "group": "navigation@-17.5"
         },
         {
-          "command": "kleio.diff.previousChange",
-          "when": "kleio.inChangeSet",
-          "group": "navigation@-17"
-        },
-        {
-          "command": "kleio.diff.nextChange",
-          "when": "kleio.inChangeSet",
-          "group": "navigation@-16"
-        },
-        {
           "command": "kleio.diff.openCurrent",
-          "when": "kleio.inChangeSet && !kleio.reviewActive",
+          "when": "kleio.inChangeSet",
           "group": "navigation@-15"
-        },
-        {
-          "command": "kleio.diff.openCurrent",
-          "when": "kleio.inChangeSet && kleio.reviewActive",
-          "group": "1_kleio_review@1"
         },
         {
           "command": "kleio.review.publishDrafts",
