@@ -428,6 +428,7 @@ export class LogController implements vscode.Disposable {
   private async loadCard(number: number): Promise<void> {
     const version = ++this.cardLoadVersion;
     const repository = this.repository;
+    const started = Date.now();
     const result = await cardRequest(async () => {
       if (!repository) throw new Error(t('No repository is selected.'));
       const result = await this.services.cards.card(repository, number);
@@ -437,7 +438,18 @@ export class LogController implements vscode.Disposable {
       }
       return result;
     });
-    if (version !== this.cardLoadVersion || repository !== this.repository) return;
+    const outcome =
+      'card' in result ? 'card' : 'needsAuth' in result ? 'needs auth' : `error: ${result.error}`;
+    const dropped =
+      version !== this.cardLoadVersion
+        ? ', dropped: a newer card is loading'
+        : repository !== this.repository
+          ? ', dropped: the log shows another repository'
+          : '';
+    this.services.log.info(
+      `log view #${this.id}: card !${number} in ${Date.now() - started} ms, ${outcome}${dropped}`,
+    );
+    if (dropped) return;
     this.post({ type: 'mergeRequestCard', number, ...result });
   }
 
