@@ -44,7 +44,8 @@ export class NavigationHistory implements vscode.Disposable {
 
   private placeOf(editor: vscode.TextEditor, line: number): Place | undefined {
     const uri = editor.document.uri;
-    const file = this.navigator.fileOf(uri);
+    // A revision equal to the file on disk is shown as that file: the file opened by itself is not the diff.
+    const file = inDiff(editor) ? this.navigator.fileOf(uri) : undefined;
     if (file) return { kind: 'diff', ...file, line };
     return SCHEMES.has(uri.scheme) ? { kind: 'file', uri, line } : undefined;
   }
@@ -113,4 +114,17 @@ function same(a: Place, b: Place): boolean {
   if (a.kind === 'file' && b.kind === 'file') return a.uri.toString() === b.uri.toString();
   if (a.kind === 'diff' && b.kind === 'diff') return a.changeSet === b.changeSet && a.index === b.index;
   return false;
+}
+
+/** Whether the editor is a side of a diff shown in its group, not the same document open by itself. */
+function inDiff(editor: vscode.TextEditor): boolean {
+  const uri = editor.document.uri.toString();
+  return vscode.window.tabGroups.all.some((group) => {
+    const input = group.activeTab?.input;
+    return (
+      input instanceof vscode.TabInputTextDiff &&
+      (input.modified.toString() === uri || input.original.toString() === uri) &&
+      (editor.viewColumn === undefined || editor.viewColumn === group.viewColumn)
+    );
+  });
 }

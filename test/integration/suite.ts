@@ -52,7 +52,7 @@ const tests: Test[] = [
     },
   ],
   [
-    'goes back and forward through review diffs, jumps and F7 inside them and files in one history',
+    'goes back and forward through review diffs, jumps and F7 inside them, files opened from them and other files in one history',
     async (api) => {
       const at = () => {
         const editor = vscode.window.activeTextEditor;
@@ -82,6 +82,14 @@ const tests: Test[] = [
       }
       const reviewEnd = at();
       await wait(450);
+      // The file opened from the diff is the same document as the right side, but a place of its own.
+      await vscode.commands.executeCommand('kleio.diff.openCurrent');
+      await waitFor(
+        () => (!activeDiff() && at().startsWith('c.txt')) || undefined,
+        'c.txt opened from its diff',
+      );
+      const opened = at();
+      await wait(450);
       const editor = await vscode.window.showTextDocument(vscode.Uri.file(path.join(root(), 'a.txt')), {
         preview: false,
       });
@@ -93,6 +101,7 @@ const tests: Test[] = [
 
       await step('kleio.navigate.back', 'a.txt@30');
       await step('kleio.navigate.back', 'a.txt@0');
+      await step('kleio.navigate.back', opened);
       await step('kleio.navigate.back', reviewEnd);
       await vscode.commands.executeCommand('kleio.navigate.back');
       await waitFor(() => at().startsWith('diff b.txt') || undefined, 'back in b.txt');
@@ -110,6 +119,7 @@ const tests: Test[] = [
       await waitFor(() => at().startsWith('diff b.txt') || undefined, 'forward to b.txt');
       await wait(450);
       await step('kleio.navigate.forward', reviewEnd);
+      await step('kleio.navigate.forward', opened);
       await step('kleio.navigate.forward', 'a.txt@0');
       await step('kleio.navigate.forward', 'a.txt@30');
       await step('kleio.navigate.forward', 'a.txt@5');
